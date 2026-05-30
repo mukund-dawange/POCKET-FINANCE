@@ -955,6 +955,9 @@
                         <div style="font-size:12px; color:var(--text-muted); font-weight:600; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Agent ID</div>
                         <div id="agentWalletId" style="font-size:14px; font-weight:600; color:var(--text-muted); font-family:monospace;">—</div>
                     </div>
+                    <button class="btn btn-secondary" style="padding:8px 14px; font-size:12px;" onclick="manualAgentRefresh()" title="Refresh fund from server">
+                        <i class="fa-solid fa-rotate"></i> Refresh
+                    </button>
                     <button class="sos-btn" onclick="openSOSModal()">
                         <i class="fa-solid fa-circle-exclamation"></i> Raise SOS Token
                     </button>
@@ -1800,6 +1803,10 @@
 
                 updateDevDbStatus(true);
                 refreshSystemEngine();
+                // Fix: always refresh agent wallet bar after data load so fund reflects immediately
+                refreshAgentWalletBar();
+                // Fix: update admin notification badge from loaded SOS tokens
+                updateSOSNotificationBadge();
                 triggerToast('✅ Data loaded from Google Drive', 'success');
             } catch (err) {
                 console.error('[PF] Drive load error:', err);
@@ -1907,6 +1914,7 @@
                 await loadDriveData();
                 refreshSystemEngine();
                 refreshAgentWalletBar();    // identify agent profile by email
+                startLiveSync();            // begin 30s polling so fund & SOS stay live
             } catch (err) {
                 btn.style.display     = 'flex';
                 loading.style.display = 'none';
@@ -1970,6 +1978,9 @@
                 bypassToDashboard(displayName);
                 const label = role === 'dev' ? 'Developer' : role === 'admin' ? 'Admin' : 'User';
                 triggerToast(`Welcome, ${label}!`, 'success');
+                // Load Drive data for credential sessions too (if token exists)
+                if (driveAccessToken) { loadDriveData().then(() => startLiveSync()); }
+                else { startLiveSync(); }
             } else {
                 state.wrongAttempts++;
                 if (state.wrongAttempts >= 3) {
@@ -2006,6 +2017,7 @@
             localStorage.removeItem('pf_cred_role');
             localStorage.removeItem('pf_cred_name');
             localStorage.removeItem('sens_session_remember');
+            if (liveSyncInterval) { clearInterval(liveSyncInterval); liveSyncInterval = null; }
             credentialSession    = false;
             currentGoogleUser    = null;
             currentRole          = 'user';
@@ -2321,9 +2333,14 @@
         // ============================================================
         function updateNotificationBadge() {
             const badge = document.getElementById('notifBadge');
-            if (unreadNotifications > 0) {
+            // For admin/dev: badge also reflects pending SOS token count
+            const pendingSOS = (currentRole === 'admin' || currentRole === 'dev')
+                ? sosTokens.filter(t => t.status === 'Pending').length
+                : 0;
+            const total = unreadNotifications + pendingSOS;
+            if (total > 0) {
                 badge.style.display = 'flex';
-                badge.innerText = unreadNotifications > 9 ? '9+' : unreadNotifications;
+                badge.innerText = total > 9 ? '9+' : total;
             } else {
                 badge.style.display = 'none';
             }
@@ -2703,6 +2720,58 @@
         }
 
         // ============================================================
+        // LIVE SYNC POLLING — keeps agent fund & admin SOS badge in sync
+        // across sessions via Drive. Runs every 30s after login.
+        // ============================================================
+        let liveSyncInterval = null;
+
+        function startLiveSync() {
+            if (liveSyncInterval) clearInterval(liveSyncInterval);
+            liveSyncInterval = setInterval(async () => {
+                if (!driveAccessToken) return;
+                try {
+                    // Always reload agents so fund changes from admin reflect in agent panel
+                    const agents = await driveReadJSON(DRIVE_FILES.agents).catch(() => null);
+                    if (Array.isArray(agents)) agentState = agents;
+
+                    // Always reload SOS tokens so admin badge and agent history stay fresh
+                    const sos = await driveReadJSON(DRIVE_FILES.sosTokens).catch(() => null);
+                    if (Array.isArray(sos)) sosTokens = sos;
+
+                    // Refresh agent panel fund display
+                    if (currentRole === 'agent') {
+                        refreshAgentWalletBar();
+                    }
+
+                    // Refresh admin SOS badge + panel if admin is on that tab
+                    if (currentRole === 'admin' || currentRole === 'dev') {
+                        updateSOSNotificationBadge();
+                        renderAdminSOSPanel();
+                        renderAgents();
+                    }
+                } catch(e) {
+                    // silent fail — network hiccup
+                }
+            }, 30000); // every 30 seconds
+        }
+
+        // Compute pending SOS count and update notification bell badge
+        function updateSOSNotificationBadge() {
+            const pending = sosTokens.filter(t => t.status === 'Pending').length;
+            const badge = document.getElementById('notifBadge');
+            if (!badge) return;
+            if (pending > 0) {
+                badge.style.display = 'flex';
+                badge.innerText = pending;
+                // also keep unreadNotifications in sync
+                unreadNotifications = Math.max(unreadNotifications, pending);
+            } else {
+                // only hide if user hasn't unread non-SOS notifications
+                if (unreadNotifications <= 0) badge.style.display = 'none';
+            }
+        }
+
+        // ============================================================
         // SOS TOKEN SYSTEM
         // ============================================================
         let sosTokens = [];   // { id, agentId, agentName, amount, reason, urgency, raisedAt, status, disbursement:{amount,period,dueDate,notes,source,disbursedAt} }
@@ -2758,9 +2827,10 @@
             sosTokens.unshift(token);
             syncSOSTokensDB();
 
-            // Bump admin notification badge
+            // Update admin notification badge (reflects in same session; polling handles cross-session)
             unreadNotifications++;
             updateNotificationBadge();
+            updateSOSNotificationBadge();
 
             closeModal('sosModal');
             triggerToast('SOS Token raised! Admin will review.', 'success');
@@ -2924,6 +2994,20 @@
         // ============================================================
         // AGENT WALLET BAR — shown only for Google-logged-in agents
         // ============================================================
+        async function manualAgentRefresh() {
+            if (!driveAccessToken) return triggerToast('Not connected to Drive.', 'danger');
+            try {
+                const agents = await driveReadJSON(DRIVE_FILES.agents).catch(() => null);
+                if (Array.isArray(agents)) agentState = agents;
+                const sos = await driveReadJSON(DRIVE_FILES.sosTokens).catch(() => null);
+                if (Array.isArray(sos)) sosTokens = sos;
+                refreshAgentWalletBar();
+                triggerToast('Fund balance refreshed!', 'success');
+            } catch(e) {
+                triggerToast('Refresh failed. Try again.', 'danger');
+            }
+        }
+
         function refreshAgentWalletBar() {
             const bar = document.getElementById('agentWalletBar');
             if (!bar) return;
