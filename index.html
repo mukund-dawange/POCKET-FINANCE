@@ -992,14 +992,53 @@
             </div>
 
             <div id="agentWalletBar" style="display:none; margin-bottom:28px;">
-                <div class="agent-wallet-info">
-                    <div style="flex:1; min-width:180px;">
-                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Your Allocated Funds</div>
-                        <div id="agentWalletAmt" style="font-size:28px; font-weight:800; color:var(--primary);">₹0</div>
+                <!-- AGENT DASHBOARD STATS -->
+                <div id="agentDashStats" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:20px;">
+                    <div style="background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:14px; padding:20px 22px; position:relative; overflow:hidden; box-shadow:var(--shadow);">
+                        <div style="position:absolute; top:0; left:0; width:4px; height:100%; background:var(--primary);"></div>
+                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;"><i class="fa-solid fa-wallet" style="margin-right:5px;"></i>Allocated Funds</div>
+                        <div id="agentWalletAmt" style="font-size:26px; font-weight:800; color:var(--primary);">₹0</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Total funds given by admin</div>
                     </div>
-                    <div style="flex:1; min-width:180px;">
-                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Agent ID</div>
-                        <div id="agentWalletId" style="font-size:14px; font-weight:600; color:var(--text-muted); font-family:monospace;">—</div>
+                    <div style="background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:14px; padding:20px 22px; position:relative; overflow:hidden; box-shadow:var(--shadow);">
+                        <div style="position:absolute; top:0; left:0; width:4px; height:100%; background:var(--danger);"></div>
+                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;"><i class="fa-solid fa-arrow-up-from-bracket" style="margin-right:5px;"></i>Amount Spent / Lent</div>
+                        <div id="agentSpentAmt" style="font-size:26px; font-weight:800; color:var(--danger);">₹0</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Active loans issued</div>
+                    </div>
+                    <div style="background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:14px; padding:20px 22px; position:relative; overflow:hidden; box-shadow:var(--shadow);">
+                        <div style="position:absolute; top:0; left:0; width:4px; height:100%; background:var(--success);"></div>
+                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;"><i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>Balance Available</div>
+                        <div id="agentBalanceAmt" style="font-size:26px; font-weight:800; color:var(--success);">₹0</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Undeployed funds remaining</div>
+                    </div>
+                    <div style="background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:14px; padding:20px 22px; position:relative; overflow:hidden; box-shadow:var(--shadow);">
+                        <div style="position:absolute; top:0; left:0; width:4px; height:100%; background:#8b5cf6;"></div>
+                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;"><i class="fa-solid fa-users" style="margin-right:5px;"></i>Active Clients</div>
+                        <div id="agentClientCount" style="font-size:26px; font-weight:800; color:#8b5cf6;">0</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Pending approval tokens</div>
+                    </div>
+                </div>
+
+                <!-- FUND UTILISATION BAR -->
+                <div id="agentFundBar" style="background:var(--panel-bg); border:1px solid var(--panel-border); border-radius:12px; padding:16px 20px; margin-bottom:20px; display:none;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Fund Utilisation</span>
+                        <span id="agentFundPct" style="font-size:13px; font-weight:800; color:var(--primary);">0%</span>
+                    </div>
+                    <div style="height:8px; background:var(--panel-border); border-radius:20px; overflow:hidden;">
+                        <div id="agentFundBarFill" style="height:100%; width:0%; border-radius:20px; background:var(--primary); transition:width 0.5s ease;"></div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-top:6px;">
+                        <span style="font-size:11px; color:var(--text-muted);">₹<span id="agentFundBarSpent">0</span> deployed</span>
+                        <span style="font-size:11px; color:var(--text-muted);">₹<span id="agentFundBarTotal">0</span> total</span>
+                    </div>
+                </div>
+
+                <!-- ACTION BUTTONS ROW -->
+                <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; align-items:center;">
+                    <div style="font-size:12px; color:var(--text-muted); font-family:monospace; background:var(--input-bg); padding:6px 12px; border-radius:8px; border:1px solid var(--panel-border);">
+                        ID: <span id="agentWalletId" style="color:var(--primary); font-weight:600;">—</span>
                     </div>
                     <button class="btn btn-secondary" style="padding:8px 14px; font-size:12px;" onclick="manualAgentRefresh()" title="Refresh fund from server">
                         <i class="fa-solid fa-rotate"></i> Refresh
@@ -1654,6 +1693,19 @@
                 <div>
                     <h2 style="font-size:18px; font-weight:700; margin-bottom:2px;">New Client Token</h2>
                     <p style="color:var(--text-muted); font-size:12px;">Submit client details to admin for approval</p>
+                </div>
+            </div>
+
+            <!-- LOAN AMOUNT HIGHLIGHT BOX -->
+            <div style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(59,130,246,0.08)); border:1.5px solid rgba(139,92,246,0.3); border-radius:12px; padding:16px 18px; margin-bottom:16px; display:flex; align-items:center; gap:14px;">
+                <div style="background:rgba(139,92,246,0.15); width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                    <i class="fa-solid fa-indian-rupee-sign" style="color:#8b5cf6; font-size:17px;"></i>
+                </div>
+                <div style="flex:1;">
+                    <label style="font-size:12px; font-weight:700; color:#8b5cf6; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">Loan Amount (₹) <span style="color:var(--danger);">*</span></label>
+                    <input type="number" id="ctLoanAmount" placeholder="Enter loan amount to be issued..." min="1"
+                        style="width:100%; padding:10px 14px; background:var(--input-bg); border:1px solid rgba(139,92,246,0.4); border-radius:8px; color:var(--text-main); font-size:15px; font-weight:700; outline:none;"
+                        onfocus="this.style.borderColor='#8b5cf6'" onblur="this.style.borderColor='rgba(139,92,246,0.4)'">
                 </div>
             </div>
 
@@ -4004,14 +4056,54 @@ function jsonResp(obj) {
                 // Hide the DB connect banner if profile found
                 const dbBanner = document.getElementById('agentDbBanner');
                 if (dbBanner) dbBanner.style.display = 'none';
-                document.getElementById('agentWalletAmt').innerText = '₹' + (agent.fund || 0).toLocaleString('en-IN');
-                document.getElementById('agentWalletId').innerText  = agent.id;
+
+                // Compute spend = sum of active loans attributed to this agent
+                const myLoans    = state.loans.filter(l => l.agentId === agent.id && l.status === 'Active');
+                const totalSpent = myLoans.reduce((s, l) => s + (l.amount || 0), 0);
+                const allocated  = agent.fund || 0;
+                const balance    = Math.max(0, allocated - totalSpent);
+                const pct        = allocated > 0 ? Math.min(100, Math.round((totalSpent / allocated) * 100)) : 0;
+                const pctColor   = pct >= 90 ? 'var(--danger)' : pct >= 60 ? 'var(--warning)' : 'var(--success)';
+
+                // Pending client tokens for this agent
+                const myEmail       = (currentGoogleUser.email || '').trim().toLowerCase();
+                const pendingClients = clientTokens.filter(c => (c.agentEmail || '').toLowerCase() === myEmail && c.status === 'Pending').length;
+
+                document.getElementById('agentWalletAmt').innerText  = '₹' + allocated.toLocaleString('en-IN');
+                document.getElementById('agentSpentAmt').innerText   = '₹' + totalSpent.toLocaleString('en-IN');
+                document.getElementById('agentBalanceAmt').innerText = '₹' + balance.toLocaleString('en-IN');
+                document.getElementById('agentClientCount').innerText = pendingClients;
+                document.getElementById('agentWalletId').innerText   = agent.id;
+
+                // Colour the balance card green/warning/red based on remaining %
+                const balanceCard = document.getElementById('agentBalanceAmt');
+                balanceCard.style.color = pct >= 90 ? 'var(--danger)' : pct >= 60 ? 'var(--warning)' : 'var(--success)';
+
+                // Fund utilisation bar
+                const fundBar = document.getElementById('agentFundBar');
+                if (fundBar && allocated > 0) {
+                    fundBar.style.display = 'block';
+                    const fill = document.getElementById('agentFundBarFill');
+                    if (fill) { fill.style.width = pct + '%'; fill.style.background = pctColor; }
+                    const pctEl = document.getElementById('agentFundPct');
+                    if (pctEl) { pctEl.innerText = pct + '%'; pctEl.style.color = pctColor; }
+                    const spentEl = document.getElementById('agentFundBarSpent');
+                    const totEl   = document.getElementById('agentFundBarTotal');
+                    if (spentEl) spentEl.innerText = totalSpent.toLocaleString('en-IN');
+                    if (totEl)   totEl.innerText   = allocated.toLocaleString('en-IN');
+                }
+
                 renderAgentTokenHistory();
                 renderAgentClientList();
             } else {
                 const loginEmail = (currentGoogleUser.email || '').trim().toLowerCase();
                 bar.style.display = 'block';
-                document.getElementById('agentWalletAmt').innerText = '₹0';
+                document.getElementById('agentWalletAmt').innerText  = '₹0';
+                document.getElementById('agentSpentAmt').innerText   = '₹0';
+                document.getElementById('agentBalanceAmt').innerText = '₹0';
+                document.getElementById('agentClientCount').innerText = '0';
+                const fundBar = document.getElementById('agentFundBar');
+                if (fundBar) fundBar.style.display = 'none';
 
                 const dbBanner = document.getElementById('agentDbBanner');
                 if (!hasSharedDB()) {
@@ -4235,7 +4327,7 @@ function jsonResp(obj) {
             if (!agent) return triggerToast('Your profile is not registered yet. Contact admin.', 'danger');
 
             // Reset form
-            ['ctClientName','ctPhone','ctEmail','ctAge','ctAccountNo','ctIfscCode','ctUpiId'].forEach(id => {
+            ['ctClientName','ctPhone','ctEmail','ctAge','ctAccountNo','ctIfscCode','ctUpiId','ctLoanAmount'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
@@ -4262,14 +4354,16 @@ function jsonResp(obj) {
         }
 
         function submitClientToken() {
-            const name      = (document.getElementById('ctClientName').value || '').trim();
-            const phone     = (document.getElementById('ctPhone').value || '').trim();
-            const email     = (document.getElementById('ctEmail').value || '').trim().toLowerCase();
-            const age       = parseInt(document.getElementById('ctAge').value);
-            const accountNo = (document.getElementById('ctAccountNo').value || '').trim();
-            const ifsc      = (document.getElementById('ctIfscCode').value || '').trim().toUpperCase();
-            const upi       = (document.getElementById('ctUpiId').value || '').trim();
+            const name       = (document.getElementById('ctClientName').value || '').trim();
+            const phone      = (document.getElementById('ctPhone').value || '').trim();
+            const email      = (document.getElementById('ctEmail').value || '').trim().toLowerCase();
+            const age        = parseInt(document.getElementById('ctAge').value);
+            const accountNo  = (document.getElementById('ctAccountNo').value || '').trim();
+            const ifsc       = (document.getElementById('ctIfscCode').value || '').trim().toUpperCase();
+            const upi        = (document.getElementById('ctUpiId').value || '').trim();
+            const loanAmount = parseFloat(document.getElementById('ctLoanAmount').value);
 
+            if (isNaN(loanAmount) || loanAmount <= 0) return triggerToast('Please enter a valid loan amount!', 'danger');
             if (!name)                           return triggerToast('Client name is required!', 'danger');
             if (!phone || phone.length !== 10 || isNaN(phone)) return triggerToast('Enter a valid 10-digit phone number!', 'danger');
             if (!email || !email.includes('@'))  return triggerToast('Enter a valid email address!', 'danger');
@@ -4286,6 +4380,7 @@ function jsonResp(obj) {
                 agentName:   agent.name,
                 agentEmail:  (currentGoogleUser.email || '').trim().toLowerCase(),
                 clientName:  name,
+                loanAmount,
                 phone, email, age, accountNo, ifsc, upi,
                 photoBase64: ctPhotoBase64,
                 createdAt:   new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
@@ -4322,6 +4417,7 @@ function jsonResp(obj) {
                             <strong style="font-size:14px; color:var(--text-main);">${c.clientName}</strong>
                             <span class="ct-badge ${c.status.toLowerCase()}">${c.status}</span>
                         </div>
+                        ${c.loanAmount ? `<div style="font-size:13px; font-weight:700; color:#8b5cf6; margin-bottom:4px;"><i class="fa-solid fa-indian-rupee-sign" style="font-size:11px;"></i> ${Number(c.loanAmount).toLocaleString('en-IN')} Loan</div>` : ''}
                         <div style="font-size:12px; color:var(--text-muted); margin-bottom:2px;"><i class="fa-solid fa-phone" style="font-size:10px;"></i> ${c.phone} &nbsp;|&nbsp; Age: ${c.age}</div>
                         <div style="font-size:12px; color:var(--text-muted); margin-bottom:2px;"><i class="fa-solid fa-envelope" style="font-size:10px;"></i> ${c.email}</div>
                         <div style="font-size:11px; color:var(--text-muted);">Account: ${c.accountNo} &nbsp;|&nbsp; IFSC: ${c.ifsc}</div>
@@ -4354,6 +4450,7 @@ function jsonResp(obj) {
                             <strong style="font-size:14px; color:var(--text-main); cursor:pointer;" onclick="viewClientDetail('${c.id}')">${c.clientName}</strong>
                             <span class="ct-badge ${c.status.toLowerCase()}">${c.status}</span>
                             <span style="font-size:11px; color:var(--text-muted);">by ${c.agentName}</span>
+                            ${c.loanAmount ? `<span style="font-size:12px; font-weight:700; color:#8b5cf6; background:rgba(139,92,246,0.1); padding:2px 8px; border-radius:20px;">₹${Number(c.loanAmount).toLocaleString('en-IN')}</span>` : ''}
                         </div>
                         <div style="font-size:12px; color:var(--text-muted); margin-bottom:2px;"><i class="fa-solid fa-phone" style="font-size:10px;"></i> ${c.phone} &nbsp;|&nbsp; Age: ${c.age} &nbsp;|&nbsp; <i class="fa-solid fa-envelope" style="font-size:10px;"></i> ${c.email}</div>
                         <div style="font-size:11px; color:var(--text-muted);">Acc: ${c.accountNo} &nbsp;|&nbsp; IFSC: ${c.ifsc}${c.upi ? ' &nbsp;|&nbsp; UPI: ' + c.upi : ''}</div>
@@ -4384,6 +4481,14 @@ function jsonResp(obj) {
                     </div>
                 </div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                    ${c.loanAmount ? `
+                    <div style="grid-column:1/-1; background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(59,130,246,0.07)); border:1.5px solid rgba(139,92,246,0.3); border-radius:10px; padding:14px 16px; display:flex; align-items:center; gap:12px;">
+                        <i class="fa-solid fa-indian-rupee-sign" style="color:#8b5cf6; font-size:20px;"></i>
+                        <div>
+                            <div style="font-size:11px; color:#8b5cf6; font-weight:700; text-transform:uppercase; letter-spacing:0.4px;">Loan Amount Requested</div>
+                            <div style="font-size:22px; font-weight:800; color:#8b5cf6;">₹${Number(c.loanAmount).toLocaleString('en-IN')}</div>
+                        </div>
+                    </div>` : ''}
                     ${[
                         ['Phone', c.phone, 'fa-phone'],
                         ['Email', c.email, 'fa-envelope'],
