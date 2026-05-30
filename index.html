@@ -939,8 +939,8 @@
             </div>
         </nav>
 
-        <!-- DASHBOARD COUNTERS -->
-        <div class="dashboard-grid">
+        <!-- DASHBOARD COUNTERS (admin/dev only) -->
+        <div class="dashboard-grid" id="adminDashboardGrid">
             <div class="finance-card">
                 <h3>Total Balance</h3>
                 <div class="counter-value" id="valTotal">₹0</div>
@@ -960,12 +960,12 @@
         </div>
 
         <!-- TABS NAVIGATION -->
-        <div class="tabs-container">
+        <div class="tabs-container" id="mainTabsContainer">
             <button class="tab-trigger active" onclick="showSection('wallet')"><i
                     class="fa-solid fa-building-columns"></i> Wallet Management</button>
-            <button class="tab-trigger" onclick="showSection('loan')"><i class="fa-solid fa-hand-holding-dollar"></i>
+            <button class="tab-trigger" id="tabLoan" onclick="showSection('loan')"><i class="fa-solid fa-hand-holding-dollar"></i>
                 Loan Accounts</button>
-            <button class="tab-trigger" onclick="showSection('history')"><i class="fa-solid fa-clock-rotate-left"></i>
+            <button class="tab-trigger" id="tabHistory" onclick="showSection('history')"><i class="fa-solid fa-clock-rotate-left"></i>
                 Master Ledger</button>
             <button class="tab-trigger cp-tab-admin" id="tabAdminCP" onclick="showSection('admincp')" style="display:none;"><i class="fa-solid fa-shield-halved"></i> Admin Panel</button>
             <button class="tab-trigger cp-tab-dev" id="tabDevCP" onclick="showSection('devcp')" style="display:none;"><i class="fa-solid fa-terminal"></i> Dev Console</button>
@@ -1028,7 +1028,7 @@
                 </div>
             </div>
 
-            <div class="wallet-grid">
+            <div class="wallet-grid" id="adminWalletGrid">
 
                 <!-- 1. DEPOSIT BOX -->
                 <div class="wallet-card wallet-deposit">
@@ -1975,6 +1975,9 @@
             return res.status === 204 ? null : res.json();
         }
 
+        // agentFolderId: the personal sub-folder for this agent inside PF backend/Agents/
+        let agentFolderId = null;
+
         async function driveEnsureFolder() {
             if (driveFolderId) return driveFolderId;
             const q = encodeURIComponent(`name='${DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
@@ -1984,6 +1987,116 @@
             driveFolderId = created.id;
             triggerToast('📁 "PF backend" folder created in your Drive!', 'success');
             return driveFolderId;
+        }
+
+        // Ensure an "Agents" sub-folder exists inside PF backend, then ensure
+        // a personal folder for this agent (named by their display name / email).
+        // Returns the agent's personal folder ID.
+        async function driveEnsureAgentFolder(agentDisplayName) {
+            if (agentFolderId) return agentFolderId;
+            await driveEnsureFolder();   // ensure PF backend root
+
+            // 1 — find or create "Agents" parent inside PF backend
+            const safeQ = encodeURIComponent(`name='Agents' and '${driveFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+            const agentsParentRes = await driveRequest('GET', `/files?q=${safeQ}&fields=files(id,name)`);
+            let agentsParentId;
+            if (agentsParentRes.files && agentsParentRes.files.length > 0) {
+                agentsParentId = agentsParentRes.files[0].id;
+            } else {
+                const created = await driveRequest('POST', '/files', JSON.stringify({ name: 'Agents', mimeType: 'application/vnd.google-apps.folder', parents: [driveFolderId] }));
+                agentsParentId = created.id;
+            }
+
+            // 2 — find or create personal folder for this agent
+            // Sanitise name for Drive (Drive allows most chars but keep it clean)
+            const folderName = (agentDisplayName || 'Unknown Agent').replace(/[/\\:*?"<>|]/g, '_').substring(0, 60);
+            const agentQ = encodeURIComponent(`name='${folderName}' and '${agentsParentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+            const agentFolderRes = await driveRequest('GET', `/files?q=${agentQ}&fields=files(id,name)`);
+            if (agentFolderRes.files && agentFolderRes.files.length > 0) {
+                agentFolderId = agentFolderRes.files[0].id;
+            } else {
+                const created = await driveRequest('POST', '/files', JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [agentsParentId] }));
+                agentFolderId = created.id;
+                triggerToast(`📁 Personal folder "${folderName}" created in Drive`, 'success');
+            }
+            return agentFolderId;
+        }
+
+        // Read a JSON file from the agent's personal Drive folder
+        async function agentDriveRead(fileName) {
+            if (!agentFolderId) return null;
+            const q = encodeURIComponent(`name='${fileName}' and '${agentFolderId}' in parents and trashed=false`);
+            const r = await driveRequest('GET', `/files?q=${q}&fields=files(id,name)`);
+            if (!r.files || r.files.length === 0) return null;
+            const fileId = r.files[0].id;
+            const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+                headers: { 'Authorization': 'Bearer ' + driveAccessToken }
+            });
+            if (!res.ok) return null;
+            return res.json();
+        }
+
+        // Write a JSON file to the agent's personal Drive folder
+        async function agentDriveWrite(fileName, data) {
+            if (!agentFolderId) return;
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            // Check if file exists
+            const q = encodeURIComponent(`name='${fileName}' and '${agentFolderId}' in parents and trashed=false`);
+            const r = await driveRequest('GET', `/files?q=${q}&fields=files(id,name)`);
+            if (r.files && r.files.length > 0) {
+                const fileId = r.files[0].id;
+                const form = new FormData();
+                form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
+                form.append('file', blob);
+                const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`,
+                    { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + driveAccessToken }, body: form });
+                if (!res.ok) throw new Error('Agent Drive update failed');
+            } else {
+                const form = new FormData();
+                form.append('metadata', new Blob([JSON.stringify({ name: fileName, parents: [agentFolderId] })], { type: 'application/json' }));
+                form.append('file', blob);
+                const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+                    { method: 'POST', headers: { 'Authorization': 'Bearer ' + driveAccessToken }, body: form });
+                if (!res.ok) throw new Error('Agent Drive create failed');
+            }
+        }
+
+        // Load only this agent's personal data from their Drive folder
+        async function loadAgentPersonalData() {
+            const user = currentGoogleUser;
+            if (!user) return;
+            const displayName = user.displayName || user.email || 'Agent';
+            await driveEnsureAgentFolder(displayName);
+            const data = await agentDriveRead('pf_agent_data.json').catch(() => null);
+            if (data) {
+                // Merge agent data into global arrays (only this agent's records)
+                if (Array.isArray(data.sosTokens))    sosTokens    = data.sosTokens;
+                if (Array.isArray(data.clientTokens)) clientTokens = data.clientTokens;
+                // Update this agent's profile fund if stored here
+                if (data.agentProfile && Array.isArray(agentState)) {
+                    const idx = agentState.findIndex(a => a.id === data.agentProfile.id);
+                    if (idx !== -1) agentState[idx] = { ...agentState[idx], ...data.agentProfile };
+                }
+            }
+        }
+
+        // Save this agent's personal data to their Drive folder
+        async function syncAgentPersonalData() {
+            if (currentRole !== 'agent' || !currentGoogleUser || !driveAccessToken) return;
+            const agent = getCurrentAgentProfile();
+            const myEmail = (currentGoogleUser.email || '').toLowerCase();
+            const myTokens  = sosTokens.filter(t   => (t.agentEmail  || '').toLowerCase() === myEmail);
+            const myClients = clientTokens.filter(c => (c.agentEmail || '').toLowerCase() === myEmail);
+            const payload = {
+                savedAt:      new Date().toISOString(),
+                agentProfile: agent || null,
+                sosTokens:    myTokens,
+                clientTokens: myClients
+            };
+            try {
+                await agentDriveWrite('pf_agent_data.json', payload);
+            } catch(e) { console.warn('[PF] agent data sync failed:', e); }
         }
 
         async function driveGetFileId(fileName) {
@@ -2055,7 +2168,13 @@
         async function syncTrashDB_()  { await dbWrite('trash',       state.trash).catch(e => console.warn('trash sync:', e)); }
         async function syncLogsDB()    { await dbWrite('logs',        state.logs).catch(e => console.warn('logs sync:', e)); }
         async function syncAgentsDB()       { await dbWrite('agents',       agentState).catch(e => console.warn('agents sync:', e)); }
-        async function syncClientTokensDB() { await dbWrite('clientTokens', clientTokens).catch(e => console.warn('clientTokens sync:', e)); }
+        async function syncClientTokensDB() {
+            await dbWrite('clientTokens', clientTokens).catch(e => console.warn('clientTokens sync:', e));
+            // Also persist to agent's personal Drive folder
+            if (currentRole === 'agent' && driveAccessToken && agentFolderId) {
+                syncAgentPersonalData().catch(e => console.warn('agent personal sync:', e));
+            }
+        }
 
         // Individual helpers kept for compatibility with callers
         function syncLoanDB(loan) {
@@ -2306,7 +2425,12 @@
                 document.getElementById('loginPage').style.display    = 'none';
                 document.getElementById('appContainer').style.display = 'block';
                 updateNavForGoogle(result.user);
+                // Load shared DB first (to get agentState for profile matching)
                 await loadDriveData();
+                // Then load personal agent folder data from Google Drive
+                if (driveAccessToken) {
+                    try { await loadAgentPersonalData(); } catch(e) { console.warn('[PF] personal load:', e); }
+                }
                 refreshSystemEngine();
                 refreshAgentWalletBar();    // identify agent profile by email
                 startLiveSync();            // begin 30s polling so fund & SOS stay live
@@ -2337,9 +2461,28 @@
                     <div style="font-weight:600; color:var(--text-main); font-size:13px;">${displayName}</div>
                     <div style="font-size:11px; color:var(--text-muted);">${user.email}</div>
                 </div>`;
-            // Agents (Google login) never see admin/dev tabs
-            document.getElementById('tabAdminCP').style.display = 'none';
-            document.getElementById('tabDevCP').style.display   = 'none';
+            // Agents see ONLY their wallet bar — hide everything else
+            applyAgentUIRestrictions();
+        }
+
+        function applyAgentUIRestrictions() {
+            // Hide admin/dev tabs
+            document.getElementById('tabAdminCP').style.display  = 'none';
+            document.getElementById('tabDevCP').style.display    = 'none';
+            // Hide Loan Accounts and Master Ledger tabs (agents don't manage these)
+            const tabLoan    = document.getElementById('tabLoan');
+            const tabHistory = document.getElementById('tabHistory');
+            if (tabLoan)    tabLoan.style.display    = 'none';
+            if (tabHistory) tabHistory.style.display = 'none';
+            // Rename "Wallet Management" tab to "My Dashboard" for agents
+            const walletTab = document.querySelector('.tab-trigger[onclick*="showSection('wallet')"]');
+            if (walletTab) walletTab.innerHTML = '<i class="fa-solid fa-gauge-high"></i> My Dashboard';
+            // Hide deposit/withdraw/transfer boxes — agents only see their allocated fund
+            const wGrid = document.getElementById('adminWalletGrid');
+            if (wGrid) wGrid.style.display = 'none';
+            // Hide the top counter cards (total balance, cash vault etc.)
+            const dashGrid = document.getElementById('adminDashboardGrid');
+            if (dashGrid) dashGrid.style.display = 'none';
         }
 
         function handleLogin() {
@@ -3265,19 +3408,27 @@
             liveSyncInterval = setInterval(async () => {
                 if (!hasSharedDB() && !driveAccessToken) return;
                 try {
-                    const agents = await dbRead('agents').catch(() => null);
-                    if (Array.isArray(agents)) agentState = agents;
-
-                    const sos = await dbRead('sosTokens').catch(() => null);
-                    if (Array.isArray(sos)) sosTokens = sos;
-
-                    const cliTok = await dbRead('clientTokens').catch(() => null);
-                    if (Array.isArray(cliTok)) clientTokens = cliTok;
-
                     if (currentRole === 'agent') {
+                        // Agents: refresh agents list from shared DB (to get their profile & fund)
+                        const agents = await dbRead('agents').catch(() => null);
+                        if (Array.isArray(agents)) agentState = agents;
+                        // Refresh their personal token data from their own Drive folder
+                        if (driveAccessToken && agentFolderId) {
+                            const data = await agentDriveRead('pf_agent_data.json').catch(() => null);
+                            if (data) {
+                                if (Array.isArray(data.sosTokens))    sosTokens    = data.sosTokens;
+                                if (Array.isArray(data.clientTokens)) clientTokens = data.clientTokens;
+                            }
+                        }
                         refreshAgentWalletBar();
-                    }
-                    if (currentRole === 'admin' || currentRole === 'dev') {
+                    } else if (currentRole === 'admin' || currentRole === 'dev') {
+                        // Admin/Dev: refresh everything from shared DB
+                        const agents = await dbRead('agents').catch(() => null);
+                        if (Array.isArray(agents)) agentState = agents;
+                        const sos = await dbRead('sosTokens').catch(() => null);
+                        if (Array.isArray(sos)) sosTokens = sos;
+                        const cliTok = await dbRead('clientTokens').catch(() => null);
+                        if (Array.isArray(cliTok)) clientTokens = cliTok;
                         updateSOSNotificationBadge();
                         updateNotificationBadge();
                         renderAdminSOSPanel();
@@ -3526,6 +3677,10 @@ function jsonResp(obj) {
 
         async function syncSOSTokensDB() {
             await dbWrite('sosTokens', sosTokens).catch(e => console.warn('sos sync:', e));
+            // Also persist to agent's personal Drive folder
+            if (currentRole === 'agent' && driveAccessToken && agentFolderId) {
+                syncAgentPersonalData().catch(e => console.warn('agent personal sync:', e));
+            }
         }
 
         async function loadSOSTokens() {
@@ -3745,14 +3900,26 @@ function jsonResp(obj) {
         async function manualAgentRefresh() {
             if (!hasSharedDB() && !driveAccessToken) return triggerToast('No database connected.', 'danger');
             try {
+                // Always refresh agents from shared DB (admin controls this)
                 const agents = await dbRead('agents').catch(() => null);
                 if (Array.isArray(agents)) agentState = agents;
-                const sos = await dbRead('sosTokens').catch(() => null);
-                if (Array.isArray(sos)) sosTokens = sos;
-                const cliTok = await dbRead('clientTokens').catch(() => null);
-                if (Array.isArray(cliTok)) clientTokens = cliTok;
+
+                if (driveAccessToken && agentFolderId) {
+                    // Read own tokens from personal Drive folder (private, agent-only)
+                    const data = await agentDriveRead('pf_agent_data.json').catch(() => null);
+                    if (data) {
+                        if (Array.isArray(data.sosTokens))    sosTokens    = data.sosTokens;
+                        if (Array.isArray(data.clientTokens)) clientTokens = data.clientTokens;
+                    }
+                } else {
+                    // Fallback: read from shared DB if no Drive token
+                    const sos = await dbRead('sosTokens').catch(() => null);
+                    if (Array.isArray(sos)) sosTokens = sos;
+                    const cliTok = await dbRead('clientTokens').catch(() => null);
+                    if (Array.isArray(cliTok)) clientTokens = cliTok;
+                }
                 refreshAgentWalletBar();
-                triggerToast('Fund balance refreshed!', 'success');
+                triggerToast('Refreshed!', 'success');
             } catch(e) {
                 triggerToast('Refresh failed. Try again.', 'danger');
             }
