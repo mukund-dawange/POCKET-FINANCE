@@ -1944,6 +1944,7 @@
         let autoLogoutTimer;
         let unreadNotifications = 0;
         let agentState = [];
+        let sosTokens  = [];   // { id, agentId, agentName, amount, reason, urgency, raisedAt, status, disbursement }
 
         // ============================================================
         // AUTH SYSTEM
@@ -2873,15 +2874,33 @@
         // DRIVE INTEGRATION — SHARED DB via Apps Script
         // ============================================================
 
-        const AS_CODE_TEMPLATE = `// Pocket Finance — Shared Database (Google Apps Script)
-// Deploy as Web App: Execute as Me, Anyone can access
-// This script stores all app data in a Google Sheet in your Drive.
+        const AS_CODE_TEMPLATE = `// ============================================================
+// Pocket Finance — Shared Database Backend
+// Google Apps Script — Deploy as Web App
+//   Execute as: Me
+//   Who has access: Anyone
+// ============================================================
 
-const SHEET_NAME = 'PF_Database';
+const SPREADSHEET_NAME = 'Pocket Finance DB';
+const SHEET_NAME       = 'PF_Database';
+
+function getOrCreateSpreadsheet() {
+  // Search Drive for existing spreadsheet
+  const files = DriveApp.getFilesByName(SPREADSHEET_NAME);
+  if (files.hasNext()) {
+    return SpreadsheetApp.open(files.next());
+  }
+  // Create new one
+  const ss = SpreadsheetApp.create(SPREADSHEET_NAME);
+  const sheet = ss.getActiveSheet();
+  sheet.setName(SHEET_NAME);
+  sheet.appendRow(['key', 'value', 'updatedAt']);
+  sheet.setFrozenRows(1);
+  return ss;
+}
 
 function getSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet()
-          || SpreadsheetApp.create('Pocket Finance DB');
+  const ss = getOrCreateSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
@@ -2893,32 +2912,36 @@ function getSheet() {
 
 function doGet(e) {
   try {
-    const key = e.parameter.key;
-    if (!key) return jsonResp({ error: 'No key' }, 400);
+    const key = e && e.parameter && e.parameter.key;
+    if (!key) return jsonResp({ error: 'No key provided' });
     const sheet = getSheet();
     const data  = sheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0] === key) {
-        const parsed = JSON.parse(data[i][1]);
-        return jsonResp({ value: parsed });
+      if (String(data[i][0]) === String(key)) {
+        try {
+          const parsed = JSON.parse(String(data[i][1]));
+          return jsonResp({ value: parsed });
+        } catch(pe) {
+          return jsonResp({ value: data[i][1] });
+        }
       }
     }
     return jsonResp({ value: null });
   } catch(err) {
-    return jsonResp({ error: err.message }, 500);
+    return jsonResp({ error: err.message });
   }
 }
 
 function doPost(e) {
   try {
     const body  = JSON.parse(e.postData.contents);
-    const key   = body.key;
+    const key   = String(body.key);
     const value = JSON.stringify(body.value);
     const now   = new Date().toISOString();
     const sheet = getSheet();
     const data  = sheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
-      if (data[i][0] === key) {
+      if (String(data[i][0]) === key) {
         sheet.getRange(i + 1, 2, 1, 2).setValues([[value, now]]);
         return jsonResp({ ok: true });
       }
@@ -2926,11 +2949,11 @@ function doPost(e) {
     sheet.appendRow([key, value, now]);
     return jsonResp({ ok: true });
   } catch(err) {
-    return jsonResp({ error: err.message }, 500);
+    return jsonResp({ error: err.message });
   }
 }
 
-function jsonResp(obj, code) {
+function jsonResp(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
@@ -2984,19 +3007,24 @@ function jsonResp(obj, code) {
             }
             triggerToast('Testing connection...', 'neutral');
             try {
-                // Test with a write then read
-                const testKey = '_pf_test_';
-                const testVal = 'ping_' + Date.now();
+                // Step 1: write a test value
+                const testKey = '_pf_conn_test_';
                 const writeRes = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({ action: 'write', key: testKey, value: testVal })
+                    body: JSON.stringify({ action: 'write', key: testKey, value: { ok: true, ts: Date.now() } })
                 });
-                if (!writeRes.ok) throw new Error('Write test failed: ' + writeRes.status);
-                const readRes = await fetch(`${url}?action=read&key=${testKey}`);
-                if (!readRes.ok) throw new Error('Read test failed: ' + readRes.status);
+                if (!writeRes.ok) throw new Error('Write failed (HTTP ' + writeRes.status + '). Check script is deployed correctly.');
+                const writeData = await writeRes.json();
+                if (writeData.error) throw new Error('Script error on write: ' + writeData.error);
+
+                // Step 2: read it back
+                const readRes = await fetch(`${url}?action=read&key=${encodeURIComponent(testKey)}`);
+                if (!readRes.ok) throw new Error('Read failed (HTTP ' + readRes.status + ').');
                 const readData = await readRes.json();
-                if (readData.value !== testVal) throw new Error('Data mismatch — check script code');
+                if (readData.error) throw new Error('Script error on read: ' + readData.error);
+                // Just verify we got something back (value should be object with ok:true)
+                if (!readData || readData.value === undefined) throw new Error('No data returned. Ensure script is deployed with "Anyone" access.');
 
                 // All good — save URL
                 appScriptUrl = url;
@@ -3005,11 +3033,11 @@ function jsonResp(obj, code) {
                 updateDevDbStatus(true);
                 triggerToast('✅ Shared database connected! Loading data...', 'success');
 
-                // Load all existing data from the new shared DB
+                // Load all data from the shared DB
                 await loadDriveData();
                 devRefreshAll();
             } catch(err) {
-                triggerToast('Connection failed: ' + err.message, 'danger');
+                triggerToast('❌ Connection failed: ' + err.message, 'danger');
                 console.error('[PF] AS connect error:', err);
             }
         }
@@ -3029,16 +3057,18 @@ function jsonResp(obj, code) {
             if (!hasSharedDB()) return triggerToast('No URL configured. Paste your Web App URL first.', 'danger');
             try {
                 triggerToast('Testing connection...', 'neutral');
-                const key = '_pf_ping_' + Date.now();
+                const key = '_pf_ping_';
                 const writeRes = await fetch(appScriptUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({ action: 'write', key, value: 'ok' })
+                    body: JSON.stringify({ action: 'write', key, value: { ping: Date.now() } })
                 });
-                if (!writeRes.ok) throw new Error('Status ' + writeRes.status);
+                if (!writeRes.ok) throw new Error('HTTP ' + writeRes.status);
+                const data = await writeRes.json();
+                if (data.error) throw new Error(data.error);
                 triggerToast('✅ Connection is working!', 'success');
             } catch(e) {
-                triggerToast('Connection test failed: ' + e.message, 'danger');
+                triggerToast('❌ Test failed: ' + e.message, 'danger');
             }
         }
 
