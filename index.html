@@ -1219,6 +1219,10 @@
                         <input type="text" id="agentPhone" placeholder="10 Digits..." maxlength="10">
                     </div>
                     <div class="input-group">
+                        <label>Agent Google Email <span style="color:var(--danger);">*</span></label>
+                        <input type="email" id="agentEmail" placeholder="agent@gmail.com (used for login)">
+                    </div>
+                    <div class="input-group">
                         <label>Allocated Funds (₹)</label>
                         <input type="number" id="agentFund" placeholder="0.00">
                     </div>
@@ -1259,6 +1263,7 @@
                             <th>Perf. Tier</th>
                             <th>Effective Rate</th>
                             <th>Est. Interest</th>
+                            <th>Active Clients</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -1275,6 +1280,17 @@
                     <button class="btn btn-secondary" style="font-size:12px; padding:8px 14px;" onclick="renderAdminSOSPanel()"><i class="fa-solid fa-sync"></i> Refresh</button>
                 </div>
                 <div id="adminSOSList"><p style="color:var(--text-muted); font-size:13px; padding:10px 0;">No pending SOS requests.</p></div>
+            </div>
+
+            <!-- LIVE AGENT TRACKER -->
+            <div style="margin-top:40px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:12px;">
+                    <h3 style="font-size:16px; font-weight:700;"><i class="fa-solid fa-satellite-dish" style="color:var(--success);"></i> Live Agent Tracker</h3>
+                    <button class="btn btn-secondary" style="font-size:12px; padding:8px 14px;" onclick="renderAgentLiveTracker('adminTrackerGrid')"><i class="fa-solid fa-sync"></i> Refresh</button>
+                </div>
+                <div id="adminTrackerGrid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:18px;">
+                    <p style="color:var(--text-muted); font-size:13px;">No agents to track.</p>
+                </div>
             </div>
         </div>
 
@@ -1367,6 +1383,17 @@
                     <button class="btn btn-danger" onclick="devClearTrash()"><i class="fa-solid fa-dumpster-fire"></i> Empty Archive/Trash</button>
                     <button class="btn btn-danger" onclick="devHardResetWallet()"><i class="fa-solid fa-rotate-left"></i> Reset Wallet to ₹0</button>
                     <button class="btn btn-secondary" style="border-color:var(--danger); color:var(--danger);" onclick="devExportData()"><i class="fa-solid fa-file-export"></i> Export Full DB JSON</button>
+                </div>
+            </div>
+
+            <!-- DEV: LIVE AGENT TRACKER -->
+            <div style="margin-top:30px; background:var(--input-bg); border:1px solid var(--panel-border); border-radius:14px; padding:24px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:12px;">
+                    <h3 style="font-size:15px; font-weight:700;"><i class="fa-solid fa-satellite-dish" style="color:#8b5cf6;"></i> Live Agent Tracker</h3>
+                    <button class="btn btn-secondary" style="font-size:12px; padding:8px 14px;" onclick="renderAgentLiveTracker('devTrackerGrid')"><i class="fa-solid fa-sync"></i> Refresh</button>
+                </div>
+                <div id="devTrackerGrid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:18px;">
+                    <p style="color:var(--text-muted); font-size:13px;">No agents to track.</p>
                 </div>
             </div>
         </div>
@@ -1870,21 +1897,22 @@
             loading.style.display = 'block';
             try {
                 const result = await auth.signInWithPopup(googleProvider);
-                driveAccessToken = result.credential.accessToken;
-                currentRole      = 'user';
+                driveAccessToken  = result.credential.accessToken;
+                currentRole       = 'agent';   // Google login = agent
                 currentGoogleUser = result.user;
 
-                document.getElementById('loginPage').style.display = 'none';
+                document.getElementById('loginPage').style.display    = 'none';
                 document.getElementById('appContainer').style.display = 'block';
                 updateNavForGoogle(result.user);
                 await loadDriveData();
                 refreshSystemEngine();
+                refreshAgentWalletBar();    // identify agent profile by email
             } catch (err) {
                 btn.style.display     = 'flex';
                 loading.style.display = 'none';
                 const errEl = document.getElementById('loginError');
                 if (errEl) {
-                    errEl.innerText   = 'Google sign-in failed: ' + (err.message || 'Unknown error');
+                    errEl.innerText    = 'Google sign-in failed: ' + (err.message || 'Unknown error');
                     errEl.style.display = 'block';
                 }
                 triggerToast('Google sign-in failed.', 'danger');
@@ -1906,6 +1934,7 @@
                     <div style="font-weight:600; color:var(--text-main); font-size:13px;">${displayName}</div>
                     <div style="font-size:11px; color:var(--text-muted);">${user.email}</div>
                 </div>`;
+            // Agents (Google login) never see admin/dev tabs
             document.getElementById('tabAdminCP').style.display = 'none';
             document.getElementById('tabDevCP').style.display   = 'none';
         }
@@ -2031,8 +2060,8 @@
             });
             document.getElementById('sec-' + secId).classList.add('active');
             document.getElementById('profileDropdown').classList.remove('show');
-            if (secId === 'admincp') { renderAgents(); renderAdminSOSPanel(); }
-            if (secId === 'devcp')   devRefreshAll();
+            if (secId === 'admincp') { renderAgents(); renderAdminSOSPanel(); renderAgentLiveTracker('adminTrackerGrid'); }
+            if (secId === 'devcp')   { devRefreshAll(); renderAgentLiveTracker('devTrackerGrid'); }
         }
 
         function toggleDropdown() { document.getElementById('profileDropdown').classList.toggle('show'); }
@@ -2137,7 +2166,8 @@
                 id: Date.now(), name, phone,
                 email: email ? email : 'N/A',
                 amount: amt, rate, source, payType,
-                status: 'Active', history: []
+                status: 'Active', history: [],
+                agentId: (currentRole === 'agent' && getCurrentAgentProfile()) ? getCurrentAgentProfile().id : null
             };
 
             state.loans.push(newLoanObject);
@@ -2358,13 +2388,16 @@
         function assignNewAgent() {
             const name   = document.getElementById('agentName').value.trim();
             const phone  = document.getElementById('agentPhone').value.trim();
+            const email  = document.getElementById('agentEmail').value.trim().toLowerCase();
             const fund   = parseFloat(document.getElementById('agentFund').value);
             const rate   = parseFloat(document.getElementById('agentBaseRate').value);
             const tier   = document.getElementById('agentPerfTier').value;
             const source = document.getElementById('agentFundSource').value;
 
-            if (!name || !phone || isNaN(fund) || isNaN(rate)) return triggerToast('Fill all agent fields!', 'danger');
+            if (!name || !phone || !email || isNaN(fund) || isNaN(rate)) return triggerToast('Fill all agent fields including email!', 'danger');
             if (phone.length !== 10 || isNaN(phone))            return triggerToast('Invalid 10-Digit number!', 'danger');
+            if (!email.includes('@'))                            return triggerToast('Enter a valid email address!', 'danger');
+            if (agentState.find(a => a.email === email))        return triggerToast('An agent with this email already exists!', 'danger');
             if (source === 'cash'   && state.wallet.cash   < fund) return triggerToast('Insufficient Cash Vault!', 'danger');
             if (source === 'online' && state.wallet.online < fund) return triggerToast('Insufficient Online Vault!', 'danger');
 
@@ -2373,14 +2406,14 @@
 
             const agent = {
                 id: 'agt_' + Date.now(),
-                name, phone, fund, rate, tier,
+                name, phone, email, fund, rate, tier,
                 createdAt: new Date().toLocaleDateString('en-IN')
             };
             agentState.push(agent);
             syncWalletDB();
             syncAgentsDB();
             pushGlobalLog(`Agent Assigned: ${name}`, `-₹${fund}`, 'expense');
-            ['agentName','agentPhone','agentFund','agentBaseRate'].forEach(id => document.getElementById(id).value = '');
+            ['agentName','agentPhone','agentEmail','agentFund','agentBaseRate'].forEach(id => document.getElementById(id).value = '');
             triggerToast(`Agent ${name} created!`, 'success');
             refreshSystemEngine();
             renderAgents();
@@ -2390,22 +2423,29 @@
             const tbody = document.getElementById('agentTableBody');
             tbody.innerHTML = '';
             if (agentState.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-muted); font-size:13px; padding:30px;">No agents assigned yet.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-muted); font-size:13px; padding:30px;">No agents assigned yet.</td></tr>`;
                 updateAgentStats();
                 return;
             }
             agentState.forEach(a => {
                 const effectiveRate = a.rate + perfBonus(a.tier);
                 const estInterest   = Math.round((a.fund * effectiveRate) / 100);
+                // Count active loans attributed to this agent
+                const agentLoans    = state.loans.filter(l => l.agentId === a.id && l.status === 'Active');
                 tbody.innerHTML += `
                     <tr>
-                        <td><strong style="color:var(--text-main); font-size:13px;">${a.name}</strong><br><span style="font-size:11px; color:var(--text-muted);">${a.createdAt}</span></td>
+                        <td>
+                            <strong style="color:var(--text-main); font-size:13px;">${a.name}</strong><br>
+                            <span style="font-size:11px; color:var(--text-muted);">${a.email || '—'}</span><br>
+                            <span style="font-size:10px; color:var(--text-muted);">${a.createdAt}</span>
+                        </td>
                         <td style="font-size:13px;">${a.phone}</td>
-                        <td style="font-weight:700; color:var(--success);">₹${a.fund.toLocaleString('en-IN')}</td>
+                        <td style="font-weight:700; color:var(--success);">₹${(a.fund||0).toLocaleString('en-IN')}</td>
                         <td style="font-size:13px;">${a.rate}%</td>
                         <td><span style="font-size:12px;">${perfLabel(a.tier)}</span></td>
                         <td><strong style="color:var(--warning);">${effectiveRate}%</strong></td>
                         <td style="color:var(--success); font-weight:600;">₹${estInterest.toLocaleString('en-IN')}</td>
+                        <td><span style="background:rgba(59,130,246,0.1); color:var(--primary); padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600;">${agentLoans.length} Active</span></td>
                         <td>
                             <button class="btn btn-secondary" style="padding:5px 10px; font-size:11px; margin-right:5px;" onclick="openEditAgent('${a.id}')"><i class="fa-solid fa-edit"></i></button>
                             <button class="btn btn-danger" style="padding:5px 10px; font-size:11px;" onclick="removeAgent('${a.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -2413,6 +2453,90 @@
                     </tr>`;
             });
             updateAgentStats();
+        }
+
+        // ============================================================
+        // LIVE AGENT TRACKER (Admin + Dev)
+        // ============================================================
+        function renderAgentLiveTracker(containerId) {
+            const grid = document.getElementById(containerId);
+            if (!grid) return;
+            if (agentState.length === 0) {
+                grid.innerHTML = '<p style="color:var(--text-muted); font-size:13px; grid-column:1/-1;">No agents registered yet.</p>';
+                return;
+            }
+            grid.innerHTML = agentState.map(a => {
+                const effectiveRate = a.rate + perfBonus(a.tier);
+                // Loans attributed to this agent
+                const agentLoans    = state.loans.filter(l => l.agentId === a.id);
+                const activeLoans   = agentLoans.filter(l => l.status === 'Active');
+                const paidLoans     = agentLoans.filter(l => l.status === 'Paid');
+                const totalLent     = activeLoans.reduce((s, l) => s + l.amount, 0);
+                const totalCollected = paidLoans.reduce((s, l) => s + l.amount, 0);
+                // Pending SOS
+                const pendingSOS    = sosTokens.filter(t => t.agentId === a.id && t.status === 'Pending');
+                const fundPct       = Math.min(100, a.fund > 0 ? Math.round((totalLent / a.fund) * 100) : 0);
+                const barColor      = fundPct >= 90 ? 'var(--danger)' : fundPct >= 60 ? 'var(--warning)' : 'var(--success)';
+
+                return `
+                <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:14px; padding:20px; position:relative; overflow:hidden; transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--panel-border)'">
+                    ${pendingSOS.length > 0 ? `<div style="position:absolute; top:12px; right:12px; background:var(--danger); color:#fff; font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; animation:pulseBadge 2s infinite;">${pendingSOS.length} SOS</div>` : ''}
+                    <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+                        <div style="width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,var(--primary),#6366f1); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; color:#fff; flex-shrink:0;">${a.name.charAt(0).toUpperCase()}</div>
+                        <div style="min-width:0;">
+                            <div style="font-weight:700; font-size:14px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${a.name}</div>
+                            <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${a.email || a.phone}</div>
+                        </div>
+                    </div>
+
+                    <!-- Fund bar -->
+                    <div style="margin-bottom:14px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span style="font-size:11px; color:var(--text-muted); font-weight:600;">FUNDS DEPLOYED</span>
+                            <span style="font-size:11px; font-weight:700; color:${barColor};">${fundPct}%</span>
+                        </div>
+                        <div style="height:6px; background:var(--panel-border); border-radius:10px; overflow:hidden;">
+                            <div style="height:100%; width:${fundPct}%; background:${barColor}; border-radius:10px; transition:width 0.4s ease;"></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-top:4px;">
+                            <span style="font-size:10px; color:var(--text-muted);">₹${totalLent.toLocaleString('en-IN')} lent</span>
+                            <span style="font-size:10px; color:var(--text-muted);">₹${(a.fund||0).toLocaleString('en-IN')} total</span>
+                        </div>
+                    </div>
+
+                    <!-- Stats grid -->
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px;">
+                        <div style="background:rgba(239,68,68,0.07); border-radius:8px; padding:8px 10px; text-align:center;">
+                            <div style="font-size:16px; font-weight:800; color:var(--danger);">${activeLoans.length}</div>
+                            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Active Loans</div>
+                        </div>
+                        <div style="background:rgba(16,185,129,0.07); border-radius:8px; padding:8px 10px; text-align:center;">
+                            <div style="font-size:16px; font-weight:800; color:var(--success);">${paidLoans.length}</div>
+                            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Closed</div>
+                        </div>
+                        <div style="background:rgba(245,158,11,0.07); border-radius:8px; padding:8px 10px; text-align:center;">
+                            <div style="font-size:16px; font-weight:800; color:var(--warning);">${effectiveRate}%</div>
+                            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Eff. Rate</div>
+                        </div>
+                    </div>
+
+                    <!-- Client list -->
+                    ${activeLoans.length > 0 ? `
+                    <div style="font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Active Clients</div>
+                    <div style="display:flex; flex-direction:column; gap:5px; max-height:120px; overflow-y:auto;">
+                        ${activeLoans.map(l => `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; background:var(--panel-bg); border-radius:7px; border:1px solid var(--panel-border);">
+                            <span style="font-size:12px; font-weight:600; color:var(--text-main);">${l.name}</span>
+                            <span style="font-size:12px; color:var(--danger); font-weight:700;">₹${l.amount.toLocaleString('en-IN')}</span>
+                        </div>`).join('')}
+                    </div>` : `<div style="font-size:12px; color:var(--text-muted); text-align:center; padding:8px 0;"><i class="fa-solid fa-inbox"></i> No active clients</div>`}
+
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--panel-border);">
+                        <span style="font-size:11px; color:var(--text-muted);">${perfLabel(a.tier)}</span>
+                        <span style="font-size:11px; font-weight:600; color:var(--success);">Collected: ₹${totalCollected.toLocaleString('en-IN')}</span>
+                    </div>
+                </div>`;
+            }).join('');
         }
 
         function updateAgentStats() {
@@ -2473,6 +2597,7 @@
             if (llc) llc.innerText = state.logs.length;
             devRefreshSnapshot();
             devShowBackendConfig();
+            renderAgentLiveTracker('devTrackerGrid');
         }
 
         function devRefreshSnapshot() {
@@ -2591,15 +2716,11 @@
             sosTokens = Array.isArray(data) ? data : [];
         }
 
-        // Find which agent the current user maps to (matched by phone stored in state.credentials.user for simplicity,
-        // or by name match — for credential sessions the agent name is stored in localStorage)
+        // Find which agent the current Google-logged-in user maps to (matched by email)
         function getCurrentAgentProfile() {
-            if (currentRole !== 'user') return null;
-            const storedName = localStorage.getItem('pf_cred_name') || '';
-            return agentState.find(a =>
-                a.name.toLowerCase() === storedName.toLowerCase() ||
-                a.id === storedName
-            ) || null;
+            if (!currentGoogleUser) return null;
+            const email = (currentGoogleUser.email || '').toLowerCase();
+            return agentState.find(a => (a.email || '').toLowerCase() === email) || null;
         }
 
         function openSOSModal() {
@@ -2617,14 +2738,15 @@
             if (isNaN(amount) || amount <= 0) return triggerToast('Enter a valid amount!', 'danger');
             if (!reason) return triggerToast('Please provide a reason!', 'danger');
 
-            const agent = getCurrentAgentProfile();
-            const agentId   = agent ? agent.id   : ('user_' + (localStorage.getItem('pf_cred_name') || 'unknown'));
-            const agentName = agent ? agent.name : (localStorage.getItem('pf_cred_name') || 'Unknown Agent');
+            const agent     = getCurrentAgentProfile();
+            const agentId   = agent ? agent.id   : ('google_' + (currentGoogleUser?.email || 'unknown'));
+            const agentName = agent ? agent.name : (currentGoogleUser?.displayName || currentGoogleUser?.email || 'Unknown Agent');
 
             const token = {
                 id:        'sos_' + Date.now(),
                 agentId,
                 agentName,
+                agentEmail: currentGoogleUser?.email || '',
                 amount,
                 reason,
                 urgency,
@@ -2649,13 +2771,13 @@
             const el = document.getElementById('agentTokenList');
             if (!el) return;
 
-            const agent = getCurrentAgentProfile();
-            const agentId   = agent ? agent.id   : ('user_' + (localStorage.getItem('pf_cred_name') || 'unknown'));
-            const agentName = agent ? agent.name : (localStorage.getItem('pf_cred_name') || '');
+            const agent      = getCurrentAgentProfile();
+            const agentId    = agent ? agent.id : ('google_' + (currentGoogleUser?.email || 'unknown'));
+            const agentEmail = (currentGoogleUser?.email || '').toLowerCase();
 
             const myTokens = sosTokens.filter(t =>
                 t.agentId === agentId ||
-                t.agentName.toLowerCase() === agentName.toLowerCase()
+                (t.agentEmail && t.agentEmail.toLowerCase() === agentEmail)
             );
 
             if (myTokens.length === 0) {
@@ -2800,12 +2922,16 @@
         }
 
         // ============================================================
-        // AGENT WALLET BAR — shown for regular 'user' role
+        // AGENT WALLET BAR — shown only for Google-logged-in agents
         // ============================================================
         function refreshAgentWalletBar() {
             const bar = document.getElementById('agentWalletBar');
             if (!bar) return;
-            if (currentRole !== 'user') { bar.style.display = 'none'; return; }
+            // Only show for Google-authenticated agents
+            if (currentRole !== 'agent' || !currentGoogleUser) {
+                bar.style.display = 'none';
+                return;
+            }
 
             const agent = getCurrentAgentProfile();
             if (agent) {
@@ -2814,7 +2940,12 @@
                 document.getElementById('agentWalletId').innerText  = agent.id;
                 renderAgentTokenHistory();
             } else {
-                bar.style.display = 'none';
+                // Google user exists but no matching agent profile yet
+                bar.style.display = 'block';
+                document.getElementById('agentWalletAmt').innerText = '₹0';
+                document.getElementById('agentWalletId').innerText  = 'Not yet registered by Admin';
+                const list = document.getElementById('agentTokenList');
+                if (list) list.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Your profile hasn\'t been set up by admin yet. Contact your administrator.</p>';
             }
         }
 
