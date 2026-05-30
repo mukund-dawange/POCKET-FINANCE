@@ -2518,7 +2518,7 @@
             if (tabLoan)    tabLoan.style.display    = 'none';
             if (tabHistory) tabHistory.style.display = 'none';
             // Rename "Wallet Management" tab to "My Dashboard" for agents
-            const walletTab = document.querySelector('.tab-trigger[onclick*="showSection('wallet')"]');
+            const walletTab = document.querySelector('[onclick*="wallet"]');
             if (walletTab) walletTab.innerHTML = '<i class="fa-solid fa-gauge-high"></i> My Dashboard';
             // Hide deposit/withdraw/transfer boxes — agents only see their allocated fund
             const wGrid = document.getElementById('adminWalletGrid');
