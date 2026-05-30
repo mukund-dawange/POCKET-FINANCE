@@ -889,8 +889,24 @@
                 <p style="color:var(--text-muted); font-size:13px; margin-top:8px;">Signing you in...</p>
             </div>
 
+            <!-- DATABASE URL SECTION (for agents on new devices) -->
+            <div style="margin-top:22px; border-top:1px solid var(--panel-border); padding-top:18px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; cursor:pointer;" onclick="document.getElementById('dbUrlSection').style.display = document.getElementById('dbUrlSection').style.display === 'none' ? 'block' : 'none'">
+                    <span style="font-size:12px; font-weight:600; color:var(--text-muted);"><i class="fa-brands fa-google-drive" style="color:var(--primary); margin-right:6px;"></i>Database Connection</span>
+                    <span id="loginDbStatusDot" style="font-size:11px; font-weight:700;"></span>
+                </div>
+                <div id="dbUrlSection" style="display:none;">
+                    <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Agents: paste your shared database URL here before signing in. Only needed once per device.</p>
+                    <div style="display:flex; gap:8px;">
+                        <input type="url" id="loginDbUrl" placeholder="https://script.google.com/macros/s/..." style="flex:1; padding:10px 12px; background:var(--input-bg); border:1px solid var(--panel-border); border-radius:8px; color:var(--text-main); font-size:12px; outline:none;">
+                        <button onclick="saveLoginDbUrl()" style="padding:10px 14px; background:var(--primary); color:#fff; border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;">Save</button>
+                    </div>
+                    <button onclick="clearLoginDbUrl()" style="margin-top:8px; background:none; border:none; color:var(--danger); font-size:11px; cursor:pointer; padding:0;"><i class="fa-solid fa-times"></i> Clear saved URL</button>
+                </div>
+            </div>
+
             <!-- SECRET TRIGGER: tap footer text 5 times to reveal admin/dev panel -->
-            <p style="color:var(--text-muted); font-size:11px; margin-top:22px; opacity:0.35; cursor:default; user-select:none;" id="loginFooterHint">Pocket Finance System</p>
+            <p style="color:var(--text-muted); font-size:11px; margin-top:18px; opacity:0.35; cursor:default; user-select:none;" id="loginFooterHint">Pocket Finance System</p>
         </div>
     </div>
 
@@ -960,6 +976,21 @@
             <h2 style="margin-bottom: 25px; font-weight: 700; font-size: 20px;">Wallet Operations</h2>
 
             <!-- AGENT WALLET STATUS BAR (shown to agents only) -->
+            <!-- AGENT DB CONNECT BANNER — shown when no shared DB is set -->
+            <div id="agentDbBanner" style="display:none; background:linear-gradient(135deg,rgba(245,158,11,0.08),rgba(239,68,68,0.05)); border:1.5px solid rgba(245,158,11,0.35); border-radius:14px; padding:20px 22px; margin-bottom:20px;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                    <i class="fa-brands fa-google-drive" style="color:var(--warning); font-size:20px;"></i>
+                    <div>
+                        <div style="font-size:14px; font-weight:700; color:var(--text-main);">Connect to Shared Database</div>
+                        <div style="font-size:12px; color:var(--text-muted);">Ask your admin for the database URL, then paste it below.</div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <input type="url" id="agentDbUrlInput" placeholder="https://script.google.com/macros/s/AKfy.../exec" style="flex:1; min-width:220px; padding:11px 14px; background:var(--input-bg); border:1px solid var(--panel-border); border-radius:10px; color:var(--text-main); font-size:13px; outline:none;">
+                    <button class="btn btn-success" onclick="agentConnectDb()"><i class="fa-solid fa-plug"></i> Connect</button>
+                </div>
+            </div>
+
             <div id="agentWalletBar" style="display:none; margin-bottom:28px;">
                 <div class="agent-wallet-info">
                     <div style="flex:1; min-width:180px;">
@@ -1209,6 +1240,22 @@
 
         <!-- ===== ADMIN CONTROL PANEL ===== -->
         <div id="sec-admincp" class="app-section">
+
+            <!-- ⚠️ DB NOT CONNECTED WARNING — shown dynamically -->
+            <div id="adminDbWarningBanner" style="display:none; background:linear-gradient(135deg,rgba(239,68,68,0.08),rgba(245,158,11,0.06)); border:2px solid rgba(239,68,68,0.4); border-radius:14px; padding:20px 24px; margin-bottom:28px;">
+                <div style="display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap;">
+                    <i class="fa-solid fa-triangle-exclamation" style="color:var(--danger); font-size:22px; flex-shrink:0; margin-top:2px;"></i>
+                    <div style="flex:1; min-width:220px;">
+                        <div style="font-size:15px; font-weight:800; color:var(--danger); margin-bottom:4px;">Shared Database Not Connected</div>
+                        <div style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">Agents cannot see their profiles or submit client tokens until the shared database is connected. Paste your Apps Script Web App URL below to fix this.</div>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                            <input type="url" id="adminBannerDbUrl" placeholder="https://script.google.com/macros/s/AKfy.../exec" style="flex:1; min-width:220px; padding:11px 14px; background:var(--input-bg); border:1px solid var(--panel-border); border-radius:10px; color:var(--text-main); font-size:13px; outline:none;">
+                            <button class="btn btn-success" onclick="adminBannerConnect()"><i class="fa-solid fa-plug"></i> Connect Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; flex-wrap:wrap; gap:15px;">
                 <div>
                     <h2 style="font-weight:800; font-size:22px; margin-bottom:4px;"><i class="fa-solid fa-shield-halved" style="color:var(--primary);"></i> Admin Control Panel</h2>
@@ -2160,6 +2207,46 @@
         let currentGoogleUser = null;
         let credentialSession = false;
 
+        // ============================================================
+        // LOGIN PAGE — DB URL HELPERS (so agents can connect on any device)
+        // ============================================================
+        function refreshLoginDbStatus() {
+            const dot   = document.getElementById('loginDbStatusDot');
+            const input = document.getElementById('loginDbUrl');
+            const saved = localStorage.getItem('pf_appsscript_url') || '';
+            if (!dot) return;
+            if (saved) {
+                dot.innerText = '● Connected';
+                dot.style.color = 'var(--success)';
+                if (input && !input.value) input.value = saved;
+            } else {
+                dot.innerText = '○ Not set';
+                dot.style.color = 'var(--danger)';
+            }
+        }
+
+        function saveLoginDbUrl() {
+            const input = document.getElementById('loginDbUrl');
+            const url   = (input ? input.value : '').trim();
+            if (!url || !url.startsWith('https://script.google.com')) {
+                triggerToast('Enter a valid Apps Script URL!', 'danger');
+                return;
+            }
+            appScriptUrl = url;
+            localStorage.setItem('pf_appsscript_url', url);
+            refreshLoginDbStatus();
+            triggerToast('Database URL saved! You can now sign in.', 'success');
+        }
+
+        function clearLoginDbUrl() {
+            appScriptUrl = '';
+            localStorage.removeItem('pf_appsscript_url');
+            const input = document.getElementById('loginDbUrl');
+            if (input) input.value = '';
+            refreshLoginDbStatus();
+            triggerToast('Database URL cleared.', 'warning');
+        }
+
         window.onload = function () {
             const body = document.body;
             const icon = document.getElementById('themeIcon');
@@ -2179,6 +2266,7 @@
             });
 
             setupAutoLogoutWatcher();
+            refreshLoginDbStatus();
 
             // Auth observer — only used for page-refresh session restore when token already exists
             // Main sign-in flow is handled directly in signInWithGoogle()
@@ -3682,19 +3770,50 @@ function jsonResp(obj) {
             const agent = getCurrentAgentProfile();
             if (agent) {
                 bar.style.display = 'block';
+                // Hide the DB connect banner if profile found
+                const dbBanner = document.getElementById('agentDbBanner');
+                if (dbBanner) dbBanner.style.display = 'none';
                 document.getElementById('agentWalletAmt').innerText = '₹' + (agent.fund || 0).toLocaleString('en-IN');
                 document.getElementById('agentWalletId').innerText  = agent.id;
                 renderAgentTokenHistory();
                 renderAgentClientList();
             } else {
-                // Google user exists but no matching agent profile yet
                 const loginEmail = (currentGoogleUser.email || '').trim().toLowerCase();
                 bar.style.display = 'block';
                 document.getElementById('agentWalletAmt').innerText = '₹0';
-                document.getElementById('agentWalletId').innerText  = 'Not registered — tell admin to use: ' + loginEmail;
-                const list = document.getElementById('agentTokenList');
-                if (list) list.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Your profile hasn\'t been set up by admin yet. Ask your administrator to register the email: <strong style="color:var(--primary);">' + loginEmail + '</strong></p>';
+
+                const dbBanner = document.getElementById('agentDbBanner');
+                if (!hasSharedDB()) {
+                    // No shared DB — show URL input so agent can connect right here
+                    document.getElementById('agentWalletId').innerText = 'Database not connected';
+                    if (dbBanner) dbBanner.style.display = 'block';
+                    const list = document.getElementById('agentTokenList');
+                    if (list) list.innerHTML = '<p style="color:var(--warning); font-size:13px;"><i class="fa-solid fa-triangle-exclamation"></i> No shared database connected. Paste the database URL in the panel above and click Connect.</p>';
+                } else {
+                    // DB connected but email not found in agents list
+                    document.getElementById('agentWalletId').innerText = 'Not registered — tell admin to add: ' + loginEmail;
+                    if (dbBanner) dbBanner.style.display = 'none';
+                    const list = document.getElementById('agentTokenList');
+                    if (list) list.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Your profile hasn\'t been set up by admin yet. Ask your administrator to register the email: <strong style="color:var(--primary);">' + loginEmail + '</strong></p>';
+                }
             }
+        }
+
+        function agentConnectDb() {
+            const input = document.getElementById('agentDbUrlInput');
+            const url   = (input ? input.value : '').trim();
+            if (!url || !url.startsWith('https://script.google.com')) {
+                triggerToast('Please enter a valid Apps Script Web App URL!', 'danger');
+                return;
+            }
+            appScriptUrl = url;
+            localStorage.setItem('pf_appsscript_url', url);
+            refreshLoginDbStatus();
+            triggerToast('Database connected! Loading your profile...', 'success');
+            loadDriveData().then(() => {
+                refreshAgentWalletBar();
+                startLiveSync();
+            });
         }
 
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
@@ -3773,24 +3892,43 @@ function jsonResp(obj) {
         // ADMIN SHARED DB CONNECT (mirrors Dev panel — same URL key)
         // ============================================================
         function adminRefreshDbBadge() {
-            const badge = document.getElementById('adminDbBadge');
-            const input = document.getElementById('adminAsUrlInput');
+            const badge      = document.getElementById('adminDbBadge');
+            const input      = document.getElementById('adminAsUrlInput');
             const disconnBtn = document.getElementById('adminDisconnectBtn');
+            const banner     = document.getElementById('adminDbWarningBanner');
             if (!badge) return;
             if (hasSharedDB()) {
                 badge.style.background = 'rgba(16,185,129,0.15)';
-                badge.style.color = 'var(--success)';
-                badge.style.border = '1px solid rgba(16,185,129,0.3)';
-                badge.innerText = '● Connected';
+                badge.style.color      = 'var(--success)';
+                badge.style.border     = '1px solid rgba(16,185,129,0.3)';
+                badge.innerText        = '● Connected';
                 if (input && !input.value) input.value = appScriptUrl;
                 if (disconnBtn) disconnBtn.style.display = 'inline-flex';
+                if (banner) banner.style.display = 'none';   // hide warning
+                const bannerInput = document.getElementById('adminBannerDbUrl');
+                if (bannerInput && !bannerInput.value) bannerInput.value = appScriptUrl;
             } else {
                 badge.style.background = 'rgba(239,68,68,0.12)';
-                badge.style.color = 'var(--danger)';
-                badge.style.border = '1px solid rgba(239,68,68,0.25)';
-                badge.innerText = '✗ Not Connected';
+                badge.style.color      = 'var(--danger)';
+                badge.style.border     = '1px solid rgba(239,68,68,0.25)';
+                badge.innerText        = '✗ Not Connected';
                 if (disconnBtn) disconnBtn.style.display = 'none';
+                if (banner) banner.style.display = 'block';  // show warning
             }
+        }
+
+        async function adminBannerConnect() {
+            const urlEl = document.getElementById('adminBannerDbUrl');
+            const url   = (urlEl ? urlEl.value : '').trim();
+            if (!url || !url.startsWith('https://script.google.com')) {
+                triggerToast('Enter a valid Apps Script Web App URL!', 'danger');
+                return;
+            }
+            // Also copy URL into the regular admin input for consistency
+            const adminInput = document.getElementById('adminAsUrlInput');
+            if (adminInput) adminInput.value = url;
+            // Reuse adminConnectSharedDB logic
+            await adminConnectSharedDB();
         }
 
         async function adminConnectSharedDB() {
