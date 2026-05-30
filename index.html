@@ -1377,6 +1377,67 @@
                 </div>
             </div>
 
+            <!-- ===== DRIVE INTEGRATION (SHARED DB) ===== -->
+            <div style="background:linear-gradient(135deg,rgba(59,130,246,0.06),rgba(99,102,241,0.06)); border:1.5px solid rgba(59,130,246,0.25); border-radius:14px; padding:28px; margin-bottom:30px;" id="driveIntegrationPanel">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:6px;">
+                    <div style="width:40px; height:40px; border-radius:10px; background:linear-gradient(135deg,#3b82f6,#6366f1); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <i class="fa-brands fa-google-drive" style="color:#fff; font-size:18px;"></i>
+                    </div>
+                    <div>
+                        <h3 style="font-size:16px; font-weight:800; margin-bottom:2px;">Drive Integration — Shared Database</h3>
+                        <p style="font-size:12px; color:var(--text-muted);">Connect one Google Drive for Admin, Dev & all Agents. All data stored centrally.</p>
+                    </div>
+                    <div id="driveIntBadge" style="margin-left:auto; padding:4px 14px; border-radius:20px; font-size:12px; font-weight:700;"></div>
+                </div>
+
+                <!-- STATUS BAR -->
+                <div id="driveIntStatus" style="margin:18px 0; padding:12px 16px; border-radius:10px; font-size:13px; font-weight:500;"></div>
+
+                <!-- STEP 1: Apps Script Code -->
+                <div style="margin-bottom:22px;">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                        <div style="width:24px; height:24px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#fff; flex-shrink:0;">1</div>
+                        <strong style="font-size:14px;">Copy this Apps Script code</strong>
+                    </div>
+                    <div style="background:#0f172a; border-radius:10px; padding:16px; font-family:monospace; font-size:11px; color:#a3e635; line-height:1.7; overflow-x:auto; white-space:pre; max-height:240px; overflow-y:auto;" id="asCodeBlock"></div>
+                    <button class="btn btn-secondary" style="margin-top:10px; font-size:12px; padding:8px 16px;" onclick="copyASCode()"><i class="fa-solid fa-copy"></i> Copy Code</button>
+                </div>
+
+                <!-- STEP 2: Instructions -->
+                <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:10px; padding:16px; margin-bottom:22px;">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                        <div style="width:24px; height:24px; background:#8b5cf6; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#fff; flex-shrink:0;">2</div>
+                        <strong style="font-size:14px;">Deploy as Web App in Google Apps Script</strong>
+                    </div>
+                    <ol style="padding-left:18px; font-size:13px; color:var(--text-muted); line-height:2.2;">
+                        <li>Go to <a href="https://script.google.com" target="_blank" style="color:var(--primary);">script.google.com</a> → New Project</li>
+                        <li>Delete the default code and paste the copied code above</li>
+                        <li>Click <strong style="color:var(--text-main);">Deploy → New Deployment</strong></li>
+                        <li>Type: <strong style="color:var(--text-main);">Web App</strong></li>
+                        <li>Execute as: <strong style="color:var(--text-main);">Me</strong></li>
+                        <li>Who has access: <strong style="color:var(--text-main);">Anyone</strong></li>
+                        <li>Click <strong style="color:var(--text-main);">Deploy</strong> → Authorize → Copy the Web App URL</li>
+                    </ol>
+                </div>
+
+                <!-- STEP 3: Paste URL -->
+                <div style="margin-bottom:18px;">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                        <div style="width:24px; height:24px; background:var(--success); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#fff; flex-shrink:0;">3</div>
+                        <strong style="font-size:14px;">Paste your Web App URL and connect</strong>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <input type="url" id="asUrlInput" placeholder="https://script.google.com/macros/s/AKfy.../exec"
+                            style="flex:1; min-width:260px; padding:12px 16px; background:var(--input-bg); border:1px solid var(--panel-border); border-radius:10px; color:var(--text-main); font-size:13px; outline:none;">
+                        <button class="btn" style="background:var(--success);" onclick="connectSharedDB()"><i class="fa-solid fa-plug"></i> Connect Database</button>
+                        <button class="btn btn-danger" onclick="disconnectSharedDB()" id="disconnectBtn" style="display:none;"><i class="fa-solid fa-unlink"></i> Disconnect</button>
+                    </div>
+                </div>
+
+                <!-- Test Connection -->
+                <button class="btn btn-secondary" style="font-size:12px; padding:8px 16px;" onclick="testSharedDB()"><i class="fa-solid fa-satellite-dish"></i> Test Connection</button>
+            </div>
+
             <!-- DANGER ZONE -->
             <div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.3); border-radius:14px; padding:24px;">
                 <h3 style="font-size:15px; font-weight:700; margin-bottom:5px; color:var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Danger Zone</h3>
@@ -1627,11 +1688,43 @@
         googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
 
         // ============================================================
-        // GOOGLE DRIVE DB LAYER
-        // All data lives in user's Drive inside folder "PF backend"
-        // Files: wallet.json | loans.json | trash.json | logs.json
-        //        agents.json | credentials.json
+        // DATABASE LAYER
+        // TWO modes, auto-selected:
+        //   1. Apps Script Web App (shared DB) — used when dev has
+        //      connected a Web App URL. Works for ALL roles (admin,
+        //      dev, agent) with NO OAuth token required.
+        //   2. Per-user Google Drive — fallback for Google-auth agents
+        //      when no shared Web App is configured yet.
         // ============================================================
+
+        // ---- Apps Script shared DB ----
+        const AS_URL_KEY = 'pf_appsscript_url';   // localStorage key
+        let appScriptUrl = localStorage.getItem(AS_URL_KEY) || '';
+
+        function hasSharedDB() { return !!appScriptUrl.trim(); }
+
+        async function asRequest(action, key, value) {
+            const url = appScriptUrl.trim();
+            if (!url) throw new Error('No Apps Script URL configured.');
+
+            if (action === 'read') {
+                const res = await fetch(`${url}?action=read&key=${encodeURIComponent(key)}`, { method: 'GET' });
+                if (!res.ok) throw new Error('AS read failed: ' + res.status);
+                const json = await res.json();
+                return json.value !== undefined ? json.value : null;
+            } else {
+                // write
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ action: 'write', key, value })
+                });
+                if (!res.ok) throw new Error('AS write failed: ' + res.status);
+                return true;
+            }
+        }
+
+        // ---- Per-user Google Drive helpers (agent fallback) ----
         let driveAccessToken = null;
         let driveFolderId    = null;
         const DRIVE_FOLDER_NAME = 'PF backend';
@@ -1644,10 +1737,7 @@
             credentials: 'pf_credentials.json',
             sosTokens:   'pf_sos_tokens.json'
         };
-        // Cache: fileName -> fileId
         const driveFileIds = {};
-
-        // ---- Low-level Drive helpers ----
 
         async function driveRequest(method, endpoint, body, isUpload) {
             const base = isUpload
@@ -1661,29 +1751,18 @@
                 },
                 body: body || undefined
             });
-            if (!res.ok) {
-                const err = await res.text();
-                throw new Error(`Drive API ${method} ${endpoint} → ${res.status}: ${err}`);
-            }
+            if (!res.ok) { const err = await res.text(); throw new Error(`Drive ${method} ${endpoint} → ${res.status}: ${err}`); }
             return res.status === 204 ? null : res.json();
         }
 
         async function driveEnsureFolder() {
             if (driveFolderId) return driveFolderId;
-            // Search for existing folder
             const q = encodeURIComponent(`name='${DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
             const r = await driveRequest('GET', `/files?q=${q}&fields=files(id,name)`);
-            if (r.files && r.files.length > 0) {
-                driveFolderId = r.files[0].id;
-                return driveFolderId;
-            }
-            // Create folder
-            const created = await driveRequest('POST', '/files', JSON.stringify({
-                name: DRIVE_FOLDER_NAME,
-                mimeType: 'application/vnd.google-apps.folder'
-            }));
+            if (r.files && r.files.length > 0) { driveFolderId = r.files[0].id; return driveFolderId; }
+            const created = await driveRequest('POST', '/files', JSON.stringify({ name: DRIVE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }));
             driveFolderId = created.id;
-            triggerToast('📁 "PF backend" folder created in your Google Drive!', 'success');
+            triggerToast('📁 "PF backend" folder created in your Drive!', 'success');
             return driveFolderId;
         }
 
@@ -1692,11 +1771,8 @@
             await driveEnsureFolder();
             const q = encodeURIComponent(`name='${fileName}' and '${driveFolderId}' in parents and trashed=false`);
             const r = await driveRequest('GET', `/files?q=${q}&fields=files(id,name)`);
-            if (r.files && r.files.length > 0) {
-                driveFileIds[fileName] = r.files[0].id;
-                return driveFileIds[fileName];
-            }
-            return null; // file doesn't exist yet
+            if (r.files && r.files.length > 0) { driveFileIds[fileName] = r.files[0].id; return driveFileIds[fileName]; }
+            return null;
         }
 
         async function driveReadJSON(fileName) {
@@ -1713,44 +1789,52 @@
             const json = JSON.stringify(data, null, 2);
             const blob = new Blob([json], { type: 'application/json' });
             const fileId = await driveGetFileId(fileName);
-
             if (fileId) {
-                // Update existing file
                 const form = new FormData();
                 form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
                 form.append('file', blob);
-                const res = await fetch(
-                    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`,
-                    { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + driveAccessToken }, body: form }
-                );
+                const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`,
+                    { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + driveAccessToken }, body: form });
                 if (!res.ok) throw new Error('Drive update failed: ' + await res.text());
             } else {
-                // Create new file in PF backend folder
                 await driveEnsureFolder();
                 const form = new FormData();
-                form.append('metadata', new Blob([JSON.stringify({
-                    name: fileName,
-                    parents: [driveFolderId]
-                })], { type: 'application/json' }));
+                form.append('metadata', new Blob([JSON.stringify({ name: fileName, parents: [driveFolderId] })], { type: 'application/json' }));
                 form.append('file', blob);
-                const res = await fetch(
-                    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-                    { method: 'POST', headers: { 'Authorization': 'Bearer ' + driveAccessToken }, body: form }
-                );
+                const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+                    { method: 'POST', headers: { 'Authorization': 'Bearer ' + driveAccessToken }, body: form });
                 if (!res.ok) throw new Error('Drive create failed: ' + await res.text());
                 const created = await res.json();
                 driveFileIds[fileName] = created.id;
             }
         }
 
-        // ---- App-level DB functions (replace all Firestore calls) ----
+        // ---- Unified read/write — routes to shared DB or Drive ----
 
-        async function syncWalletDB()  { await driveWriteJSON(DRIVE_FILES.wallet,      state.wallet).catch(e => console.warn('wallet sync:', e)); }
-        async function syncCredsDB()   { await driveWriteJSON(DRIVE_FILES.credentials, state.credentials).catch(e => console.warn('creds sync:', e)); }
-        async function syncLoansDB()   { await driveWriteJSON(DRIVE_FILES.loans,       state.loans).catch(e => console.warn('loans sync:', e)); }
-        async function syncTrashDB_()  { await driveWriteJSON(DRIVE_FILES.trash,       state.trash).catch(e => console.warn('trash sync:', e)); }
-        async function syncLogsDB()    { await driveWriteJSON(DRIVE_FILES.logs,        state.logs).catch(e => console.warn('logs sync:', e)); }
-        async function syncAgentsDB()  { await driveWriteJSON(DRIVE_FILES.agents,      agentState).catch(e => console.warn('agents sync:', e)); }
+        async function dbRead(key) {
+            if (hasSharedDB()) return asRequest('read', key, null);
+            if (driveAccessToken)  return driveReadJSON(DRIVE_FILES[key] || key);
+            return null;
+        }
+
+        async function dbWrite(key, value) {
+            if (hasSharedDB()) return asRequest('write', key, value);
+            if (driveAccessToken)  return driveWriteJSON(DRIVE_FILES[key] || key, value);
+            // No DB available — save to localStorage as last resort
+            localStorage.setItem('pf_local_' + key, JSON.stringify(value));
+        }
+
+        function dbReadLocal(key) {
+            try { return JSON.parse(localStorage.getItem('pf_local_' + key)); } catch { return null; }
+        }
+
+        // ---- App-level DB functions ----
+        async function syncWalletDB()  { await dbWrite('wallet',      state.wallet).catch(e => console.warn('wallet sync:', e)); }
+        async function syncCredsDB()   { await dbWrite('credentials', state.credentials).catch(e => console.warn('creds sync:', e)); }
+        async function syncLoansDB()   { await dbWrite('loans',       state.loans).catch(e => console.warn('loans sync:', e)); }
+        async function syncTrashDB_()  { await dbWrite('trash',       state.trash).catch(e => console.warn('trash sync:', e)); }
+        async function syncLogsDB()    { await dbWrite('logs',        state.logs).catch(e => console.warn('logs sync:', e)); }
+        async function syncAgentsDB()  { await dbWrite('agents',      agentState).catch(e => console.warn('agents sync:', e)); }
 
         // Individual helpers kept for compatibility with callers
         function syncLoanDB(loan) {
@@ -1776,51 +1860,71 @@
         async function loadDriveData() {
             try {
                 updateDevDbStatus(false);
-                await driveEnsureFolder();
 
-                const [creds, wallet, loans, trash, logs, agents] = await Promise.all([
-                    driveReadJSON(DRIVE_FILES.credentials),
-                    driveReadJSON(DRIVE_FILES.wallet),
-                    driveReadJSON(DRIVE_FILES.loans),
-                    driveReadJSON(DRIVE_FILES.trash),
-                    driveReadJSON(DRIVE_FILES.logs),
-                    driveReadJSON(DRIVE_FILES.agents)
+                // If using shared Apps Script DB — no folder setup needed
+                if (!hasSharedDB()) {
+                    if (driveAccessToken) await driveEnsureFolder();
+                    else {
+                        // No DB at all — try localStorage fallback
+                        const localAgents = dbReadLocal('agents');
+                        if (Array.isArray(localAgents)) agentState = localAgents;
+                        const localWallet = dbReadLocal('wallet');
+                        if (localWallet) state.wallet = localWallet;
+                        const localLoans = dbReadLocal('loans');
+                        if (Array.isArray(localLoans)) state.loans = localLoans;
+                        const localSos = dbReadLocal('sosTokens');
+                        if (Array.isArray(localSos)) sosTokens = localSos;
+                        updateDevDbStatus(false);
+                        triggerToast('⚠️ No shared DB connected. Connect via Dev Console → Drive Integration.', 'warning');
+                        refreshSystemEngine();
+                        refreshAgentWalletBar();
+                        updateSOSNotificationBadge();
+                        return;
+                    }
+                }
+
+                const [creds, wallet, loans, trash, logs, agents, sos] = await Promise.all([
+                    dbRead('credentials'),
+                    dbRead('wallet'),
+                    dbRead('loans'),
+                    dbRead('trash'),
+                    dbRead('logs'),
+                    dbRead('agents'),
+                    dbRead('sosTokens')
                 ]);
 
-                if (creds)  state.credentials = creds;
-                else        syncCredsDB();  // first run — save defaults
-
-                if (wallet) state.wallet = wallet;
-                else        syncWalletDB();
+                if (creds)  state.credentials = creds;  else syncCredsDB();
+                if (wallet) state.wallet = wallet;       else syncWalletDB();
 
                 state.loans = Array.isArray(loans) ? loans : [];
                 state.trash = Array.isArray(trash) ? trash : [];
                 state.logs  = Array.isArray(logs)  ? logs.sort((a,b) => (b.timestampMs||0)-(a.timestampMs||0)) : [];
                 agentState  = Array.isArray(agents) ? agents : [];
-
-                // Load SOS tokens
-                await loadSOSTokens();
+                sosTokens   = Array.isArray(sos)    ? sos    : [];
 
                 updateDevDbStatus(true);
                 refreshSystemEngine();
-                // Fix: always refresh agent wallet bar after data load so fund reflects immediately
                 refreshAgentWalletBar();
-                // Fix: update admin notification badge from loaded SOS tokens
                 updateSOSNotificationBadge();
-                triggerToast('✅ Data loaded from Google Drive', 'success');
+                triggerToast('✅ Data loaded from ' + (hasSharedDB() ? 'Shared Drive DB' : 'Google Drive'), 'success');
             } catch (err) {
-                console.error('[PF] Drive load error:', err);
+                console.error('[PF] DB load error:', err);
                 updateDevDbStatus(false);
-                triggerToast('⚠️ Could not load data from Drive. Check console.', 'danger');
+                triggerToast('⚠️ Could not load data. Check console.', 'danger');
             }
         }
 
         function updateDevDbStatus(ok) {
             const el = document.getElementById('devDbStatus');
             if (!el) return;
-            el.innerHTML = ok
-                ? '<span style="color:var(--success);">● Connected (Drive)</span>'
-                : '<span style="color:var(--danger);">● Disconnected</span>';
+            if (ok) {
+                const mode = hasSharedDB() ? 'Shared Drive DB' : 'Personal Drive';
+                el.innerHTML = `<span style="color:var(--success);">● Connected (${mode})</span>`;
+            } else {
+                el.innerHTML = hasSharedDB()
+                    ? '<span style="color:var(--warning);">● Connecting...</span>'
+                    : '<span style="color:var(--danger);">● No Shared DB — Connect in Drive Integration</span>';
+            }
         }
 
         // ============================================================
@@ -1892,8 +1996,8 @@
                 credentialSession = true;
                 currentRole = localStorage.getItem('pf_cred_role') || 'user';
                 bypassToDashboard(localStorage.getItem('pf_cred_name') || currentRole);
-                // For credential sessions: load from Drive if token exists, else skip
-                if (driveAccessToken) loadDriveData();
+                // Always try to load — shared DB works without OAuth token
+                loadDriveData().then(() => startLiveSync());
             }
         };
 
@@ -1978,9 +2082,8 @@
                 bypassToDashboard(displayName);
                 const label = role === 'dev' ? 'Developer' : role === 'admin' ? 'Admin' : 'User';
                 triggerToast(`Welcome, ${label}!`, 'success');
-                // Load Drive data for credential sessions too (if token exists)
-                if (driveAccessToken) { loadDriveData().then(() => startLiveSync()); }
-                else { startLiveSync(); }
+                // Always load data — shared DB needs no OAuth token
+                loadDriveData().then(() => startLiveSync());
             } else {
                 state.wrongAttempts++;
                 if (state.wrongAttempts >= 3) {
@@ -2615,12 +2718,15 @@
             devRefreshSnapshot();
             devShowBackendConfig();
             renderAgentLiveTracker('devTrackerGrid');
+            initDriveIntegrationUI();
         }
 
         function devRefreshSnapshot() {
             const el = document.getElementById('devStateSnapshot');
             if (!el) return;
             el.textContent = JSON.stringify({
+                sharedDB:      hasSharedDB() ? '● Connected (' + appScriptUrl.substring(0,40) + '...)' : '✗ Not connected',
+                driveToken:    !!driveAccessToken,
                 wallet:        state.wallet,
                 activeLoans:   state.loans.length,
                 archivedLoans: state.trash.length,
@@ -2628,8 +2734,7 @@
                 credentials:   { user: state.credentials.user, pass: '●●●●●●' },
                 agents:        agentState.length,
                 sosTokens:     sosTokens.length,
-                driveConnected: !!driveAccessToken,
-                driveFolderId:  driveFolderId || 'not loaded'
+                driveFolderId: driveFolderId || 'n/a'
             }, null, 2);
         }
 
@@ -2637,12 +2742,12 @@
             const el = document.getElementById('devFirebaseConfig');
             if (!el) return;
             el.textContent = JSON.stringify({
-                authProvider:  'Firebase Google OAuth',
-                database:      'Google Drive (user-owned)',
-                driveFolder:   DRIVE_FOLDER_NAME,
-                driveFiles:    DRIVE_FILES,
-                driveFolderId: driveFolderId || 'not loaded yet',
-                tokenPresent:  !!driveAccessToken,
+                authProvider:    'Firebase Google OAuth',
+                sharedDatabase:  hasSharedDB() ? 'Google Apps Script Web App' : 'NOT CONNECTED',
+                appsScriptURL:   hasSharedDB() ? appScriptUrl.substring(0,60) + '...' : '(paste in Drive Integration)',
+                fallback:        'Per-user Google Drive (Google-auth agents only)',
+                driveFolder:     DRIVE_FOLDER_NAME,
+                driveToken:      !!driveAccessToken,
                 firebaseProject: 'pocket-finance-8f163'
             }, null, 2);
         }
@@ -2728,31 +2833,24 @@
         function startLiveSync() {
             if (liveSyncInterval) clearInterval(liveSyncInterval);
             liveSyncInterval = setInterval(async () => {
-                if (!driveAccessToken) return;
+                if (!hasSharedDB() && !driveAccessToken) return;
                 try {
-                    // Always reload agents so fund changes from admin reflect in agent panel
-                    const agents = await driveReadJSON(DRIVE_FILES.agents).catch(() => null);
+                    const agents = await dbRead('agents').catch(() => null);
                     if (Array.isArray(agents)) agentState = agents;
 
-                    // Always reload SOS tokens so admin badge and agent history stay fresh
-                    const sos = await driveReadJSON(DRIVE_FILES.sosTokens).catch(() => null);
+                    const sos = await dbRead('sosTokens').catch(() => null);
                     if (Array.isArray(sos)) sosTokens = sos;
 
-                    // Refresh agent panel fund display
                     if (currentRole === 'agent') {
                         refreshAgentWalletBar();
                     }
-
-                    // Refresh admin SOS badge + panel if admin is on that tab
                     if (currentRole === 'admin' || currentRole === 'dev') {
                         updateSOSNotificationBadge();
                         renderAdminSOSPanel();
                         renderAgents();
                     }
-                } catch(e) {
-                    // silent fail — network hiccup
-                }
-            }, 30000); // every 30 seconds
+                } catch(e) { /* silent */ }
+            }, 30000);
         }
 
         // Compute pending SOS count and update notification bell badge
@@ -2772,16 +2870,199 @@
         }
 
         // ============================================================
-        // SOS TOKEN SYSTEM
+        // DRIVE INTEGRATION — SHARED DB via Apps Script
         // ============================================================
-        let sosTokens = [];   // { id, agentId, agentName, amount, reason, urgency, raisedAt, status, disbursement:{amount,period,dueDate,notes,source,disbursedAt} }
+
+        const AS_CODE_TEMPLATE = `// Pocket Finance — Shared Database (Google Apps Script)
+// Deploy as Web App: Execute as Me, Anyone can access
+// This script stores all app data in a Google Sheet in your Drive.
+
+const SHEET_NAME = 'PF_Database';
+
+function getSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet()
+          || SpreadsheetApp.create('Pocket Finance DB');
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+    sheet.appendRow(['key', 'value', 'updatedAt']);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function doGet(e) {
+  try {
+    const key = e.parameter.key;
+    if (!key) return jsonResp({ error: 'No key' }, 400);
+    const sheet = getSheet();
+    const data  = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === key) {
+        const parsed = JSON.parse(data[i][1]);
+        return jsonResp({ value: parsed });
+      }
+    }
+    return jsonResp({ value: null });
+  } catch(err) {
+    return jsonResp({ error: err.message }, 500);
+  }
+}
+
+function doPost(e) {
+  try {
+    const body  = JSON.parse(e.postData.contents);
+    const key   = body.key;
+    const value = JSON.stringify(body.value);
+    const now   = new Date().toISOString();
+    const sheet = getSheet();
+    const data  = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === key) {
+        sheet.getRange(i + 1, 2, 1, 2).setValues([[value, now]]);
+        return jsonResp({ ok: true });
+      }
+    }
+    sheet.appendRow([key, value, now]);
+    return jsonResp({ ok: true });
+  } catch(err) {
+    return jsonResp({ error: err.message }, 500);
+  }
+}
+
+function jsonResp(obj, code) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}`;
+
+        function initDriveIntegrationUI() {
+            const codeEl = document.getElementById('asCodeBlock');
+            if (codeEl) codeEl.textContent = AS_CODE_TEMPLATE;
+
+            const urlInput = document.getElementById('asUrlInput');
+            if (urlInput && appScriptUrl) urlInput.value = appScriptUrl;
+
+            refreshDriveIntStatus();
+        }
+
+        function refreshDriveIntStatus() {
+            const badge = document.getElementById('driveIntBadge');
+            const status = document.getElementById('driveIntStatus');
+            const disconnBtn = document.getElementById('disconnectBtn');
+            if (!badge || !status) return;
+
+            if (hasSharedDB()) {
+                badge.style.background = 'rgba(16,185,129,0.15)';
+                badge.style.color = 'var(--success)';
+                badge.style.border = '1px solid rgba(16,185,129,0.3)';
+                badge.innerText = '● Connected';
+
+                status.style.background = 'rgba(16,185,129,0.08)';
+                status.style.border = '1px solid rgba(16,185,129,0.2)';
+                status.style.color = 'var(--success)';
+                status.innerHTML = `<i class="fa-solid fa-circle-check"></i> Shared database connected. All roles (Admin, Dev, Agents) share this data store. URL: <span style="font-family:monospace; font-size:11px; word-break:break-all; color:var(--text-muted);">${appScriptUrl}</span>`;
+                if (disconnBtn) disconnBtn.style.display = 'inline-flex';
+            } else {
+                badge.style.background = 'rgba(239,68,68,0.12)';
+                badge.style.color = 'var(--danger)';
+                badge.style.border = '1px solid rgba(239,68,68,0.25)';
+                badge.innerText = '✗ Not Connected';
+
+                status.style.background = 'rgba(245,158,11,0.08)';
+                status.style.border = '1px solid rgba(245,158,11,0.3)';
+                status.style.color = 'var(--warning)';
+                status.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> No shared database connected. Data is NOT being saved for Admin/Dev logins. Follow the 3 steps below to connect.`;
+                if (disconnBtn) disconnBtn.style.display = 'none';
+            }
+        }
+
+        async function connectSharedDB() {
+            const url = document.getElementById('asUrlInput').value.trim();
+            if (!url || !url.startsWith('https://script.google.com')) {
+                return triggerToast('Please enter a valid Apps Script Web App URL!', 'danger');
+            }
+            triggerToast('Testing connection...', 'neutral');
+            try {
+                // Test with a write then read
+                const testKey = '_pf_test_';
+                const testVal = 'ping_' + Date.now();
+                const writeRes = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ action: 'write', key: testKey, value: testVal })
+                });
+                if (!writeRes.ok) throw new Error('Write test failed: ' + writeRes.status);
+                const readRes = await fetch(`${url}?action=read&key=${testKey}`);
+                if (!readRes.ok) throw new Error('Read test failed: ' + readRes.status);
+                const readData = await readRes.json();
+                if (readData.value !== testVal) throw new Error('Data mismatch — check script code');
+
+                // All good — save URL
+                appScriptUrl = url;
+                localStorage.setItem(AS_URL_KEY, url);
+                refreshDriveIntStatus();
+                updateDevDbStatus(true);
+                triggerToast('✅ Shared database connected! Loading data...', 'success');
+
+                // Load all existing data from the new shared DB
+                await loadDriveData();
+                devRefreshAll();
+            } catch(err) {
+                triggerToast('Connection failed: ' + err.message, 'danger');
+                console.error('[PF] AS connect error:', err);
+            }
+        }
+
+        function disconnectSharedDB() {
+            if (!confirm('Disconnect the shared database? Admin/Dev data will not be saved until reconnected.')) return;
+            appScriptUrl = '';
+            localStorage.removeItem(AS_URL_KEY);
+            const urlInput = document.getElementById('asUrlInput');
+            if (urlInput) urlInput.value = '';
+            refreshDriveIntStatus();
+            updateDevDbStatus(false);
+            triggerToast('Shared database disconnected.', 'warning');
+        }
+
+        async function testSharedDB() {
+            if (!hasSharedDB()) return triggerToast('No URL configured. Paste your Web App URL first.', 'danger');
+            try {
+                triggerToast('Testing connection...', 'neutral');
+                const key = '_pf_ping_' + Date.now();
+                const writeRes = await fetch(appScriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ action: 'write', key, value: 'ok' })
+                });
+                if (!writeRes.ok) throw new Error('Status ' + writeRes.status);
+                triggerToast('✅ Connection is working!', 'success');
+            } catch(e) {
+                triggerToast('Connection test failed: ' + e.message, 'danger');
+            }
+        }
+
+        function copyASCode() {
+            navigator.clipboard.writeText(AS_CODE_TEMPLATE).then(() => {
+                triggerToast('Apps Script code copied!', 'success');
+            }).catch(() => {
+                // fallback
+                const el = document.createElement('textarea');
+                el.value = AS_CODE_TEMPLATE;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+                triggerToast('Code copied!', 'success');
+            });
+        }   // { id, agentId, agentName, amount, reason, urgency, raisedAt, status, disbursement:{amount,period,dueDate,notes,source,disbursedAt} }
 
         async function syncSOSTokensDB() {
-            await driveWriteJSON('pf_sos_tokens.json', sosTokens).catch(e => console.warn('sos sync:', e));
+            await dbWrite('sosTokens', sosTokens).catch(e => console.warn('sos sync:', e));
         }
 
         async function loadSOSTokens() {
-            const data = await driveReadJSON('pf_sos_tokens.json').catch(() => null);
+            const data = await dbRead('sosTokens').catch(() => null);
             sosTokens = Array.isArray(data) ? data : [];
         }
 
@@ -2995,11 +3276,11 @@
         // AGENT WALLET BAR — shown only for Google-logged-in agents
         // ============================================================
         async function manualAgentRefresh() {
-            if (!driveAccessToken) return triggerToast('Not connected to Drive.', 'danger');
+            if (!hasSharedDB() && !driveAccessToken) return triggerToast('No database connected.', 'danger');
             try {
-                const agents = await driveReadJSON(DRIVE_FILES.agents).catch(() => null);
+                const agents = await dbRead('agents').catch(() => null);
                 if (Array.isArray(agents)) agentState = agents;
-                const sos = await driveReadJSON(DRIVE_FILES.sosTokens).catch(() => null);
+                const sos = await dbRead('sosTokens').catch(() => null);
                 if (Array.isArray(sos)) sosTokens = sos;
                 refreshAgentWalletBar();
                 triggerToast('Fund balance refreshed!', 'success');
