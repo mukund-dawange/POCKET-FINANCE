@@ -2639,11 +2639,13 @@
         // ============================================================
         function updateNotificationBadge() {
             const badge = document.getElementById('notifBadge');
-            // For admin/dev: badge also reflects pending SOS token count
-            const pendingSOS = (currentRole === 'admin' || currentRole === 'dev')
-                ? sosTokens.filter(t => t.status === 'Pending').length
-                : 0;
-            const total = unreadNotifications + pendingSOS;
+            // For admin/dev: badge reflects pending SOS + pending client tokens
+            let pendingCount = 0;
+            if (currentRole === 'admin' || currentRole === 'dev') {
+                pendingCount += sosTokens.filter(t => t.status === 'Pending').length;
+                pendingCount += clientTokens.filter(c => c.status === 'Pending').length;
+            }
+            const total = unreadNotifications + pendingCount;
             if (total > 0) {
                 badge.style.display = 'flex';
                 badge.innerText = total > 9 ? '9+' : total;
@@ -2654,12 +2656,19 @@
 
         function clearNotifications() {
             if (currentRole === 'admin' || currentRole === 'dev') {
-                // Navigate admin to admin panel SOS section
+                // Navigate admin to admin panel and refresh all pending sections
                 showSection('admincp');
                 renderAdminSOSPanel();
+                renderAdminClientTokens();
                 unreadNotifications = 0;
                 updateNotificationBadge();
-                triggerToast('Viewing SOS requests.', 'success');
+                const pendingSOS    = sosTokens.filter(t => t.status === 'Pending').length;
+                const pendingClient = clientTokens.filter(c => c.status === 'Pending').length;
+                if (pendingSOS > 0 || pendingClient > 0) {
+                    triggerToast((pendingSOS + pendingClient) + ' pending request(s) need your review.', 'warning');
+                } else {
+                    triggerToast('No pending requests.', 'success');
+                }
             } else if (unreadNotifications === 0) {
                 triggerToast('No new notifications.', 'neutral');
             } else {
@@ -3182,6 +3191,7 @@
                     }
                     if (currentRole === 'admin' || currentRole === 'dev') {
                         updateSOSNotificationBadge();
+                        updateNotificationBadge();
                         renderAdminSOSPanel();
                         renderAgents();
                         renderAdminClientTokens();
@@ -3190,15 +3200,18 @@
             }, 30000);
         }
 
-        // Compute pending SOS count and update notification bell badge
+        // Compute pending SOS + client token count and update notification bell badge
         function updateSOSNotificationBadge() {
-            const pending = sosTokens.filter(t => t.status === 'Pending').length;
+            const pendingSOS    = sosTokens.filter(t => t.status === 'Pending').length;
+            const pendingClient = (currentRole === 'admin' || currentRole === 'dev')
+                ? clientTokens.filter(c => c.status === 'Pending').length : 0;
+            const pending = pendingSOS + pendingClient;
             const badge = document.getElementById('notifBadge');
             if (!badge) return;
             if (pending > 0) {
                 badge.style.display = 'flex';
-                badge.innerText = pending;
-                // also keep unreadNotifications in sync
+                badge.innerText = pending > 9 ? '9+' : pending;
+                // keep unreadNotifications in sync
                 unreadNotifications = Math.max(unreadNotifications, pending);
             } else {
                 // only hide if user hasn't unread non-SOS notifications
@@ -3648,6 +3661,8 @@ function jsonResp(obj) {
                 if (Array.isArray(agents)) agentState = agents;
                 const sos = await dbRead('sosTokens').catch(() => null);
                 if (Array.isArray(sos)) sosTokens = sos;
+                const cliTok = await dbRead('clientTokens').catch(() => null);
+                if (Array.isArray(cliTok)) clientTokens = cliTok;
                 refreshAgentWalletBar();
                 triggerToast('Fund balance refreshed!', 'success');
             } catch(e) {
@@ -3906,6 +3921,10 @@ function jsonResp(obj) {
             syncClientTokensDB();
             closeModal('clientTokenModal');
             renderAgentClientList();
+            // Notify admin of new pending client token
+            unreadNotifications++;
+            updateNotificationBadge();
+            updateSOSNotificationBadge();
             triggerToast('Client token submitted! Admin will review.', 'success');
         }
 
@@ -4024,6 +4043,8 @@ function jsonResp(obj) {
             clientTokens[idx].adminNote = 'Approved by Admin on ' + new Date().toLocaleDateString('en-IN');
             syncClientTokensDB();
             renderAdminClientTokens();
+            updateNotificationBadge();
+            updateSOSNotificationBadge();
             triggerToast('Client token approved!', 'success');
         }
 
@@ -4035,6 +4056,8 @@ function jsonResp(obj) {
             clientTokens[idx].adminNote = note || 'Rejected by Admin';
             syncClientTokensDB();
             renderAdminClientTokens();
+            updateNotificationBadge();
+            updateSOSNotificationBadge();
             triggerToast('Client token rejected.', 'warning');
         }
 
