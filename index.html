@@ -1329,6 +1329,12 @@
                     </div>
                 </div>
                 <button class="btn btn-success" onclick="assignNewAgent()"><i class="fa-solid fa-user-check"></i> Create Agent Profile</button>
+                <p id="agentDbPreConnectNote" style="font-size:12px; color:var(--text-muted); margin-top:10px; display:none;">
+                    <i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong style="color:var(--success);">Database pre-connected:</strong> This agent's portal will automatically connect to the shared database — no manual URL entry needed.
+                </p>
+                <p id="agentDbNoConnectNote" style="font-size:12px; color:var(--warning); margin-top:10px;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> No shared database connected. Connect the database first so this agent's portal is pre-configured automatically.
+                </p>
             </div>
 
             <!-- AGENTS TABLE -->
@@ -2387,18 +2393,28 @@
             setupAutoLogoutWatcher();
             refreshLoginDbStatus();
 
-            // Auth observer — only used for page-refresh session restore when token already exists
-            // Main sign-in flow is handled directly in signInWithGoogle()
+            // Auth observer — handles page-refresh session restore for Google users
             auth.onAuthStateChanged(async (user) => {
-                // If user is signed in AND we already have driveAccessToken (set by signInWithGoogle)
-                // this means we just came back from popup — already handled there, skip.
-                if (user && !credentialSession && driveAccessToken) {
-                    // Already handled in signInWithGoogle — nothing to do
+                // Skip if already handled by signInWithGoogle (driveAccessToken already set)
+                if (user && !credentialSession && driveAccessToken) return;
+
+                // Page-refresh case: Firebase still has the session but driveAccessToken is gone.
+                // Restore the Google session without Drive token (agents still work via shared DB).
+                if (user && !credentialSession && !driveAccessToken) {
+                    const savedGoogleSession = localStorage.getItem('pf_google_session');
+                    if (savedGoogleSession === 'true') {
+                        currentRole       = 'agent';
+                        currentGoogleUser = user;
+                        document.getElementById('loginPage').style.display    = 'none';
+                        document.getElementById('appContainer').style.display = 'block';
+                        updateNavForGoogle(user);
+                        // Load shared DB data (works without Drive OAuth token)
+                        await loadDriveData();
+                        refreshSystemEngine();
+                        refreshAgentWalletBar();
+                        startLiveSync();
+                    }
                 }
-                // If user is signed in but no drive token (page refresh case):
-                // We can't silently get the Drive OAuth token from Firebase Auth alone —
-                // the user will see the login page and need to click "Continue with Google" again.
-                // This is by design: Drive token is not stored for security.
             });
 
             // Restore credential session from localStorage
@@ -2417,10 +2433,32 @@
             btn.style.display     = 'none';
             loading.style.display = 'block';
             try {
-                const result = await auth.signInWithPopup(googleProvider);
-                driveAccessToken  = result.credential.accessToken;
+                // Use redirect on mobile/popup-blocked, popup on desktop
+                let result;
+                try {
+                    result = await auth.signInWithPopup(googleProvider);
+                } catch(popupErr) {
+                    // If popup is blocked, fall back to redirect
+                    if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/popup-closed-by-user') {
+                        btn.style.display     = 'flex';
+                        loading.style.display = 'none';
+                        const errEl = document.getElementById('loginError');
+                        if (errEl) {
+                            errEl.innerText     = popupErr.code === 'auth/popup-closed-by-user'
+                                ? 'Sign-in cancelled. Please try again.'
+                                : 'Popup was blocked. Please allow popups for this site and try again.';
+                            errEl.style.display = 'block';
+                        }
+                        return;
+                    }
+                    throw popupErr;
+                }
+                driveAccessToken  = result.credential ? result.credential.accessToken : null;
                 currentRole       = 'agent';   // Google login = agent
                 currentGoogleUser = result.user;
+
+                // Persist Google session so page-refresh restores it
+                localStorage.setItem('pf_google_session', 'true');
 
                 document.getElementById('loginPage').style.display    = 'none';
                 document.getElementById('appContainer').style.display = 'block';
@@ -2438,8 +2476,13 @@
                 btn.style.display     = 'flex';
                 loading.style.display = 'none';
                 const errEl = document.getElementById('loginError');
+                let errMsg = 'Google sign-in failed.';
+                if (err.code === 'auth/network-request-failed') errMsg = 'Network error. Check your internet connection.';
+                else if (err.code === 'auth/unauthorized-domain') errMsg = 'This domain is not authorized. Contact the administrator.';
+                else if (err.code === 'auth/operation-not-allowed') errMsg = 'Google sign-in is not enabled. Contact the administrator.';
+                else if (err.message) errMsg = err.message;
                 if (errEl) {
-                    errEl.innerText    = 'Google sign-in failed: ' + (err.message || 'Unknown error');
+                    errEl.innerText    = errMsg;
                     errEl.style.display = 'block';
                 }
                 triggerToast('Google sign-in failed.', 'danger');
@@ -2554,6 +2597,7 @@
             localStorage.removeItem('pf_cred_role');
             localStorage.removeItem('pf_cred_name');
             localStorage.removeItem('sens_session_remember');
+            localStorage.removeItem('pf_google_session');
             if (liveSyncInterval) { clearInterval(liveSyncInterval); liveSyncInterval = null; }
             credentialSession    = false;
             currentGoogleUser    = null;
@@ -2609,7 +2653,14 @@
             });
             document.getElementById('sec-' + secId).classList.add('active');
             document.getElementById('profileDropdown').classList.remove('show');
-            if (secId === 'admincp') { renderAgents(); renderAdminSOSPanel(); renderAgentLiveTracker('adminTrackerGrid'); renderAdminClientTokens(); adminRefreshDbBadge(); }
+            if (secId === 'admincp') {
+                renderAgents(); renderAdminSOSPanel(); renderAgentLiveTracker('adminTrackerGrid'); renderAdminClientTokens(); adminRefreshDbBadge();
+                // Show/hide agent DB pre-connect notes
+                const preNote  = document.getElementById('agentDbPreConnectNote');
+                const noNote   = document.getElementById('agentDbNoConnectNote');
+                if (preNote) preNote.style.display = hasSharedDB() ? 'block' : 'none';
+                if (noNote)  noNote.style.display  = hasSharedDB() ? 'none'  : 'block';
+            }
             if (secId === 'devcp')   { devRefreshAll(); renderAgentLiveTracker('devTrackerGrid'); }
         }
 
@@ -2970,6 +3021,7 @@
             const agent = {
                 id: 'agt_' + Date.now(),
                 name, phone, email, fund, rate, tier,
+                dbUrl: appScriptUrl || '',   // pre-connect: store current DB URL so agent portal auto-connects
                 createdAt: new Date().toLocaleDateString('en-IN')
             };
             agentState.push(agent);
@@ -3936,6 +3988,18 @@ function jsonResp(obj) {
 
             const agent = getCurrentAgentProfile();
             if (agent) {
+                // Auto-connect shared DB if agent profile has a stored dbUrl and we're not connected yet
+                if (agent.dbUrl && !hasSharedDB()) {
+                    appScriptUrl = agent.dbUrl;
+                    localStorage.setItem('pf_appsscript_url', agent.dbUrl);
+                    refreshLoginDbStatus();
+                    // Silently reload data with the now-connected DB
+                    loadDriveData().then(() => {
+                        refreshAgentWalletBar();
+                        startLiveSync();
+                    }).catch(e => console.warn('[PF] auto DB connect:', e));
+                    return; // refreshAgentWalletBar will be called again after data loads
+                }
                 bar.style.display = 'block';
                 // Hide the DB connect banner if profile found
                 const dbBanner = document.getElementById('agentDbBanner');
@@ -4063,6 +4127,8 @@ function jsonResp(obj) {
             const input      = document.getElementById('adminAsUrlInput');
             const disconnBtn = document.getElementById('adminDisconnectBtn');
             const banner     = document.getElementById('adminDbWarningBanner');
+            const preNote    = document.getElementById('agentDbPreConnectNote');
+            const noNote     = document.getElementById('agentDbNoConnectNote');
             if (!badge) return;
             if (hasSharedDB()) {
                 badge.style.background = 'rgba(16,185,129,0.15)';
@@ -4071,7 +4137,9 @@ function jsonResp(obj) {
                 badge.innerText        = '● Connected';
                 if (input && !input.value) input.value = appScriptUrl;
                 if (disconnBtn) disconnBtn.style.display = 'inline-flex';
-                if (banner) banner.style.display = 'none';   // hide warning
+                if (banner) banner.style.display = 'none';
+                if (preNote) preNote.style.display = 'block';
+                if (noNote)  noNote.style.display  = 'none';
                 const bannerInput = document.getElementById('adminBannerDbUrl');
                 if (bannerInput && !bannerInput.value) bannerInput.value = appScriptUrl;
             } else {
@@ -4080,7 +4148,9 @@ function jsonResp(obj) {
                 badge.style.border     = '1px solid rgba(239,68,68,0.25)';
                 badge.innerText        = '✗ Not Connected';
                 if (disconnBtn) disconnBtn.style.display = 'none';
-                if (banner) banner.style.display = 'block';  // show warning
+                if (banner) banner.style.display = 'block';
+                if (preNote) preNote.style.display = 'none';
+                if (noNote)  noNote.style.display  = 'block';
             }
         }
 
