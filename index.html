@@ -1187,6 +1187,10 @@
                     <h2 style="font-weight:800; font-size:22px; margin-bottom:4px;"><i class="fa-solid fa-shield-halved" style="color:var(--primary);"></i> Admin Control Panel</h2>
                     <p style="color:var(--text-muted); font-size:13px;">Manage agents, assign funds & set performance-based interest</p>
                 </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button class="btn btn-secondary" style="font-size:13px; padding:10px 18px;" onclick="adminExportData()"><i class="fa-solid fa-file-export"></i> Download Data</button>
+                    <label class="btn btn-secondary" style="font-size:13px; padding:10px 18px; cursor:pointer; margin:0;"><i class="fa-solid fa-file-import"></i> Upload & Restore <input type="file" id="adminUploadInput" accept=".json" style="display:none;" onchange="adminImportData(this)"></label>
+                </div>
             </div>
 
             <!-- AGENT STATS ROW -->
@@ -1447,6 +1451,7 @@
                     <button class="btn btn-danger" onclick="devClearTrash()"><i class="fa-solid fa-dumpster-fire"></i> Empty Archive/Trash</button>
                     <button class="btn btn-danger" onclick="devHardResetWallet()"><i class="fa-solid fa-rotate-left"></i> Reset Wallet to ₹0</button>
                     <button class="btn btn-secondary" style="border-color:var(--danger); color:var(--danger);" onclick="devExportData()"><i class="fa-solid fa-file-export"></i> Export Full DB JSON</button>
+                    <label class="btn btn-secondary" style="border-color:#8b5cf6; color:#8b5cf6; cursor:pointer; margin:0;"><i class="fa-solid fa-file-import"></i> Import / Restore JSON <input type="file" id="devUploadInput" accept=".json" style="display:none;" onchange="devImportData(this)"></label>
                 </div>
             </div>
 
@@ -2509,7 +2514,7 @@
         function assignNewAgent() {
             const name   = document.getElementById('agentName').value.trim();
             const phone  = document.getElementById('agentPhone').value.trim();
-            const email  = document.getElementById('agentEmail').value.trim().toLowerCase();
+            const email  = (document.getElementById('agentEmail').value || '').trim().toLowerCase();
             const fund   = parseFloat(document.getElementById('agentFund').value);
             const rate   = parseFloat(document.getElementById('agentBaseRate').value);
             const tier   = document.getElementById('agentPerfTier').value;
@@ -3099,8 +3104,8 @@ function jsonResp(obj) {
         // Find which agent the current Google-logged-in user maps to (matched by email)
         function getCurrentAgentProfile() {
             if (!currentGoogleUser) return null;
-            const email = (currentGoogleUser.email || '').toLowerCase();
-            return agentState.find(a => (a.email || '').toLowerCase() === email) || null;
+            const email = (currentGoogleUser.email || '').trim().toLowerCase();
+            return agentState.find(a => (a.email || '').trim().toLowerCase() === email) || null;
         }
 
         function openSOSModal() {
@@ -3336,15 +3341,84 @@ function jsonResp(obj) {
                 renderAgentTokenHistory();
             } else {
                 // Google user exists but no matching agent profile yet
+                const loginEmail = (currentGoogleUser.email || '').trim().toLowerCase();
                 bar.style.display = 'block';
                 document.getElementById('agentWalletAmt').innerText = '₹0';
-                document.getElementById('agentWalletId').innerText  = 'Not yet registered by Admin';
+                document.getElementById('agentWalletId').innerText  = 'Not registered — tell admin to use: ' + loginEmail;
                 const list = document.getElementById('agentTokenList');
-                if (list) list.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Your profile hasn\'t been set up by admin yet. Contact your administrator.</p>';
+                if (list) list.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Your profile hasn\'t been set up by admin yet. Ask your administrator to register the email: <strong style="color:var(--primary);">' + loginEmail + '</strong></p>';
             }
         }
 
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        // ============================================================
+        // ADMIN EXPORT — accessible to admin role (mirrors devExportData)
+        // ============================================================
+        function adminExportData() {
+            const exportObj = {
+                exportedAt:  new Date().toISOString(),
+                wallet:      state.wallet,
+                credentials: { user: state.credentials.user },
+                loans:       state.loans,
+                trash:       state.trash,
+                logs:        state.logs,
+                agents:      agentState,
+                sosTokens:   sosTokens
+            };
+            const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = 'pocket-finance-backup-' + new Date().toISOString().slice(0,10) + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            triggerToast('Backup downloaded!', 'success');
+        }
+
+        // ============================================================
+        // IMPORT / RESTORE — shared core for Admin and Dev
+        // ============================================================
+        function _doImport(file, onDone) {
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var data = JSON.parse(e.target.result);
+                    if (!data.wallet && !data.agents && !data.loans) {
+                        return triggerToast('Invalid file — not a Pocket Finance backup.', 'danger');
+                    }
+                    if (!confirm('This will OVERWRITE current data with the backup. Continue?')) return;
+                    if (data.wallet) {
+                        state.wallet.cash   = data.wallet.cash   || 0;
+                        state.wallet.online = data.wallet.online || 0;
+                        syncWalletDB();
+                    }
+                    if (Array.isArray(data.loans)) { state.loans = data.loans; syncLoansDB_(); }
+                    if (Array.isArray(data.trash)) { state.trash = data.trash; syncTrashDB_(); }
+                    if (Array.isArray(data.logs))  { state.logs  = data.logs;  syncLogsDB(); }
+                    if (Array.isArray(data.agents)) {
+                        // Normalise emails to lowercase + trim on import so matching always works
+                        agentState = data.agents.map(function(a) {
+                            return Object.assign({}, a, { email: (a.email || '').trim().toLowerCase() });
+                        });
+                        syncAgentsDB();
+                    }
+                    if (Array.isArray(data.sosTokens)) { sosTokens = data.sosTokens; syncSOSTokensDB(); }
+                    refreshSystemEngine();
+                    renderAgents();
+                    renderAdminSOSPanel();
+                    if (typeof onDone === 'function') onDone();
+                    triggerToast('Data restored successfully!', 'success');
+                } catch(err) {
+                    triggerToast('Failed to parse backup: ' + err.message, 'danger');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function adminImportData(input) { _doImport(input.files[0], function(){ input.value = ''; }); }
+        function devImportData(input)   { _doImport(input.files[0], function(){ input.value = ''; devRefreshAll(); }); }
 
         function toggleTheme() {
             const body = document.body;
