@@ -590,6 +590,99 @@
             color: var(--success);
         }
 
+        /* --- SOS TOKEN SYSTEM --- */
+        @keyframes sosGlow {
+            0%   { box-shadow: 0 0 0 0 rgba(239,68,68,0.6); }
+            70%  { box-shadow: 0 0 0 10px rgba(239,68,68,0); }
+            100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+        }
+
+        .sos-btn {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 20px;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            animation: sosGlow 2s infinite;
+            transition: all 0.2s ease;
+        }
+        .sos-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
+
+        .token-card {
+            background: var(--input-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            flex-wrap: wrap;
+            transition: border-color 0.2s;
+        }
+        .token-card:hover { border-color: var(--primary); }
+        .token-card.token-pending { border-left: 4px solid var(--danger); }
+        .token-card.token-fulfilled { border-left: 4px solid var(--success); }
+
+        .token-badge {
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .token-badge.pending  { background: rgba(239,68,68,0.12); color: var(--danger); }
+        .token-badge.fulfilled { background: rgba(16,185,129,0.12); color: var(--success); }
+
+        .agent-wallet-info {
+            background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(99,102,241,0.08));
+            border: 1px solid rgba(59,130,246,0.2);
+            border-radius: 14px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .fund-detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .fund-detail-item {
+            background: var(--input-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+
+        .fund-detail-item label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .fund-detail-item .value {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
         /* --- MODALS --- */
         .modal-overlay {
             display: none;
@@ -850,6 +943,29 @@
         <!-- SECTION: WALLET MANAGEMENT (3 SEPARATE BOXES) -->
         <div id="sec-wallet" class="app-section active">
             <h2 style="margin-bottom: 25px; font-weight: 700; font-size: 20px;">Wallet Operations</h2>
+
+            <!-- AGENT WALLET STATUS BAR (shown to agents only) -->
+            <div id="agentWalletBar" style="display:none; margin-bottom:28px;">
+                <div class="agent-wallet-info">
+                    <div style="flex:1; min-width:180px;">
+                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Your Allocated Funds</div>
+                        <div id="agentWalletAmt" style="font-size:28px; font-weight:800; color:var(--primary);">₹0</div>
+                    </div>
+                    <div style="flex:1; min-width:180px;">
+                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Agent ID</div>
+                        <div id="agentWalletId" style="font-size:14px; font-weight:600; color:var(--text-muted); font-family:monospace;">—</div>
+                    </div>
+                    <button class="sos-btn" onclick="openSOSModal()">
+                        <i class="fa-solid fa-circle-exclamation"></i> Raise SOS Token
+                    </button>
+                </div>
+
+                <!-- AGENT'S OWN TOKEN HISTORY -->
+                <div id="agentTokenHistory" style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:14px; padding:22px; margin-top:16px;">
+                    <h3 style="font-size:15px; font-weight:700; margin-bottom:16px;"><i class="fa-solid fa-ticket" style="color:var(--warning);"></i> My SOS Requests</h3>
+                    <div id="agentTokenList"><p style="color:var(--text-muted); font-size:13px;">No SOS tokens raised yet.</p></div>
+                </div>
+            </div>
 
             <div class="wallet-grid">
 
@@ -1151,6 +1267,15 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- SOS TOKEN REQUESTS PANEL -->
+            <div style="margin-top:40px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:12px;">
+                    <h3 style="font-size:16px; font-weight:700;"><i class="fa-solid fa-circle-exclamation" style="color:var(--danger);"></i> SOS Fund Requests <span id="adminSOSBadge" style="display:none; background:var(--danger); color:#fff; font-size:11px; padding:2px 8px; border-radius:20px; font-weight:700; margin-left:6px;"></span></h3>
+                    <button class="btn btn-secondary" style="font-size:12px; padding:8px 14px;" onclick="renderAdminSOSPanel()"><i class="fa-solid fa-sync"></i> Refresh</button>
+                </div>
+                <div id="adminSOSList"><p style="color:var(--text-muted); font-size:13px; padding:10px 0;">No pending SOS requests.</p></div>
+            </div>
         </div>
 
         <!-- ===== DEV CONTROL PANEL ===== -->
@@ -1317,6 +1442,96 @@
         </div>
     </div>
 
+    <!-- SOS TOKEN RAISE MODAL (Agent side) -->
+    <div class="modal-overlay" id="sosModal">
+        <div class="modal-container" style="max-width:480px;">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+                <div style="background:rgba(239,68,68,0.12); width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                    <i class="fa-solid fa-circle-exclamation" style="color:var(--danger); font-size:20px;"></i>
+                </div>
+                <div>
+                    <h2 style="font-size:18px; font-weight:700; margin-bottom:2px;">Raise SOS Token</h2>
+                    <p style="color:var(--text-muted); font-size:12px;">Request emergency funds from Admin</p>
+                </div>
+            </div>
+            <div class="input-group" style="margin-bottom:16px;">
+                <label>Amount Needed (₹)</label>
+                <input type="number" id="sosAmount" placeholder="Enter amount required...">
+            </div>
+            <div class="input-group" style="margin-bottom:16px;">
+                <label>Reason for Request</label>
+                <input type="text" id="sosReason" placeholder="E.g. Need funds for new loan client...">
+            </div>
+            <div class="input-group" style="margin-bottom:24px;">
+                <label>Urgency Level</label>
+                <select id="sosUrgency">
+                    <option value="Normal">🟡 Normal</option>
+                    <option value="High">🔴 High</option>
+                    <option value="Critical">🚨 Critical</option>
+                </select>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <button class="sos-btn" style="animation:none; justify-content:center;" onclick="submitSOSToken()"><i class="fa-solid fa-paper-plane"></i> Submit Token</button>
+                <button class="btn btn-secondary" style="border:none;" onclick="closeModal('sosModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN FUND DISBURSEMENT MODAL -->
+    <div class="modal-overlay" id="adminFundModal">
+        <div class="modal-container" style="max-width:520px;">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+                <div style="background:rgba(16,185,129,0.12); width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                    <i class="fa-solid fa-hand-holding-dollar" style="color:var(--success); font-size:20px;"></i>
+                </div>
+                <div>
+                    <h2 style="font-size:18px; font-weight:700; margin-bottom:2px;">Disburse Funds to Agent</h2>
+                    <p style="color:var(--text-muted); font-size:12px;">Agent: <strong id="adminFundAgentName" style="color:var(--text-main);"></strong></p>
+                </div>
+            </div>
+
+            <div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2); border-radius:10px; padding:14px 16px; margin-bottom:20px;">
+                <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">Agent Requested</div>
+                <div id="adminFundRequestedAmt" style="font-size:20px; font-weight:800; color:var(--danger);">₹0</div>
+                <div id="adminFundReason" style="font-size:12px; color:var(--text-muted); margin-top:4px; font-style:italic;"></div>
+            </div>
+
+            <div class="fund-detail-grid">
+                <div class="input-group">
+                    <label>Amount to Disburse (₹)</label>
+                    <input type="number" id="adminFundAmount" placeholder="0.00">
+                </div>
+                <div class="input-group">
+                    <label>Fund Source</label>
+                    <select id="adminFundSource">
+                        <option value="cash">💵 Cash Vault</option>
+                        <option value="online">📱 Online Vault</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Loan Period</label>
+                    <input type="text" id="adminFundPeriod" placeholder="E.g. 30 Days, 3 Months...">
+                </div>
+                <div class="input-group">
+                    <label>Due Date</label>
+                    <input type="date" id="adminFundDueDate">
+                </div>
+            </div>
+            <div class="input-group" style="margin-bottom:22px;">
+                <label>Admin Notes / Conditions</label>
+                <input type="text" id="adminFundNotes" placeholder="E.g. To be repaid with next collection batch...">
+            </div>
+
+            <input type="hidden" id="adminFundTokenId">
+            <input type="hidden" id="adminFundAgentId">
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <button class="btn btn-success" onclick="executeAdminFundDisbursement()"><i class="fa-solid fa-check-circle"></i> Approve & Disburse</button>
+                <button class="btn btn-secondary" style="border:none;" onclick="closeModal('adminFundModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- AGENT EDIT MODAL -->
     <div class="modal-overlay" id="agentEditModal">
         <div class="modal-container" style="max-width:500px;">
@@ -1396,7 +1611,8 @@
             trash:       'pf_trash.json',
             logs:        'pf_logs.json',
             agents:      'pf_agents.json',
-            credentials: 'pf_credentials.json'
+            credentials: 'pf_credentials.json',
+            sosTokens:   'pf_sos_tokens.json'
         };
         // Cache: fileName -> fileId
         const driveFileIds = {};
@@ -1551,6 +1767,9 @@
                 state.trash = Array.isArray(trash) ? trash : [];
                 state.logs  = Array.isArray(logs)  ? logs.sort((a,b) => (b.timestampMs||0)-(a.timestampMs||0)) : [];
                 agentState  = Array.isArray(agents) ? agents : [];
+
+                // Load SOS tokens
+                await loadSOSTokens();
 
                 updateDevDbStatus(true);
                 refreshSystemEngine();
@@ -1801,6 +2020,7 @@
             animateCounterValue('valLoaned', totalLoanedValue);
             renderLoansTable();
             renderGlobalLogs();
+            refreshAgentWalletBar();
         }
 
         function showSection(secId) {
@@ -1811,7 +2031,7 @@
             });
             document.getElementById('sec-' + secId).classList.add('active');
             document.getElementById('profileDropdown').classList.remove('show');
-            if (secId === 'admincp') renderAgents();
+            if (secId === 'admincp') { renderAgents(); renderAdminSOSPanel(); }
             if (secId === 'devcp')   devRefreshAll();
         }
 
@@ -2080,7 +2300,14 @@
         }
 
         function clearNotifications() {
-            if (unreadNotifications === 0) {
+            if (currentRole === 'admin' || currentRole === 'dev') {
+                // Navigate admin to admin panel SOS section
+                showSection('admincp');
+                renderAdminSOSPanel();
+                unreadNotifications = 0;
+                updateNotificationBadge();
+                triggerToast('Viewing SOS requests.', 'success');
+            } else if (unreadNotifications === 0) {
                 triggerToast('No new notifications.', 'neutral');
             } else {
                 unreadNotifications = 0;
@@ -2258,6 +2485,7 @@
                 logEntries:    state.logs.length,
                 credentials:   { user: state.credentials.user, pass: '●●●●●●' },
                 agents:        agentState.length,
+                sosTokens:     sosTokens.length,
                 driveConnected: !!driveAccessToken,
                 driveFolderId:  driveFolderId || 'not loaded'
             }, null, 2);
@@ -2336,7 +2564,8 @@
                 loans:       state.loans,
                 trash:       state.trash,
                 logs:        state.logs,
-                agents:      agentState
+                agents:      agentState,
+                sosTokens:   sosTokens
             };
             const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
             const url  = URL.createObjectURL(blob);
@@ -2346,6 +2575,247 @@
             a.click();
             URL.revokeObjectURL(url);
             triggerToast('Export downloaded!', 'success');
+        }
+
+        // ============================================================
+        // SOS TOKEN SYSTEM
+        // ============================================================
+        let sosTokens = [];   // { id, agentId, agentName, amount, reason, urgency, raisedAt, status, disbursement:{amount,period,dueDate,notes,source,disbursedAt} }
+
+        async function syncSOSTokensDB() {
+            await driveWriteJSON('pf_sos_tokens.json', sosTokens).catch(e => console.warn('sos sync:', e));
+        }
+
+        async function loadSOSTokens() {
+            const data = await driveReadJSON('pf_sos_tokens.json').catch(() => null);
+            sosTokens = Array.isArray(data) ? data : [];
+        }
+
+        // Find which agent the current user maps to (matched by phone stored in state.credentials.user for simplicity,
+        // or by name match — for credential sessions the agent name is stored in localStorage)
+        function getCurrentAgentProfile() {
+            if (currentRole !== 'user') return null;
+            const storedName = localStorage.getItem('pf_cred_name') || '';
+            return agentState.find(a =>
+                a.name.toLowerCase() === storedName.toLowerCase() ||
+                a.id === storedName
+            ) || null;
+        }
+
+        function openSOSModal() {
+            document.getElementById('sosAmount').value  = '';
+            document.getElementById('sosReason').value  = '';
+            document.getElementById('sosUrgency').value = 'Normal';
+            document.getElementById('sosModal').style.display = 'flex';
+        }
+
+        function submitSOSToken() {
+            const amount  = parseFloat(document.getElementById('sosAmount').value);
+            const reason  = document.getElementById('sosReason').value.trim();
+            const urgency = document.getElementById('sosUrgency').value;
+
+            if (isNaN(amount) || amount <= 0) return triggerToast('Enter a valid amount!', 'danger');
+            if (!reason) return triggerToast('Please provide a reason!', 'danger');
+
+            const agent = getCurrentAgentProfile();
+            const agentId   = agent ? agent.id   : ('user_' + (localStorage.getItem('pf_cred_name') || 'unknown'));
+            const agentName = agent ? agent.name : (localStorage.getItem('pf_cred_name') || 'Unknown Agent');
+
+            const token = {
+                id:        'sos_' + Date.now(),
+                agentId,
+                agentName,
+                amount,
+                reason,
+                urgency,
+                raisedAt:  new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+                status:    'Pending',
+                disbursement: null
+            };
+
+            sosTokens.unshift(token);
+            syncSOSTokensDB();
+
+            // Bump admin notification badge
+            unreadNotifications++;
+            updateNotificationBadge();
+
+            closeModal('sosModal');
+            triggerToast('SOS Token raised! Admin will review.', 'success');
+            renderAgentTokenHistory();
+        }
+
+        function renderAgentTokenHistory() {
+            const el = document.getElementById('agentTokenList');
+            if (!el) return;
+
+            const agent = getCurrentAgentProfile();
+            const agentId   = agent ? agent.id   : ('user_' + (localStorage.getItem('pf_cred_name') || 'unknown'));
+            const agentName = agent ? agent.name : (localStorage.getItem('pf_cred_name') || '');
+
+            const myTokens = sosTokens.filter(t =>
+                t.agentId === agentId ||
+                t.agentName.toLowerCase() === agentName.toLowerCase()
+            );
+
+            if (myTokens.length === 0) {
+                el.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">No SOS tokens raised yet.</p>';
+                return;
+            }
+
+            el.innerHTML = myTokens.map(t => {
+                const isPending = t.status === 'Pending';
+                const d = t.disbursement;
+                return `
+                <div class="token-card ${isPending ? 'token-pending' : 'token-fulfilled'}">
+                    <div style="flex:1; min-width:180px;">
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
+                            <strong style="font-size:14px; color:var(--text-main);">₹${t.amount.toLocaleString('en-IN')}</strong>
+                            <span class="token-badge ${isPending ? 'pending' : 'fulfilled'}">${t.status}</span>
+                            <span style="font-size:11px; background:rgba(148,163,184,0.1); padding:2px 8px; border-radius:10px; color:var(--text-muted);">${t.urgency}</span>
+                        </div>
+                        <div style="font-size:12px; color:var(--text-muted); margin-bottom:3px;"><i class="fa-solid fa-quote-left" style="font-size:10px;"></i> ${t.reason}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">Raised: ${t.raisedAt}</div>
+                    </div>
+                    ${!isPending && d ? `
+                    <div style="min-width:200px; background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:12px 14px;">
+                        <div style="font-size:11px; font-weight:700; color:var(--success); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-check-circle"></i> Approved</div>
+                        <div style="font-size:13px; font-weight:700; color:var(--success); margin-bottom:4px;">₹${d.amount.toLocaleString('en-IN')} Disbursed</div>
+                        <div style="font-size:11px; color:var(--text-muted);">Period: <strong style="color:var(--text-main);">${d.period}</strong></div>
+                        <div style="font-size:11px; color:var(--text-muted);">Due: <strong style="color:var(--warning);">${d.dueDate}</strong></div>
+                        ${d.notes ? `<div style="font-size:11px; color:var(--text-muted); margin-top:4px; font-style:italic;">${d.notes}</div>` : ''}
+                        <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">By Admin • ${d.disbursedAt}</div>
+                    </div>
+                    ` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        function renderAdminSOSPanel() {
+            const el = document.getElementById('adminSOSList');
+            if (!el) return;
+
+            const pending = sosTokens.filter(t => t.status === 'Pending');
+            const badge   = document.getElementById('adminSOSBadge');
+            if (badge) {
+                if (pending.length > 0) { badge.style.display = 'inline'; badge.innerText = pending.length + ' Pending'; }
+                else                    { badge.style.display = 'none'; }
+            }
+
+            if (sosTokens.length === 0) {
+                el.innerHTML = '<p style="color:var(--text-muted); font-size:13px; padding:10px 0;">No SOS requests found.</p>';
+                return;
+            }
+
+            const urgencyIcon = { Normal: '🟡', High: '🔴', Critical: '🚨' };
+
+            el.innerHTML = sosTokens.map(t => {
+                const isPending = t.status === 'Pending';
+                return `
+                <div class="token-card ${isPending ? 'token-pending' : 'token-fulfilled'}">
+                    <div style="flex:1; min-width:200px;">
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
+                            <strong style="font-size:15px; color:var(--text-main);">${t.agentName}</strong>
+                            <span class="token-badge ${isPending ? 'pending' : 'fulfilled'}">${t.status}</span>
+                            <span style="font-size:12px;">${urgencyIcon[t.urgency] || '🟡'} ${t.urgency}</span>
+                        </div>
+                        <div style="font-size:13px; font-weight:700; color:var(--danger); margin-bottom:4px;">Requested: ₹${t.amount.toLocaleString('en-IN')}</div>
+                        <div style="font-size:12px; color:var(--text-muted); margin-bottom:3px;"><i class="fa-solid fa-comment" style="font-size:10px;"></i> ${t.reason}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">Raised: ${t.raisedAt}</div>
+                    </div>
+                    ${isPending
+                        ? `<button class="btn btn-success" style="padding:8px 16px; font-size:12px; flex-shrink:0;" onclick="openAdminFundModal('${t.id}')"><i class="fa-solid fa-hand-holding-dollar"></i> Give Funds</button>`
+                        : `<div style="font-size:12px; color:var(--success); font-weight:600; text-align:right; min-width:120px;"><i class="fa-solid fa-check-circle"></i> Fulfilled<br><span style="color:var(--text-muted); font-weight:400;">₹${t.disbursement?.amount?.toLocaleString('en-IN') || 0} sent</span></div>`
+                    }
+                </div>`;
+            }).join('');
+        }
+
+        function openAdminFundModal(tokenId) {
+            const token = sosTokens.find(t => t.id === tokenId);
+            if (!token) return;
+
+            document.getElementById('adminFundTokenId').value       = tokenId;
+            document.getElementById('adminFundAgentId').value       = token.agentId;
+            document.getElementById('adminFundAgentName').innerText = token.agentName;
+            document.getElementById('adminFundRequestedAmt').innerText = '₹' + token.amount.toLocaleString('en-IN');
+            document.getElementById('adminFundReason').innerText    = '"' + token.reason + '"';
+            document.getElementById('adminFundAmount').value        = token.amount;
+            document.getElementById('adminFundPeriod').value        = '';
+            document.getElementById('adminFundDueDate').value       = '';
+            document.getElementById('adminFundNotes').value         = '';
+
+            document.getElementById('adminFundModal').style.display = 'flex';
+        }
+
+        function executeAdminFundDisbursement() {
+            const tokenId  = document.getElementById('adminFundTokenId').value;
+            const agentId  = document.getElementById('adminFundAgentId').value;
+            const amount   = parseFloat(document.getElementById('adminFundAmount').value);
+            const source   = document.getElementById('adminFundSource').value;
+            const period   = document.getElementById('adminFundPeriod').value.trim();
+            const dueDate  = document.getElementById('adminFundDueDate').value;
+            const notes    = document.getElementById('adminFundNotes').value.trim();
+
+            if (isNaN(amount) || amount <= 0) return triggerToast('Enter a valid disburse amount!', 'danger');
+            if (!period)                       return triggerToast('Enter the loan period!', 'danger');
+            if (!dueDate)                      return triggerToast('Select a due date!', 'danger');
+
+            if (source === 'cash'   && state.wallet.cash   < amount) return triggerToast('Insufficient Cash Vault!', 'danger');
+            if (source === 'online' && state.wallet.online < amount) return triggerToast('Insufficient Online Vault!', 'danger');
+
+            // Deduct from wallet
+            if (source === 'cash') state.wallet.cash   -= amount;
+            else                   state.wallet.online -= amount;
+
+            // Update agent's fund
+            const agentIdx = agentState.findIndex(a => a.id === agentId);
+            const agentName = document.getElementById('adminFundAgentName').innerText;
+            if (agentIdx !== -1) {
+                agentState[agentIdx].fund = (agentState[agentIdx].fund || 0) + amount;
+                syncAgentsDB();
+            }
+
+            // Mark token as fulfilled
+            const tokenIdx = sosTokens.findIndex(t => t.id === tokenId);
+            if (tokenIdx !== -1) {
+                sosTokens[tokenIdx].status = 'Fulfilled';
+                sosTokens[tokenIdx].disbursement = {
+                    amount, source, period,
+                    dueDate: new Date(dueDate).toLocaleDateString('en-IN'),
+                    notes,
+                    disbursedAt: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                };
+            }
+
+            syncWalletDB();
+            syncSOSTokensDB();
+            pushGlobalLog(`SOS Fund: ${agentName}`, `-₹${amount}`, 'expense');
+
+            closeModal('adminFundModal');
+            renderAdminSOSPanel();
+            renderAgents();
+            refreshSystemEngine();
+            triggerToast(`₹${amount.toLocaleString('en-IN')} disbursed to ${agentName}!`, 'success');
+        }
+
+        // ============================================================
+        // AGENT WALLET BAR — shown for regular 'user' role
+        // ============================================================
+        function refreshAgentWalletBar() {
+            const bar = document.getElementById('agentWalletBar');
+            if (!bar) return;
+            if (currentRole !== 'user') { bar.style.display = 'none'; return; }
+
+            const agent = getCurrentAgentProfile();
+            if (agent) {
+                bar.style.display = 'block';
+                document.getElementById('agentWalletAmt').innerText = '₹' + (agent.fund || 0).toLocaleString('en-IN');
+                document.getElementById('agentWalletId').innerText  = agent.id;
+                renderAgentTokenHistory();
+            } else {
+                bar.style.display = 'none';
+            }
         }
 
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
