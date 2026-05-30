@@ -1959,8 +1959,7 @@
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const googleProvider = new firebase.auth.GoogleAuthProvider();
-        // Request Drive access scope so we can read/write files
-        googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
+        // No Drive scope needed — all data flows through the shared Apps Script DB only.
 
         // ============================================================
         // DATABASE LAYER
@@ -1999,219 +1998,16 @@
             }
         }
 
-        // ---- Per-user Google Drive helpers (agent fallback) ----
-        let driveAccessToken = null;
-        let driveFolderId    = null;
-        const DRIVE_FOLDER_NAME = 'PF backend';
-        const DRIVE_FILES = {
-            wallet:       'pf_wallet.json',
-            loans:        'pf_loans.json',
-            trash:        'pf_trash.json',
-            logs:         'pf_logs.json',
-            agents:       'pf_agents.json',
-            credentials:  'pf_credentials.json',
-            sosTokens:    'pf_sos_tokens.json',
-            clientTokens: 'pf_client_tokens.json',
-            adminCreds:   'pf_admin_creds.json',
-            devCreds:     'pf_dev_creds.json'
-        };
-        const driveFileIds = {};
-
-        async function driveRequest(method, endpoint, body, isUpload) {
-            const base = isUpload
-                ? 'https://www.googleapis.com/upload/drive/v3'
-                : 'https://www.googleapis.com/drive/v3';
-            const res = await fetch(base + endpoint, {
-                method,
-                headers: {
-                    'Authorization': 'Bearer ' + driveAccessToken,
-                    ...(body && !isUpload ? { 'Content-Type': 'application/json' } : {})
-                },
-                body: body || undefined
-            });
-            if (!res.ok) { const err = await res.text(); throw new Error(`Drive ${method} ${endpoint} → ${res.status}: ${err}`); }
-            return res.status === 204 ? null : res.json();
-        }
-
-        // agentFolderId: the personal sub-folder for this agent inside PF backend/Agents/
-        let agentFolderId = null;
-
-        async function driveEnsureFolder() {
-            if (driveFolderId) return driveFolderId;
-            const q = encodeURIComponent(`name='${DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-            const r = await driveRequest('GET', `/files?q=${q}&fields=files(id,name)`);
-            if (r.files && r.files.length > 0) { driveFolderId = r.files[0].id; return driveFolderId; }
-            const created = await driveRequest('POST', '/files', JSON.stringify({ name: DRIVE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }));
-            driveFolderId = created.id;
-            triggerToast('📁 "PF backend" folder created in your Drive!', 'success');
-            return driveFolderId;
-        }
-
-        // Ensure an "Agents" sub-folder exists inside PF backend, then ensure
-        // a personal folder for this agent (named by their display name / email).
-        // Returns the agent's personal folder ID.
-        async function driveEnsureAgentFolder(agentDisplayName) {
-            if (agentFolderId) return agentFolderId;
-            await driveEnsureFolder();   // ensure PF backend root
-
-            // 1 — find or create "Agents" parent inside PF backend
-            const safeQ = encodeURIComponent(`name='Agents' and '${driveFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-            const agentsParentRes = await driveRequest('GET', `/files?q=${safeQ}&fields=files(id,name)`);
-            let agentsParentId;
-            if (agentsParentRes.files && agentsParentRes.files.length > 0) {
-                agentsParentId = agentsParentRes.files[0].id;
-            } else {
-                const created = await driveRequest('POST', '/files', JSON.stringify({ name: 'Agents', mimeType: 'application/vnd.google-apps.folder', parents: [driveFolderId] }));
-                agentsParentId = created.id;
-            }
-
-            // 2 — find or create personal folder for this agent
-            // Sanitise name for Drive (Drive allows most chars but keep it clean)
-            const folderName = (agentDisplayName || 'Unknown Agent').replace(/[/\\:*?"<>|]/g, '_').substring(0, 60);
-            const agentQ = encodeURIComponent(`name='${folderName}' and '${agentsParentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-            const agentFolderRes = await driveRequest('GET', `/files?q=${agentQ}&fields=files(id,name)`);
-            if (agentFolderRes.files && agentFolderRes.files.length > 0) {
-                agentFolderId = agentFolderRes.files[0].id;
-            } else {
-                const created = await driveRequest('POST', '/files', JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [agentsParentId] }));
-                agentFolderId = created.id;
-                triggerToast(`📁 Personal folder "${folderName}" created in Drive`, 'success');
-            }
-            return agentFolderId;
-        }
-
-        // Read a JSON file from the agent's personal Drive folder
-        async function agentDriveRead(fileName) {
-            if (!agentFolderId) return null;
-            const q = encodeURIComponent(`name='${fileName}' and '${agentFolderId}' in parents and trashed=false`);
-            const r = await driveRequest('GET', `/files?q=${q}&fields=files(id,name)`);
-            if (!r.files || r.files.length === 0) return null;
-            const fileId = r.files[0].id;
-            const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-                headers: { 'Authorization': 'Bearer ' + driveAccessToken }
-            });
-            if (!res.ok) return null;
-            return res.json();
-        }
-
-        // Write a JSON file to the agent's personal Drive folder
-        async function agentDriveWrite(fileName, data) {
-            if (!agentFolderId) return;
-            const json = JSON.stringify(data, null, 2);
-            const blob = new Blob([json], { type: 'application/json' });
-            // Check if file exists
-            const q = encodeURIComponent(`name='${fileName}' and '${agentFolderId}' in parents and trashed=false`);
-            const r = await driveRequest('GET', `/files?q=${q}&fields=files(id,name)`);
-            if (r.files && r.files.length > 0) {
-                const fileId = r.files[0].id;
-                const form = new FormData();
-                form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
-                form.append('file', blob);
-                const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`,
-                    { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + driveAccessToken }, body: form });
-                if (!res.ok) throw new Error('Agent Drive update failed');
-            } else {
-                const form = new FormData();
-                form.append('metadata', new Blob([JSON.stringify({ name: fileName, parents: [agentFolderId] })], { type: 'application/json' }));
-                form.append('file', blob);
-                const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-                    { method: 'POST', headers: { 'Authorization': 'Bearer ' + driveAccessToken }, body: form });
-                if (!res.ok) throw new Error('Agent Drive create failed');
-            }
-        }
-
-        // Load only this agent's personal data from their Drive folder
-        async function loadAgentPersonalData() {
-            const user = currentGoogleUser;
-            if (!user) return;
-            const displayName = user.displayName || user.email || 'Agent';
-            await driveEnsureAgentFolder(displayName);
-            const data = await agentDriveRead('pf_agent_data.json').catch(() => null);
-            if (data) {
-                // Merge agent data into global arrays (only this agent's records)
-                if (Array.isArray(data.sosTokens))    sosTokens    = data.sosTokens;
-                if (Array.isArray(data.clientTokens)) clientTokens = data.clientTokens;
-                // Update this agent's profile fund if stored here
-                if (data.agentProfile && Array.isArray(agentState)) {
-                    const idx = agentState.findIndex(a => a.id === data.agentProfile.id);
-                    if (idx !== -1) agentState[idx] = { ...agentState[idx], ...data.agentProfile };
-                }
-            }
-        }
-
-        // Save this agent's personal data to their Drive folder
-        async function syncAgentPersonalData() {
-            if (currentRole !== 'agent' || !currentGoogleUser || !driveAccessToken) return;
-            const agent = getCurrentAgentProfile();
-            const myEmail = (currentGoogleUser.email || '').toLowerCase();
-            const myTokens  = sosTokens.filter(t   => (t.agentEmail  || '').toLowerCase() === myEmail);
-            const myClients = clientTokens.filter(c => (c.agentEmail || '').toLowerCase() === myEmail);
-            const payload = {
-                savedAt:      new Date().toISOString(),
-                agentProfile: agent || null,
-                sosTokens:    myTokens,
-                clientTokens: myClients
-            };
-            try {
-                await agentDriveWrite('pf_agent_data.json', payload);
-            } catch(e) { console.warn('[PF] agent data sync failed:', e); }
-        }
-
-        async function driveGetFileId(fileName) {
-            if (driveFileIds[fileName]) return driveFileIds[fileName];
-            await driveEnsureFolder();
-            const q = encodeURIComponent(`name='${fileName}' and '${driveFolderId}' in parents and trashed=false`);
-            const r = await driveRequest('GET', `/files?q=${q}&fields=files(id,name)`);
-            if (r.files && r.files.length > 0) { driveFileIds[fileName] = r.files[0].id; return driveFileIds[fileName]; }
-            return null;
-        }
-
-        async function driveReadJSON(fileName) {
-            const fileId = await driveGetFileId(fileName);
-            if (!fileId) return null;
-            const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-                headers: { 'Authorization': 'Bearer ' + driveAccessToken }
-            });
-            if (!res.ok) return null;
-            return res.json();
-        }
-
-        async function driveWriteJSON(fileName, data) {
-            const json = JSON.stringify(data, null, 2);
-            const blob = new Blob([json], { type: 'application/json' });
-            const fileId = await driveGetFileId(fileName);
-            if (fileId) {
-                const form = new FormData();
-                form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
-                form.append('file', blob);
-                const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`,
-                    { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + driveAccessToken }, body: form });
-                if (!res.ok) throw new Error('Drive update failed: ' + await res.text());
-            } else {
-                await driveEnsureFolder();
-                const form = new FormData();
-                form.append('metadata', new Blob([JSON.stringify({ name: fileName, parents: [driveFolderId] })], { type: 'application/json' }));
-                form.append('file', blob);
-                const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-                    { method: 'POST', headers: { 'Authorization': 'Bearer ' + driveAccessToken }, body: form });
-                if (!res.ok) throw new Error('Drive create failed: ' + await res.text());
-                const created = await res.json();
-                driveFileIds[fileName] = created.id;
-            }
-        }
-
-        // ---- Unified read/write — routes to shared DB or Drive ----
+        // ---- Unified read/write — shared DB only ----
 
         async function dbRead(key) {
             if (hasSharedDB()) return asRequest('read', key, null);
-            if (driveAccessToken)  return driveReadJSON(DRIVE_FILES[key] || key);
             return null;
         }
 
         async function dbWrite(key, value) {
             if (hasSharedDB()) return asRequest('write', key, value);
-            if (driveAccessToken)  return driveWriteJSON(DRIVE_FILES[key] || key, value);
-            // No DB available — save to localStorage as last resort
+            // No shared DB yet — save to localStorage as fallback
             localStorage.setItem('pf_local_' + key, JSON.stringify(value));
         }
 
@@ -2227,11 +2023,11 @@
         async function syncLogsDB()    { await dbWrite('logs',        state.logs).catch(e => console.warn('logs sync:', e)); }
         async function syncAgentsDB()       { await dbWrite('agents',       agentState).catch(e => console.warn('agents sync:', e)); }
         async function syncClientTokensDB() {
+            // Always write to shared DB so admin can see agent-submitted clients immediately.
+            // Do NOT write clientTokens to the agent's personal Drive folder —
+            // that would cause the shared DB to be overwritten with stale (Pending) data
+            // the next time the agent syncs, hiding admin Approve/Reject decisions.
             await dbWrite('clientTokens', clientTokens).catch(e => console.warn('clientTokens sync:', e));
-            // Also persist to agent's personal Drive folder
-            if (currentRole === 'agent' && driveAccessToken && agentFolderId) {
-                syncAgentPersonalData().catch(e => console.warn('agent personal sync:', e));
-            }
         }
 
         // Individual helpers kept for compatibility with callers
@@ -2259,26 +2055,22 @@
             try {
                 updateDevDbStatus(false);
 
-                // If using shared Apps Script DB — no folder setup needed
                 if (!hasSharedDB()) {
-                    if (driveAccessToken) await driveEnsureFolder();
-                    else {
-                        // No DB at all — try localStorage fallback
-                        const localAgents = dbReadLocal('agents');
-                        if (Array.isArray(localAgents)) agentState = localAgents;
-                        const localWallet = dbReadLocal('wallet');
-                        if (localWallet) state.wallet = localWallet;
-                        const localLoans = dbReadLocal('loans');
-                        if (Array.isArray(localLoans)) state.loans = localLoans;
-                        const localSos = dbReadLocal('sosTokens');
-                        if (Array.isArray(localSos)) sosTokens = localSos;
-                        updateDevDbStatus(false);
-                        triggerToast('⚠️ No shared DB connected. Connect via Dev Console → Drive Integration.', 'warning');
-                        refreshSystemEngine();
-                        refreshAgentWalletBar();
-                        updateSOSNotificationBadge();
-                        return;
-                    }
+                    // No shared DB — try localStorage fallback and warn
+                    const localAgents = dbReadLocal('agents');
+                    if (Array.isArray(localAgents)) agentState = localAgents;
+                    const localWallet = dbReadLocal('wallet');
+                    if (localWallet) state.wallet = localWallet;
+                    const localLoans = dbReadLocal('loans');
+                    if (Array.isArray(localLoans)) state.loans = localLoans;
+                    const localSos = dbReadLocal('sosTokens');
+                    if (Array.isArray(localSos)) sosTokens = localSos;
+                    updateDevDbStatus(false);
+                    triggerToast('⚠️ No shared DB connected. Paste the Apps Script URL and click Connect.', 'warning');
+                    refreshSystemEngine();
+                    refreshAgentWalletBar();
+                    updateSOSNotificationBadge();
+                    return;
                 }
 
                 const [creds, wallet, loans, trash, logs, agents, sos, cliTok, adminCr, devCr] = await Promise.all([
@@ -2318,7 +2110,7 @@
                 refreshSystemEngine();
                 refreshAgentWalletBar();
                 updateSOSNotificationBadge();
-                triggerToast('✅ Data loaded from ' + (hasSharedDB() ? 'Shared Drive DB' : 'Google Drive'), 'success');
+                triggerToast('✅ Data loaded from Shared DB', 'success');
             } catch (err) {
                 console.error('[PF] DB load error:', err);
                 updateDevDbStatus(false);
@@ -2330,12 +2122,11 @@
             const el = document.getElementById('devDbStatus');
             if (!el) return;
             if (ok) {
-                const mode = hasSharedDB() ? 'Shared Drive DB' : 'Personal Drive';
-                el.innerHTML = `<span style="color:var(--success);">● Connected (${mode})</span>`;
+                el.innerHTML = `<span style="color:var(--success);">● Connected (Shared DB)</span>`;
             } else {
                 el.innerHTML = hasSharedDB()
                     ? '<span style="color:var(--warning);">● Connecting...</span>'
-                    : '<span style="color:var(--danger);">● No Shared DB — Connect in Drive Integration</span>';
+                    : '<span style="color:var(--danger);">● No Shared DB — Paste Apps Script URL and Connect</span>';
             }
         }
 
@@ -2447,12 +2238,11 @@
 
             // Auth observer — handles page-refresh session restore for Google users
             auth.onAuthStateChanged(async (user) => {
-                // Skip if already handled by signInWithGoogle (driveAccessToken already set)
-                if (user && !credentialSession && driveAccessToken) return;
+                // Skip if already handled live by signInWithGoogle
+                if (user && !credentialSession && currentGoogleUser) return;
 
-                // Page-refresh case: Firebase still has the session but driveAccessToken is gone.
-                // Restore the Google session without Drive token (agents still work via shared DB).
-                if (user && !credentialSession && !driveAccessToken) {
+                // Page-refresh case: Firebase still has the session, restore agent dashboard
+                if (user && !credentialSession && !currentGoogleUser) {
                     const savedGoogleSession = localStorage.getItem('pf_google_session');
                     if (savedGoogleSession === 'true') {
                         currentRole       = 'agent';
@@ -2460,7 +2250,6 @@
                         document.getElementById('loginPage').style.display    = 'none';
                         document.getElementById('appContainer').style.display = 'block';
                         updateNavForGoogle(user);
-                        // Load shared DB data (works without Drive OAuth token)
                         await loadDriveData();
                         refreshSystemEngine();
                         refreshAgentWalletBar();
@@ -2505,7 +2294,6 @@
                     }
                     throw popupErr;
                 }
-                driveAccessToken  = result.credential ? result.credential.accessToken : null;
                 currentRole       = 'agent';   // Google login = agent
                 currentGoogleUser = result.user;
 
@@ -2515,12 +2303,8 @@
                 document.getElementById('loginPage').style.display    = 'none';
                 document.getElementById('appContainer').style.display = 'block';
                 updateNavForGoogle(result.user);
-                // Load shared DB first (to get agentState for profile matching)
+                // Load all data from shared DB (agents, clientTokens, sosTokens, etc.)
                 await loadDriveData();
-                // Then load personal agent folder data from Google Drive
-                if (driveAccessToken) {
-                    try { await loadAgentPersonalData(); } catch(e) { console.warn('[PF] personal load:', e); }
-                }
                 refreshSystemEngine();
                 refreshAgentWalletBar();    // identify agent profile by email
                 startLiveSync();            // begin 30s polling so fund & SOS stay live
@@ -2654,8 +2438,6 @@
             credentialSession    = false;
             currentGoogleUser    = null;
             currentRole          = 'user';
-            driveAccessToken     = null;
-            driveFolderId        = null;
             auth.signOut().catch(() => {});
             location.reload();
         }
@@ -3273,15 +3055,13 @@
             if (!el) return;
             el.textContent = JSON.stringify({
                 sharedDB:      hasSharedDB() ? '● Connected (' + appScriptUrl.substring(0,40) + '...)' : '✗ Not connected',
-                driveToken:    !!driveAccessToken,
                 wallet:        state.wallet,
                 activeLoans:   state.loans.length,
                 archivedLoans: state.trash.length,
                 logEntries:    state.logs.length,
                 credentials:   { user: state.credentials.user, pass: '●●●●●●' },
                 agents:        agentState.length,
-                sosTokens:     sosTokens.length,
-                driveFolderId: driveFolderId || 'n/a'
+                sosTokens:     sosTokens.length
             }, null, 2);
         }
 
@@ -3292,9 +3072,7 @@
                 authProvider:    'Firebase Google OAuth',
                 sharedDatabase:  hasSharedDB() ? 'Google Apps Script Web App' : 'NOT CONNECTED',
                 appsScriptURL:   hasSharedDB() ? appScriptUrl.substring(0,60) + '...' : '(paste in Drive Integration)',
-                fallback:        'Per-user Google Drive (Google-auth agents only)',
-                driveFolder:     DRIVE_FOLDER_NAME,
-                driveToken:      !!driveAccessToken,
+                dataStorage:     'Single shared Apps Script DB — all roles read/write here',
                 firebaseProject: 'pocket-finance-8f163'
             }, null, 2);
         }
@@ -3510,20 +3288,16 @@
         function startLiveSync() {
             if (liveSyncInterval) clearInterval(liveSyncInterval);
             liveSyncInterval = setInterval(async () => {
-                if (!hasSharedDB() && !driveAccessToken) return;
+                if (!hasSharedDB()) return;
                 try {
                     if (currentRole === 'agent') {
-                        // Agents: refresh agents list from shared DB (to get their profile & fund)
+                        // Agents: always refresh from shared DB only
                         const agents = await dbRead('agents').catch(() => null);
                         if (Array.isArray(agents)) agentState = agents;
-                        // Refresh their personal token data from their own Drive folder
-                        if (driveAccessToken && agentFolderId) {
-                            const data = await agentDriveRead('pf_agent_data.json').catch(() => null);
-                            if (data) {
-                                if (Array.isArray(data.sosTokens))    sosTokens    = data.sosTokens;
-                                if (Array.isArray(data.clientTokens)) clientTokens = data.clientTokens;
-                            }
-                        }
+                        const sos = await dbRead('sosTokens').catch(() => null);
+                        if (Array.isArray(sos)) sosTokens = sos;
+                        const cliTok = await dbRead('clientTokens').catch(() => null);
+                        if (Array.isArray(cliTok)) clientTokens = cliTok;
                         refreshAgentWalletBar();
                     } else if (currentRole === 'admin' || currentRole === 'dev') {
                         // Admin/Dev: refresh everything from shared DB
@@ -3781,10 +3555,6 @@ function jsonResp(obj) {
 
         async function syncSOSTokensDB() {
             await dbWrite('sosTokens', sosTokens).catch(e => console.warn('sos sync:', e));
-            // Also persist to agent's personal Drive folder
-            if (currentRole === 'agent' && driveAccessToken && agentFolderId) {
-                syncAgentPersonalData().catch(e => console.warn('agent personal sync:', e));
-            }
         }
 
         async function loadSOSTokens() {
@@ -4002,26 +3772,15 @@ function jsonResp(obj) {
         // AGENT WALLET BAR — shown only for Google-logged-in agents
         // ============================================================
         async function manualAgentRefresh() {
-            if (!hasSharedDB() && !driveAccessToken) return triggerToast('No database connected.', 'danger');
+            if (!hasSharedDB()) return triggerToast('No shared database connected.', 'danger');
             try {
-                // Always refresh agents from shared DB (admin controls this)
+                // Refresh everything from shared DB
                 const agents = await dbRead('agents').catch(() => null);
                 if (Array.isArray(agents)) agentState = agents;
-
-                if (driveAccessToken && agentFolderId) {
-                    // Read own tokens from personal Drive folder (private, agent-only)
-                    const data = await agentDriveRead('pf_agent_data.json').catch(() => null);
-                    if (data) {
-                        if (Array.isArray(data.sosTokens))    sosTokens    = data.sosTokens;
-                        if (Array.isArray(data.clientTokens)) clientTokens = data.clientTokens;
-                    }
-                } else {
-                    // Fallback: read from shared DB if no Drive token
-                    const sos = await dbRead('sosTokens').catch(() => null);
-                    if (Array.isArray(sos)) sosTokens = sos;
-                    const cliTok = await dbRead('clientTokens').catch(() => null);
-                    if (Array.isArray(cliTok)) clientTokens = cliTok;
-                }
+                const sos = await dbRead('sosTokens').catch(() => null);
+                if (Array.isArray(sos)) sosTokens = sos;
+                const cliTok = await dbRead('clientTokens').catch(() => null);
+                if (Array.isArray(cliTok)) clientTokens = cliTok;
                 refreshAgentWalletBar();
                 triggerToast('Refreshed!', 'success');
             } catch(e) {
