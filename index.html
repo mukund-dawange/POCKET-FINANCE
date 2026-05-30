@@ -641,6 +641,21 @@
         .token-badge.pending  { background: rgba(239,68,68,0.12); color: var(--danger); }
         .token-badge.fulfilled { background: rgba(16,185,129,0.12); color: var(--success); }
 
+        /* --- CLIENT TOKEN SYSTEM --- */
+        .client-token-card { background:var(--input-bg); border:1px solid var(--panel-border); border-radius:12px; padding:18px 20px; margin-bottom:14px; display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap; transition:border-color 0.2s; }
+        .client-token-card:hover { border-color:var(--primary); }
+        .client-token-card.ct-pending  { border-left:4px solid var(--warning); }
+        .client-token-card.ct-approved { border-left:4px solid var(--success); }
+        .client-token-card.ct-rejected { border-left:4px solid var(--danger); }
+        .ct-photo { width:56px; height:56px; border-radius:10px; object-fit:cover; border:2px solid var(--panel-border); flex-shrink:0; background:var(--panel-bg); }
+        .ct-badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; }
+        .ct-badge.pending  { background:rgba(245,158,11,0.12); color:var(--warning); }
+        .ct-badge.approved { background:rgba(16,185,129,0.12); color:var(--success); }
+        .ct-badge.rejected { background:rgba(239,68,68,0.12);  color:var(--danger); }
+        .photo-upload-box { border:2px dashed var(--panel-border); border-radius:12px; padding:20px; text-align:center; cursor:pointer; transition:all 0.2s; }
+        .photo-upload-box:hover { border-color:var(--primary); background:rgba(59,130,246,0.04); }
+        .db-connect-mini { background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.3); border-radius:12px; padding:14px 18px; margin-bottom:24px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+
         .agent-wallet-info {
             background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(99,102,241,0.08));
             border: 1px solid rgba(59,130,246,0.2);
@@ -961,12 +976,24 @@
                     <button class="sos-btn" onclick="openSOSModal()">
                         <i class="fa-solid fa-circle-exclamation"></i> Raise SOS Token
                     </button>
+                    <button class="btn" style="background:#8b5cf6; padding:12px 20px; font-weight:700; font-size:14px;" onclick="openClientTokenModal()">
+                        <i class="fa-solid fa-user-plus"></i> Add New Client
+                    </button>
                 </div>
 
                 <!-- AGENT'S OWN TOKEN HISTORY -->
                 <div id="agentTokenHistory" style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:14px; padding:22px; margin-top:16px;">
                     <h3 style="font-size:15px; font-weight:700; margin-bottom:16px;"><i class="fa-solid fa-ticket" style="color:var(--warning);"></i> My SOS Requests</h3>
                     <div id="agentTokenList"><p style="color:var(--text-muted); font-size:13px;">No SOS tokens raised yet.</p></div>
+                </div>
+
+                <!-- AGENT'S CLIENT TOKENS -->
+                <div id="agentClientTokenHistory" style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:14px; padding:22px; margin-top:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+                        <h3 style="font-size:15px; font-weight:700; margin:0;"><i class="fa-solid fa-users" style="color:#8b5cf6;"></i> My Clients</h3>
+                        <button class="btn btn-secondary" style="font-size:12px; padding:7px 14px;" onclick="manualAgentRefresh()"><i class="fa-solid fa-sync"></i> Refresh</button>
+                    </div>
+                    <div id="agentClientList"><p style="color:var(--text-muted); font-size:13px;">No clients added yet.</p></div>
                 </div>
             </div>
 
@@ -1299,6 +1326,30 @@
                     <p style="color:var(--text-muted); font-size:13px;">No agents to track.</p>
                 </div>
             </div>
+
+            <!-- CLIENT TOKENS PANEL (Admin view) -->
+            <div style="margin-top:40px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:12px;">
+                    <h3 style="font-size:16px; font-weight:700;"><i class="fa-solid fa-id-card" style="color:#8b5cf6;"></i> Client Tokens <span id="adminClientBadge" style="display:none; background:#8b5cf6; color:#fff; font-size:11px; padding:2px 8px; border-radius:20px; font-weight:700; margin-left:6px;"></span></h3>
+                    <button class="btn btn-secondary" style="font-size:12px; padding:8px 14px;" onclick="renderAdminClientTokens()"><i class="fa-solid fa-sync"></i> Refresh</button>
+                </div>
+                <div id="adminClientTokenList"><p style="color:var(--text-muted); font-size:13px; padding:10px 0;">No client tokens submitted yet.</p></div>
+            </div>
+
+            <!-- DB CONNECT PANEL FOR ADMIN (mirrors Dev's) -->
+            <div style="margin-top:40px; background:rgba(59,130,246,0.05); border:1px solid rgba(59,130,246,0.2); border-radius:14px; padding:24px;">
+                <h3 style="font-size:15px; font-weight:700; margin-bottom:6px;"><i class="fa-brands fa-google-drive" style="color:var(--primary);"></i> Shared Database Connection
+                    <span id="adminDbBadge" style="margin-left:10px; font-size:11px; padding:3px 10px; border-radius:20px; font-weight:700;"></span>
+                </h3>
+                <p style="color:var(--text-muted); font-size:12px; margin-bottom:16px;">Paste the Google Apps Script Web App URL to share data with Dev panel. Both must point to the same URL.</p>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                    <input type="url" id="adminAsUrlInput" placeholder="https://script.google.com/macros/s/AKfy.../exec"
+                        style="flex:1; min-width:260px; padding:12px 16px; background:var(--input-bg); border:1px solid var(--panel-border); border-radius:10px; color:var(--text-main); font-size:13px; outline:none;">
+                    <button class="btn btn-success" onclick="adminConnectSharedDB()"><i class="fa-solid fa-plug"></i> Connect</button>
+                    <button class="btn btn-secondary" id="adminDisconnectBtn" style="display:none;" onclick="adminDisconnectSharedDB()"><i class="fa-solid fa-unlink"></i> Disconnect</button>
+                    <button class="btn btn-secondary" onclick="adminTestSharedDB()"><i class="fa-solid fa-satellite-dish"></i> Test</button>
+                </div>
+            </div>
         </div>
 
         <!-- ===== DEV CONTROL PANEL ===== -->
@@ -1496,6 +1547,79 @@
             </div>
             <button class="btn btn-secondary" style="width:100%; border:none;"
                 onclick="closeModal('settleModal')">Cancel</button>
+        </div>
+    </div>
+
+    <!-- CLIENT TOKEN MODAL (Agent raises for new client) -->
+    <div class="modal-overlay" id="clientTokenModal">
+        <div class="modal-container" style="max-width:620px; max-height:90vh; overflow-y:auto;">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:22px;">
+                <div style="background:rgba(139,92,246,0.12); width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                    <i class="fa-solid fa-user-plus" style="color:#8b5cf6; font-size:20px;"></i>
+                </div>
+                <div>
+                    <h2 style="font-size:18px; font-weight:700; margin-bottom:2px;">New Client Token</h2>
+                    <p style="color:var(--text-muted); font-size:12px;">Submit client details to admin for approval</p>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+                <div class="input-group">
+                    <label>Full Name <span style="color:var(--danger);">*</span></label>
+                    <input type="text" id="ctClientName" placeholder="Client full name...">
+                </div>
+                <div class="input-group">
+                    <label>Phone Number <span style="color:var(--danger);">*</span></label>
+                    <input type="text" id="ctPhone" placeholder="10 digit number..." maxlength="10">
+                </div>
+                <div class="input-group">
+                    <label>Email ID <span style="color:var(--danger);">*</span></label>
+                    <input type="email" id="ctEmail" placeholder="client@email.com">
+                </div>
+                <div class="input-group">
+                    <label>Age <span style="color:var(--danger);">*</span> <span style="font-size:10px; color:var(--text-muted);">(min 16)</span></label>
+                    <input type="number" id="ctAge" placeholder="Age..." min="16" max="100">
+                </div>
+                <div class="input-group">
+                    <label>Bank Account Number <span style="color:var(--danger);">*</span></label>
+                    <input type="text" id="ctAccountNo" placeholder="Account number...">
+                </div>
+                <div class="input-group">
+                    <label>IFSC Code <span style="color:var(--danger);">*</span></label>
+                    <input type="text" id="ctIfscCode" placeholder="E.g. SBIN0001234..." style="text-transform:uppercase;">
+                </div>
+                <div class="input-group" style="grid-column:1/-1;">
+                    <label>UPI ID</label>
+                    <input type="text" id="ctUpiId" placeholder="E.g. client@upi (optional)">
+                </div>
+            </div>
+
+            <!-- PASSPORT PHOTO UPLOAD -->
+            <div class="input-group" style="margin-bottom:20px;">
+                <label>Passport Size Photo <span style="color:var(--danger);">*</span></label>
+                <div class="photo-upload-box" onclick="document.getElementById('ctPhotoInput').click()">
+                    <div id="ctPhotoPreview">
+                        <i class="fa-solid fa-camera" style="font-size:28px; color:var(--text-muted); margin-bottom:8px;"></i>
+                        <p style="color:var(--text-muted); font-size:13px; margin:0;">Click to upload photo</p>
+                        <p style="color:var(--text-muted); font-size:11px; margin-top:4px;">JPG / PNG — max 2MB</p>
+                    </div>
+                </div>
+                <input type="file" id="ctPhotoInput" accept="image/jpeg,image/png" style="display:none;" onchange="handleClientPhoto(this)">
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <button class="btn" style="background:#8b5cf6;" onclick="submitClientToken()"><i class="fa-solid fa-paper-plane"></i> Submit to Admin</button>
+                <button class="btn btn-secondary" style="border:none;" onclick="closeModal('clientTokenModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CLIENT TOKEN DETAIL MODAL (Admin view full details) -->
+    <div class="modal-overlay" id="clientDetailModal">
+        <div class="modal-container" style="max-width:580px; max-height:90vh; overflow-y:auto;">
+            <h2 style="font-size:18px; font-weight:700; margin-bottom:20px;"><i class="fa-solid fa-id-card" style="color:#8b5cf6;"></i> Client Details</h2>
+            <div id="clientDetailContent"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:20px;" id="clientDetailActions"></div>
         </div>
     </div>
 
@@ -1734,13 +1858,14 @@
         let driveFolderId    = null;
         const DRIVE_FOLDER_NAME = 'PF backend';
         const DRIVE_FILES = {
-            wallet:      'pf_wallet.json',
-            loans:       'pf_loans.json',
-            trash:       'pf_trash.json',
-            logs:        'pf_logs.json',
-            agents:      'pf_agents.json',
-            credentials: 'pf_credentials.json',
-            sosTokens:   'pf_sos_tokens.json'
+            wallet:       'pf_wallet.json',
+            loans:        'pf_loans.json',
+            trash:        'pf_trash.json',
+            logs:         'pf_logs.json',
+            agents:       'pf_agents.json',
+            credentials:  'pf_credentials.json',
+            sosTokens:    'pf_sos_tokens.json',
+            clientTokens: 'pf_client_tokens.json'
         };
         const driveFileIds = {};
 
@@ -1839,7 +1964,8 @@
         async function syncLoansDB()   { await dbWrite('loans',       state.loans).catch(e => console.warn('loans sync:', e)); }
         async function syncTrashDB_()  { await dbWrite('trash',       state.trash).catch(e => console.warn('trash sync:', e)); }
         async function syncLogsDB()    { await dbWrite('logs',        state.logs).catch(e => console.warn('logs sync:', e)); }
-        async function syncAgentsDB()  { await dbWrite('agents',      agentState).catch(e => console.warn('agents sync:', e)); }
+        async function syncAgentsDB()       { await dbWrite('agents',       agentState).catch(e => console.warn('agents sync:', e)); }
+        async function syncClientTokensDB() { await dbWrite('clientTokens', clientTokens).catch(e => console.warn('clientTokens sync:', e)); }
 
         // Individual helpers kept for compatibility with callers
         function syncLoanDB(loan) {
@@ -1888,24 +2014,26 @@
                     }
                 }
 
-                const [creds, wallet, loans, trash, logs, agents, sos] = await Promise.all([
+                const [creds, wallet, loans, trash, logs, agents, sos, cliTok] = await Promise.all([
                     dbRead('credentials'),
                     dbRead('wallet'),
                     dbRead('loans'),
                     dbRead('trash'),
                     dbRead('logs'),
                     dbRead('agents'),
-                    dbRead('sosTokens')
+                    dbRead('sosTokens'),
+                    dbRead('clientTokens')
                 ]);
 
                 if (creds)  state.credentials = creds;  else syncCredsDB();
                 if (wallet) state.wallet = wallet;       else syncWalletDB();
 
-                state.loans = Array.isArray(loans) ? loans : [];
-                state.trash = Array.isArray(trash) ? trash : [];
-                state.logs  = Array.isArray(logs)  ? logs.sort((a,b) => (b.timestampMs||0)-(a.timestampMs||0)) : [];
-                agentState  = Array.isArray(agents) ? agents : [];
-                sosTokens   = Array.isArray(sos)    ? sos    : [];
+                state.loans  = Array.isArray(loans)  ? loans  : [];
+                state.trash  = Array.isArray(trash)  ? trash  : [];
+                state.logs   = Array.isArray(logs)   ? logs.sort((a,b) => (b.timestampMs||0)-(a.timestampMs||0)) : [];
+                agentState   = Array.isArray(agents) ? agents : [];
+                sosTokens    = Array.isArray(sos)    ? sos    : [];
+                clientTokens = Array.isArray(cliTok) ? cliTok : [];
 
                 updateDevDbStatus(true);
                 refreshSystemEngine();
@@ -1948,8 +2076,9 @@
         let currentActiveLoanIdForAction = null;
         let autoLogoutTimer;
         let unreadNotifications = 0;
-        let agentState = [];
-        let sosTokens  = [];   // { id, agentId, agentName, amount, reason, urgency, raisedAt, status, disbursement }
+        let agentState    = [];
+        let sosTokens     = [];   // { id, agentId, agentName, amount, reason, urgency, raisedAt, status, disbursement }
+        let clientTokens  = [];   // { id, agentId, agentEmail, clientName, accountNo, ifscCode, upiId, clientEmail, phone, age, photoBase64, createdAt, status }
 
         // ============================================================
         // AUTH SYSTEM
@@ -2181,7 +2310,7 @@
             });
             document.getElementById('sec-' + secId).classList.add('active');
             document.getElementById('profileDropdown').classList.remove('show');
-            if (secId === 'admincp') { renderAgents(); renderAdminSOSPanel(); renderAgentLiveTracker('adminTrackerGrid'); }
+            if (secId === 'admincp') { renderAgents(); renderAdminSOSPanel(); renderAgentLiveTracker('adminTrackerGrid'); renderAdminClientTokens(); adminRefreshDbBadge(); }
             if (secId === 'devcp')   { devRefreshAll(); renderAgentLiveTracker('devTrackerGrid'); }
         }
 
@@ -2811,14 +2940,15 @@
 
         function devExportData() {
             const exportObj = {
-                exportedAt:  new Date().toISOString(),
-                wallet:      state.wallet,
-                credentials: { user: state.credentials.user },
-                loans:       state.loans,
-                trash:       state.trash,
-                logs:        state.logs,
-                agents:      agentState,
-                sosTokens:   sosTokens
+                exportedAt:   new Date().toISOString(),
+                wallet:       state.wallet,
+                credentials:  { user: state.credentials.user },
+                loans:        state.loans,
+                trash:        state.trash,
+                logs:         state.logs,
+                agents:       agentState,
+                sosTokens:    sosTokens,
+                clientTokens: clientTokens
             };
             const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
             const url  = URL.createObjectURL(blob);
@@ -2847,6 +2977,9 @@
                     const sos = await dbRead('sosTokens').catch(() => null);
                     if (Array.isArray(sos)) sosTokens = sos;
 
+                    const cliTok = await dbRead('clientTokens').catch(() => null);
+                    if (Array.isArray(cliTok)) clientTokens = cliTok;
+
                     if (currentRole === 'agent') {
                         refreshAgentWalletBar();
                     }
@@ -2854,6 +2987,7 @@
                         updateSOSNotificationBadge();
                         renderAdminSOSPanel();
                         renderAgents();
+                        renderAdminClientTokens();
                     }
                 } catch(e) { /* silent */ }
             }, 30000);
@@ -3339,6 +3473,7 @@ function jsonResp(obj) {
                 document.getElementById('agentWalletAmt').innerText = '₹' + (agent.fund || 0).toLocaleString('en-IN');
                 document.getElementById('agentWalletId').innerText  = agent.id;
                 renderAgentTokenHistory();
+                renderAgentClientList();
             } else {
                 // Google user exists but no matching agent profile yet
                 const loginEmail = (currentGoogleUser.email || '').trim().toLowerCase();
@@ -3357,14 +3492,15 @@ function jsonResp(obj) {
         // ============================================================
         function adminExportData() {
             const exportObj = {
-                exportedAt:  new Date().toISOString(),
-                wallet:      state.wallet,
-                credentials: { user: state.credentials.user },
-                loans:       state.loans,
-                trash:       state.trash,
-                logs:        state.logs,
-                agents:      agentState,
-                sosTokens:   sosTokens
+                exportedAt:   new Date().toISOString(),
+                wallet:       state.wallet,
+                credentials:  { user: state.credentials.user },
+                loans:        state.loans,
+                trash:        state.trash,
+                logs:         state.logs,
+                agents:       agentState,
+                sosTokens:    sosTokens,
+                clientTokens: clientTokens
             };
             const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
             const url  = URL.createObjectURL(blob);
@@ -3405,6 +3541,7 @@ function jsonResp(obj) {
                         syncAgentsDB();
                     }
                     if (Array.isArray(data.sosTokens)) { sosTokens = data.sosTokens; syncSOSTokensDB(); }
+                    if (Array.isArray(data.clientTokens)) { clientTokens = data.clientTokens; syncClientTokensDB(); }
                     refreshSystemEngine();
                     renderAgents();
                     renderAdminSOSPanel();
@@ -3419,6 +3556,290 @@ function jsonResp(obj) {
 
         function adminImportData(input) { _doImport(input.files[0], function(){ input.value = ''; }); }
         function devImportData(input)   { _doImport(input.files[0], function(){ input.value = ''; devRefreshAll(); }); }
+
+        // ============================================================
+        // ADMIN SHARED DB CONNECT (mirrors Dev panel — same URL key)
+        // ============================================================
+        function adminRefreshDbBadge() {
+            const badge = document.getElementById('adminDbBadge');
+            const input = document.getElementById('adminAsUrlInput');
+            const disconnBtn = document.getElementById('adminDisconnectBtn');
+            if (!badge) return;
+            if (hasSharedDB()) {
+                badge.style.background = 'rgba(16,185,129,0.15)';
+                badge.style.color = 'var(--success)';
+                badge.style.border = '1px solid rgba(16,185,129,0.3)';
+                badge.innerText = '● Connected';
+                if (input && !input.value) input.value = appScriptUrl;
+                if (disconnBtn) disconnBtn.style.display = 'inline-flex';
+            } else {
+                badge.style.background = 'rgba(239,68,68,0.12)';
+                badge.style.color = 'var(--danger)';
+                badge.style.border = '1px solid rgba(239,68,68,0.25)';
+                badge.innerText = '✗ Not Connected';
+                if (disconnBtn) disconnBtn.style.display = 'none';
+            }
+        }
+
+        async function adminConnectSharedDB() {
+            const url = (document.getElementById('adminAsUrlInput').value || '').trim();
+            if (!url || !url.startsWith('https://script.google.com')) {
+                return triggerToast('Enter a valid Apps Script Web App URL!', 'danger');
+            }
+            triggerToast('Testing connection...', 'neutral');
+            try {
+                const writeRes = await fetch(url, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ action: 'write', key: '_pf_conn_test_', value: { ok: true, ts: Date.now() } })
+                });
+                if (!writeRes.ok) throw new Error('Write failed (HTTP ' + writeRes.status + ')');
+                const writeData = await writeRes.json();
+                if (writeData.error) throw new Error(writeData.error);
+                appScriptUrl = url;
+                localStorage.setItem(AS_URL_KEY, url);
+                adminRefreshDbBadge();
+                refreshDriveIntStatus();
+                updateDevDbStatus(true);
+                triggerToast('Shared database connected! Loading data...', 'success');
+                await loadDriveData();
+                renderAdminClientTokens();
+                if (currentRole === 'dev') devRefreshAll();
+            } catch(err) {
+                triggerToast('Connection failed: ' + err.message, 'danger');
+            }
+        }
+
+        function adminDisconnectSharedDB() {
+            if (!confirm('Disconnect shared database?')) return;
+            appScriptUrl = '';
+            localStorage.removeItem(AS_URL_KEY);
+            const inp = document.getElementById('adminAsUrlInput');
+            if (inp) inp.value = '';
+            adminRefreshDbBadge();
+            refreshDriveIntStatus();
+            updateDevDbStatus(false);
+            triggerToast('Shared database disconnected.', 'warning');
+        }
+
+        async function adminTestSharedDB() {
+            if (!hasSharedDB()) return triggerToast('No URL configured yet.', 'danger');
+            try {
+                triggerToast('Testing...', 'neutral');
+                const res = await fetch(appScriptUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ action: 'write', key: '_pf_ping_', value: { ping: Date.now() } })
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                triggerToast('Connection is working!', 'success');
+            } catch(e) { triggerToast('Test failed: ' + e.message, 'danger'); }
+        }
+
+        // ============================================================
+        // CLIENT TOKEN SYSTEM
+        // ============================================================
+        let ctPhotoBase64 = '';
+
+        function openClientTokenModal() {
+            // Must be a registered agent
+            if (currentRole !== 'agent' || !currentGoogleUser) {
+                return triggerToast('Only registered agents can add clients.', 'danger');
+            }
+            const agent = getCurrentAgentProfile();
+            if (!agent) return triggerToast('Your profile is not registered yet. Contact admin.', 'danger');
+
+            // Reset form
+            ['ctClientName','ctPhone','ctEmail','ctAge','ctAccountNo','ctIfscCode','ctUpiId'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            ctPhotoBase64 = '';
+            document.getElementById('ctPhotoPreview').innerHTML = `
+                <i class="fa-solid fa-camera" style="font-size:28px; color:var(--text-muted); margin-bottom:8px;"></i>
+                <p style="color:var(--text-muted); font-size:13px; margin:0;">Click to upload photo</p>
+                <p style="color:var(--text-muted); font-size:11px; margin-top:4px;">JPG / PNG — max 2MB</p>`;
+            document.getElementById('clientTokenModal').style.display = 'flex';
+        }
+
+        function handleClientPhoto(input) {
+            const file = input.files[0];
+            if (!file) return;
+            if (file.size > 2 * 1024 * 1024) return triggerToast('Photo must be under 2MB!', 'danger');
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                ctPhotoBase64 = e.target.result;
+                document.getElementById('ctPhotoPreview').innerHTML =
+                    '<img src="' + ctPhotoBase64 + '" style="max-height:120px; border-radius:8px; margin-top:4px;">' +
+                    '<p style="color:var(--success); font-size:12px; margin-top:8px;"><i class="fa-solid fa-check-circle"></i> Photo ready</p>';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function submitClientToken() {
+            const name      = (document.getElementById('ctClientName').value || '').trim();
+            const phone     = (document.getElementById('ctPhone').value || '').trim();
+            const email     = (document.getElementById('ctEmail').value || '').trim().toLowerCase();
+            const age       = parseInt(document.getElementById('ctAge').value);
+            const accountNo = (document.getElementById('ctAccountNo').value || '').trim();
+            const ifsc      = (document.getElementById('ctIfscCode').value || '').trim().toUpperCase();
+            const upi       = (document.getElementById('ctUpiId').value || '').trim();
+
+            if (!name)                           return triggerToast('Client name is required!', 'danger');
+            if (!phone || phone.length !== 10 || isNaN(phone)) return triggerToast('Enter a valid 10-digit phone number!', 'danger');
+            if (!email || !email.includes('@'))  return triggerToast('Enter a valid email address!', 'danger');
+            if (isNaN(age) || age < 16)          return triggerToast('Client must be at least 16 years old!', 'danger');
+            if (age > 100)                       return triggerToast('Please enter a valid age!', 'danger');
+            if (!accountNo)                      return triggerToast('Account number is required!', 'danger');
+            if (!ifsc || ifsc.length < 8)        return triggerToast('Enter a valid IFSC code!', 'danger');
+            if (!ctPhotoBase64)                  return triggerToast('Please upload a passport photo!', 'danger');
+
+            const agent = getCurrentAgentProfile();
+            const token = {
+                id:          'ct_' + Date.now(),
+                agentId:     agent.id,
+                agentName:   agent.name,
+                agentEmail:  (currentGoogleUser.email || '').trim().toLowerCase(),
+                clientName:  name,
+                phone, email, age, accountNo, ifsc, upi,
+                photoBase64: ctPhotoBase64,
+                createdAt:   new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+                status:      'Pending'
+            };
+
+            clientTokens.unshift(token);
+            syncClientTokensDB();
+            closeModal('clientTokenModal');
+            renderAgentClientList();
+            triggerToast('Client token submitted! Admin will review.', 'success');
+        }
+
+        function renderAgentClientList() {
+            const el = document.getElementById('agentClientList');
+            if (!el) return;
+            if (!currentGoogleUser) return;
+            const agentEmail = (currentGoogleUser.email || '').trim().toLowerCase();
+            const myClients  = clientTokens.filter(c => (c.agentEmail || '').toLowerCase() === agentEmail);
+            if (myClients.length === 0) {
+                el.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">No clients added yet.</p>';
+                return;
+            }
+            el.innerHTML = myClients.map(c => {
+                const statusColor = c.status === 'Approved' ? 'var(--success)' : c.status === 'Rejected' ? 'var(--danger)' : 'var(--warning)';
+                return `<div class="client-token-card ct-${c.status.toLowerCase()}">
+                    ${c.photoBase64 ? `<img class="ct-photo" src="${c.photoBase64}" alt="photo">` : `<div class="ct-photo" style="display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-user" style="color:var(--text-muted);font-size:20px;"></i></div>`}
+                    <div style="flex:1; min-width:160px;">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px; flex-wrap:wrap;">
+                            <strong style="font-size:14px; color:var(--text-main);">${c.clientName}</strong>
+                            <span class="ct-badge ${c.status.toLowerCase()}">${c.status}</span>
+                        </div>
+                        <div style="font-size:12px; color:var(--text-muted); margin-bottom:2px;"><i class="fa-solid fa-phone" style="font-size:10px;"></i> ${c.phone} &nbsp;|&nbsp; Age: ${c.age}</div>
+                        <div style="font-size:12px; color:var(--text-muted); margin-bottom:2px;"><i class="fa-solid fa-envelope" style="font-size:10px;"></i> ${c.email}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">Account: ${c.accountNo} &nbsp;|&nbsp; IFSC: ${c.ifsc}</div>
+                        <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">Submitted: ${c.createdAt}</div>
+                        ${c.adminNote ? `<div style="font-size:11px; color:${statusColor}; margin-top:4px;"><i class="fa-solid fa-comment"></i> Admin: "${c.adminNote}"</div>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderAdminClientTokens() {
+            const el = document.getElementById('adminClientTokenList');
+            if (!el) return;
+            const badge = document.getElementById('adminClientBadge');
+            const pending = clientTokens.filter(c => c.status === 'Pending');
+            if (badge) {
+                badge.style.display = pending.length > 0 ? 'inline' : 'none';
+                badge.innerText = pending.length + ' Pending';
+            }
+            if (clientTokens.length === 0) {
+                el.innerHTML = '<p style="color:var(--text-muted); font-size:13px; padding:10px 0;">No client tokens submitted yet.</p>';
+                return;
+            }
+            el.innerHTML = clientTokens.map(c => {
+                const isPending = c.status === 'Pending';
+                return `<div class="client-token-card ct-${c.status.toLowerCase()}">
+                    ${c.photoBase64 ? `<img class="ct-photo" src="${c.photoBase64}" alt="photo" style="cursor:pointer;" onclick="viewClientDetail('${c.id}')">` : `<div class="ct-photo" style="display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-user" style="color:var(--text-muted);font-size:20px;"></i></div>`}
+                    <div style="flex:1; min-width:160px;">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px; flex-wrap:wrap;">
+                            <strong style="font-size:14px; color:var(--text-main); cursor:pointer;" onclick="viewClientDetail('${c.id}')">${c.clientName}</strong>
+                            <span class="ct-badge ${c.status.toLowerCase()}">${c.status}</span>
+                            <span style="font-size:11px; color:var(--text-muted);">by ${c.agentName}</span>
+                        </div>
+                        <div style="font-size:12px; color:var(--text-muted); margin-bottom:2px;"><i class="fa-solid fa-phone" style="font-size:10px;"></i> ${c.phone} &nbsp;|&nbsp; Age: ${c.age} &nbsp;|&nbsp; <i class="fa-solid fa-envelope" style="font-size:10px;"></i> ${c.email}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">Acc: ${c.accountNo} &nbsp;|&nbsp; IFSC: ${c.ifsc}${c.upi ? ' &nbsp;|&nbsp; UPI: ' + c.upi : ''}</div>
+                        <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">${c.createdAt}</div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px; flex-shrink:0;">
+                        <button class="btn btn-secondary" style="padding:6px 12px; font-size:11px;" onclick="viewClientDetail('${c.id}')"><i class="fa-solid fa-eye"></i> View</button>
+                        ${isPending ? `
+                        <button class="btn btn-success" style="padding:6px 12px; font-size:11px;" onclick="approveClientToken('${c.id}')"><i class="fa-solid fa-check"></i> Approve</button>
+                        <button class="btn btn-danger" style="padding:6px 12px; font-size:11px;" onclick="rejectClientToken('${c.id}')"><i class="fa-solid fa-times"></i> Reject</button>
+                        ` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function viewClientDetail(tokenId) {
+            const c = clientTokens.find(t => t.id === tokenId);
+            if (!c) return;
+            const statusColor = c.status === 'Approved' ? 'var(--success)' : c.status === 'Rejected' ? 'var(--danger)' : 'var(--warning)';
+            document.getElementById('clientDetailContent').innerHTML = `
+                <div style="display:flex; gap:16px; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap;">
+                    ${c.photoBase64 ? `<img src="${c.photoBase64}" style="width:90px; height:90px; border-radius:12px; object-fit:cover; border:2px solid var(--panel-border);">` : ''}
+                    <div style="flex:1;">
+                        <div style="font-size:20px; font-weight:800; color:var(--text-main); margin-bottom:4px;">${c.clientName}</div>
+                        <span class="ct-badge ${c.status.toLowerCase()}" style="font-size:12px; padding:4px 12px;">${c.status}</span>
+                        <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">Submitted by: <strong style="color:var(--primary);">${c.agentName}</strong> &nbsp;•&nbsp; ${c.createdAt}</div>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                    ${[
+                        ['Phone', c.phone, 'fa-phone'],
+                        ['Email', c.email, 'fa-envelope'],
+                        ['Age', c.age + ' years', 'fa-calendar'],
+                        ['Account No.', c.accountNo, 'fa-building-columns'],
+                        ['IFSC Code', c.ifsc, 'fa-code'],
+                        ['UPI ID', c.upi || '—', 'fa-mobile-screen']
+                    ].map(([label, val, icon]) => `
+                        <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:10px; padding:12px 14px;">
+                            <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.4px;"><i class="fa-solid ${icon}" style="font-size:10px;"></i> ${label}</div>
+                            <div style="font-size:14px; font-weight:600; color:var(--text-main);">${val}</div>
+                        </div>`).join('')}
+                </div>
+                ${c.adminNote ? `<div style="background:rgba(59,130,246,0.07); border:1px solid rgba(59,130,246,0.2); border-radius:10px; padding:12px 14px; font-size:13px; color:var(--text-main);"><strong>Admin Note:</strong> ${c.adminNote}</div>` : ''}`;
+
+            const actDiv = document.getElementById('clientDetailActions');
+            if (c.status === 'Pending') {
+                actDiv.innerHTML = `
+                    <button class="btn btn-success" onclick="approveClientToken('${c.id}'); closeModal('clientDetailModal')"><i class="fa-solid fa-check-circle"></i> Approve</button>
+                    <button class="btn btn-danger" onclick="rejectClientToken('${c.id}'); closeModal('clientDetailModal')"><i class="fa-solid fa-times-circle"></i> Reject</button>
+                    <button class="btn btn-secondary" style="border:none;" onclick="closeModal('clientDetailModal')">Close</button>`;
+            } else {
+                actDiv.innerHTML = `<button class="btn btn-secondary" style="grid-column:1/-1; border:none;" onclick="closeModal('clientDetailModal')">Close</button>`;
+            }
+            document.getElementById('clientDetailModal').style.display = 'flex';
+        }
+
+        function approveClientToken(tokenId) {
+            const idx = clientTokens.findIndex(c => c.id === tokenId);
+            if (idx === -1) return;
+            clientTokens[idx].status    = 'Approved';
+            clientTokens[idx].adminNote = 'Approved by Admin on ' + new Date().toLocaleDateString('en-IN');
+            syncClientTokensDB();
+            renderAdminClientTokens();
+            triggerToast('Client token approved!', 'success');
+        }
+
+        function rejectClientToken(tokenId) {
+            const note = prompt('Reason for rejection (optional):') || '';
+            const idx  = clientTokens.findIndex(c => c.id === tokenId);
+            if (idx === -1) return;
+            clientTokens[idx].status    = 'Rejected';
+            clientTokens[idx].adminNote = note || 'Rejected by Admin';
+            syncClientTokensDB();
+            renderAdminClientTokens();
+            triggerToast('Client token rejected.', 'warning');
+        }
 
         function toggleTheme() {
             const body = document.body;
