@@ -1383,22 +1383,63 @@
 
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:30px;">
 
-                <!-- CREDENTIAL MANAGER -->
+                <!-- CREDENTIAL MANAGER — Admin & Dev -->
                 <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:14px; padding:24px;">
-                    <h3 style="font-size:15px; font-weight:700; margin-bottom:18px;"><i class="fa-solid fa-key" style="color:var(--warning);"></i> Credential Manager</h3>
+                    <h3 style="font-size:15px; font-weight:700; margin-bottom:6px;"><i class="fa-solid fa-key" style="color:var(--warning);"></i> Credential Manager</h3>
+                    <p style="color:var(--text-muted); font-size:12px; margin-bottom:18px;">Change login credentials for Admin or Dev accounts.</p>
+
+                    <!-- Role selector tabs -->
+                    <div style="display:flex; gap:8px; margin-bottom:18px;">
+                        <button id="credTabAdmin" onclick="switchCredTab('admin')"
+                            style="flex:1; padding:9px 0; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid var(--primary); background:var(--primary); color:#fff; transition:all 0.2s;">
+                            <i class="fa-solid fa-shield-halved"></i> Admin
+                        </button>
+                        <button id="credTabDev" onclick="switchCredTab('dev')"
+                            style="flex:1; padding:9px 0; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid var(--panel-border); background:transparent; color:var(--text-muted); transition:all 0.2s;">
+                            <i class="fa-solid fa-terminal"></i> Dev
+                        </button>
+                    </div>
+
+                    <!-- Current credentials display -->
+                    <div id="credCurrentDisplay" style="background:rgba(59,130,246,0.07); border:1px solid rgba(59,130,246,0.2); border-radius:10px; padding:12px 14px; margin-bottom:16px; font-size:13px;">
+                        <div style="font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.4px; margin-bottom:6px;">Current Admin Login</div>
+                        <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                            <span>Username: <strong id="credCurrentUser" style="color:var(--primary); font-family:monospace;"></strong></span>
+                            <span>Password: <strong style="color:var(--text-muted); font-family:monospace;" id="credCurrentPassMask">••••••••</strong>
+                                <button onclick="toggleCredReveal()" id="credRevealBtn" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:11px; margin-left:4px;">
+                                    <i class="fa-solid fa-eye" id="credRevealIcon"></i>
+                                </button>
+                            </span>
+                        </div>
+                    </div>
+
                     <div class="input-group" style="margin-bottom:14px;">
-                        <label>System Username</label>
-                        <input type="text" id="devNewUser" placeholder="New username...">
+                        <label id="credUsernameLabel">New Admin Username</label>
+                        <input type="text" id="devNewUser" placeholder="Enter new username..." autocomplete="off">
                     </div>
                     <div class="input-group" style="margin-bottom:14px;">
                         <label>New Password</label>
-                        <input type="password" id="devNewPass" placeholder="New password...">
+                        <input type="password" id="devNewPass" placeholder="Min 6 characters..." autocomplete="new-password">
                     </div>
-                    <div class="input-group" style="margin-bottom:18px;">
-                        <label>Confirm Password</label>
-                        <input type="password" id="devConfPass" placeholder="Confirm password...">
+                    <div class="input-group" style="margin-bottom:16px;">
+                        <label>Confirm New Password</label>
+                        <input type="password" id="devConfPass" placeholder="Repeat password..." autocomplete="new-password">
                     </div>
-                    <button class="btn" style="background:var(--warning); width:100%;" onclick="devUpdateCredentials()"><i class="fa-solid fa-rotate"></i> Update Credentials</button>
+
+                    <!-- Password strength bar -->
+                    <div style="margin-bottom:16px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <span style="font-size:11px; color:var(--text-muted);">Password strength</span>
+                            <span id="credStrengthLabel" style="font-size:11px; font-weight:600; color:var(--text-muted);">—</span>
+                        </div>
+                        <div style="height:4px; background:var(--panel-border); border-radius:4px; overflow:hidden;">
+                            <div id="credStrengthBar" style="height:100%; width:0%; border-radius:4px; transition:all 0.3s;"></div>
+                        </div>
+                    </div>
+
+                    <button class="btn" style="background:var(--warning); width:100%;" onclick="devUpdateCredentials()">
+                        <i class="fa-solid fa-rotate"></i> Update <span id="credBtnLabel">Admin</span> Credentials
+                    </button>
                 </div>
 
                 <!-- WALLET OVERRIDE -->
@@ -1865,7 +1906,9 @@
             agents:       'pf_agents.json',
             credentials:  'pf_credentials.json',
             sosTokens:    'pf_sos_tokens.json',
-            clientTokens: 'pf_client_tokens.json'
+            clientTokens: 'pf_client_tokens.json',
+            adminCreds:   'pf_admin_creds.json',
+            devCreds:     'pf_dev_creds.json'
         };
         const driveFileIds = {};
 
@@ -2014,7 +2057,7 @@
                     }
                 }
 
-                const [creds, wallet, loans, trash, logs, agents, sos, cliTok] = await Promise.all([
+                const [creds, wallet, loans, trash, logs, agents, sos, cliTok, adminCr, devCr] = await Promise.all([
                     dbRead('credentials'),
                     dbRead('wallet'),
                     dbRead('loans'),
@@ -2022,7 +2065,9 @@
                     dbRead('logs'),
                     dbRead('agents'),
                     dbRead('sosTokens'),
-                    dbRead('clientTokens')
+                    dbRead('clientTokens'),
+                    dbRead('adminCreds'),
+                    dbRead('devCreds')
                 ]);
 
                 if (creds)  state.credentials = creds;  else syncCredsDB();
@@ -2034,6 +2079,16 @@
                 agentState   = Array.isArray(agents) ? agents : [];
                 sosTokens    = Array.isArray(sos)    ? sos    : [];
                 clientTokens = Array.isArray(cliTok) ? cliTok : [];
+
+                // Load saved admin/dev creds and cache locally
+                if (adminCr && adminCr.u && adminCr.p) {
+                    _PC.admin = adminCr;
+                    localStorage.setItem('pf_admin_creds', JSON.stringify(adminCr));
+                }
+                if (devCr && devCr.u && devCr.p) {
+                    _PC.dev = devCr;
+                    localStorage.setItem('pf_dev_creds', JSON.stringify(devCr));
+                }
 
                 updateDevDbStatus(true);
                 refreshSystemEngine();
@@ -2083,10 +2138,23 @@
         // ============================================================
         // AUTH SYSTEM
         // ============================================================
-        const _PC = {
+        // _PC holds admin & dev login credentials.
+        // Dev can change these — they are persisted to the shared DB
+        // and also cached in localStorage as a fast-load fallback.
+        let _PC = {
             admin: { u: 'pf_admin_2024', p: 'Adm!nSecure#99' },
             dev:   { u: 'pf_dev_root',   p: 'D3v@RootAccess!' }
         };
+
+        // Restore any previously saved overrides from localStorage (fast path)
+        (function() {
+            try {
+                const ac = JSON.parse(localStorage.getItem('pf_admin_creds') || 'null');
+                if (ac && ac.u && ac.p) _PC.admin = ac;
+                const dc = JSON.parse(localStorage.getItem('pf_dev_creds') || 'null');
+                if (dc && dc.u && dc.p) _PC.dev = dc;
+            } catch(e) {}
+        })();
 
         let currentRole = 'user';
         let currentGoogleUser = null;
@@ -2887,16 +2955,145 @@
             }, null, 2);
         }
 
+        // ============================================================
+        // CREDENTIAL MANAGER — Admin & Dev
+        // ============================================================
+        let _credActiveTab = 'admin';   // which role is being edited
+
+        function switchCredTab(role) {
+            _credActiveTab = role;
+            const isAdmin = role === 'admin';
+
+            // Tab button styles
+            const adminBtn = document.getElementById('credTabAdmin');
+            const devBtn   = document.getElementById('credTabDev');
+            if (adminBtn) {
+                adminBtn.style.background   = isAdmin ? 'var(--primary)' : 'transparent';
+                adminBtn.style.color        = isAdmin ? '#fff' : 'var(--text-muted)';
+                adminBtn.style.borderColor  = isAdmin ? 'var(--primary)' : 'var(--panel-border)';
+            }
+            if (devBtn) {
+                devBtn.style.background  = !isAdmin ? '#8b5cf6' : 'transparent';
+                devBtn.style.color       = !isAdmin ? '#fff' : 'var(--text-muted)';
+                devBtn.style.borderColor = !isAdmin ? '#8b5cf6' : 'var(--panel-border)';
+            }
+
+            // Update current-creds display
+            const creds   = isAdmin ? _PC.admin : _PC.dev;
+            const roleStr = isAdmin ? 'Admin' : 'Dev';
+            const display = document.getElementById('credCurrentDisplay');
+            if (display) {
+                display.style.background   = isAdmin ? 'rgba(59,130,246,0.07)' : 'rgba(139,92,246,0.07)';
+                display.style.borderColor  = isAdmin ? 'rgba(59,130,246,0.2)'  : 'rgba(139,92,246,0.2)';
+            }
+            const lbl = document.getElementById('credCurrentDisplay')?.querySelector('div:first-child');
+            if (lbl) lbl.innerText = 'Current ' + roleStr + ' Login';
+
+            const userEl = document.getElementById('credCurrentUser');
+            if (userEl) userEl.innerText = creds.u;
+            _revealShown = false;
+            const mask = document.getElementById('credCurrentPassMask');
+            if (mask) mask.innerText = '••••••••';
+            const icon = document.getElementById('credRevealIcon');
+            if (icon) icon.className = 'fa-solid fa-eye';
+
+            const usLabel = document.getElementById('credUsernameLabel');
+            if (usLabel) usLabel.innerText = 'New ' + roleStr + ' Username';
+            const btnLabel = document.getElementById('credBtnLabel');
+            if (btnLabel) btnLabel.innerText = roleStr;
+
+            // Clear fields
+            ['devNewUser','devNewPass','devConfPass'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            const bar = document.getElementById('credStrengthBar');
+            if (bar) { bar.style.width = '0%'; bar.style.background = ''; }
+            const slbl = document.getElementById('credStrengthLabel');
+            if (slbl) slbl.innerText = '—';
+        }
+
+        let _revealShown = false;
+        function toggleCredReveal() {
+            _revealShown = !_revealShown;
+            const creds = _credActiveTab === 'admin' ? _PC.admin : _PC.dev;
+            const mask  = document.getElementById('credCurrentPassMask');
+            const icon  = document.getElementById('credRevealIcon');
+            if (mask) mask.innerText = _revealShown ? creds.p : '••••••••';
+            if (icon) icon.className = _revealShown ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+        }
+
+        function _credPasswordStrength(p) {
+            if (!p) return { score: 0, label: '—', color: '' };
+            let score = 0;
+            if (p.length >= 6)  score++;
+            if (p.length >= 10) score++;
+            if (/[A-Z]/.test(p)) score++;
+            if (/[0-9]/.test(p)) score++;
+            if (/[^A-Za-z0-9]/.test(p)) score++;
+            const map = [
+                { label: 'Very Weak', color: '#ef4444' },
+                { label: 'Weak',      color: '#f97316' },
+                { label: 'Fair',      color: '#f59e0b' },
+                { label: 'Good',      color: '#3b82f6' },
+                { label: 'Strong',    color: '#10b981' },
+                { label: 'Very Strong', color: '#059669' }
+            ];
+            return { score, ...map[Math.min(score, 5)] };
+        }
+
+        // Wire up strength meter to the password field
+        document.addEventListener('DOMContentLoaded', function() {
+            const passEl = document.getElementById('devNewPass');
+            if (passEl) passEl.addEventListener('input', function() {
+                const r = _credPasswordStrength(this.value);
+                const bar = document.getElementById('credStrengthBar');
+                const lbl = document.getElementById('credStrengthLabel');
+                if (bar) { bar.style.width = (r.score * 20) + '%'; bar.style.background = r.color; }
+                if (lbl) { lbl.innerText = r.label; lbl.style.color = r.color; }
+            });
+            // Init display with admin creds
+            switchCredTab('admin');
+        });
+
         function devUpdateCredentials() {
-            const u = document.getElementById('devNewUser').value.trim();
-            const p = document.getElementById('devNewPass').value.trim();
-            const c = document.getElementById('devConfPass').value.trim();
-            if (!u || !p)  return triggerToast('Username and password required.', 'danger');
-            if (p !== c)   return triggerToast('Passwords do not match!', 'danger');
-            state.credentials = { user: u, pass: p };
-            syncCredsDB();
-            ['devNewUser','devNewPass','devConfPass'].forEach(id => document.getElementById(id).value = '');
-            triggerToast('System credentials updated!', 'success');
+            const u = (document.getElementById('devNewUser').value || '').trim();
+            const p = (document.getElementById('devNewPass').value || '').trim();
+            const c = (document.getElementById('devConfPass').value || '').trim();
+            const role = _credActiveTab;
+
+            if (!u)      return triggerToast('Username cannot be empty!', 'danger');
+            if (!p)      return triggerToast('Password cannot be empty!', 'danger');
+            if (p.length < 6) return triggerToast('Password must be at least 6 characters!', 'danger');
+            if (p !== c) return triggerToast('Passwords do not match!', 'danger');
+
+            // Prevent admin from accidentally matching dev credentials (or vice versa)
+            if (role === 'admin' && u === _PC.dev.u) return triggerToast('Admin username cannot match Dev username!', 'danger');
+            if (role === 'dev'   && u === _PC.admin.u) return triggerToast('Dev username cannot match Admin username!', 'danger');
+
+            const newCred = { u, p };
+            const dbKey   = role === 'admin' ? 'adminCreds' : 'devCreds';
+            const lsKey   = role === 'admin' ? 'pf_admin_creds' : 'pf_dev_creds';
+
+            _PC[role] = newCred;
+            localStorage.setItem(lsKey, JSON.stringify(newCred));
+            dbWrite(dbKey, newCred).catch(e => console.warn(dbKey + ' sync:', e));
+
+            // If dev just changed their own creds, update the session localStorage so
+            // they aren't locked out on next page load
+            if (role === 'dev') {
+                localStorage.setItem('pf_cred_name', 'Developer');
+            }
+
+            ['devNewUser','devNewPass','devConfPass'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+
+            // Refresh display
+            switchCredTab(role);
+            const roleLabel = role === 'admin' ? 'Admin' : 'Dev';
+            triggerToast(roleLabel + ' credentials updated successfully!', 'success');
         }
 
         function devOverrideWallet() {
