@@ -1390,11 +1390,12 @@
                             <th>Effective Rate</th>
                             <th>Est. Interest</th>
                             <th>Active Clients</th>
+                            <th><i class="fa-brands fa-google-drive" style="color:#34a853;"></i> Drive</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="agentTableBody">
-                        <tr><td colspan="8" style="text-align:center; color:var(--text-muted); font-size:13px; padding:30px;">No agents assigned yet.</td></tr>
+                        <tr><td colspan="10" style="text-align:center; color:var(--text-muted); font-size:13px; padding:30px;">No agents assigned yet.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1572,8 +1573,8 @@
                         <i class="fa-brands fa-google-drive" style="color:#fff; font-size:18px;"></i>
                     </div>
                     <div>
-                        <h3 style="font-size:16px; font-weight:800; margin-bottom:2px;">Drive Integration — Shared Database</h3>
-                        <p style="font-size:12px; color:var(--text-muted);">Connect one Google Drive for Admin, Dev & all Agents. All data stored centrally.</p>
+                        <h3 style="font-size:16px; font-weight:800; margin-bottom:2px;">Drive Integration — Unified Database</h3>
+                        <p style="font-size:12px; color:var(--text-muted);">One Drive = one database. Main data + per-agent subfolders auto-created on agent signup.</p>
                     </div>
                     <div id="driveIntBadge" style="margin-left:auto; padding:4px 14px; border-radius:20px; font-size:12px; font-weight:700;"></div>
                 </div>
@@ -1636,6 +1637,28 @@
                     <button class="btn btn-danger" onclick="devHardResetWallet()"><i class="fa-solid fa-rotate-left"></i> Reset Wallet to ₹0</button>
                     <button class="btn btn-secondary" style="border-color:var(--danger); color:var(--danger);" onclick="devExportData()"><i class="fa-solid fa-file-export"></i> Export Full DB JSON</button>
                     <label class="btn btn-secondary" style="border-color:#8b5cf6; color:#8b5cf6; cursor:pointer; margin:0;"><i class="fa-solid fa-file-import"></i> Import / Restore JSON <input type="file" id="devUploadInput" accept=".json" style="display:none;" onchange="devImportData(this)"></label>
+                </div>
+            </div>
+
+            <!-- DEV: AGENT DRIVE FOLDERS PANEL -->
+            <div style="margin-top:30px; background:linear-gradient(135deg,rgba(52,168,83,0.06),rgba(59,130,246,0.04)); border:1.5px solid rgba(52,168,83,0.25); border-radius:14px; padding:24px; margin-bottom:0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:12px;">
+                    <div>
+                        <h3 style="font-size:15px; font-weight:800; margin-bottom:2px;"><i class="fa-brands fa-google-drive" style="color:#34a853;"></i> Agent Drive Folders</h3>
+                        <p style="font-size:12px; color:var(--text-muted); margin:0;">Each agent has a dedicated subfolder in the linked Drive. JSON files for tokens &amp; SOS are stored here.</p>
+                    </div>
+                    <button class="btn btn-secondary" style="font-size:12px; padding:8px 14px;" onclick="refreshAgentFolderList()"><i class="fa-solid fa-sync"></i> Refresh Folders</button>
+                </div>
+                <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:10px; padding:14px 16px; margin-bottom:16px; font-size:12px; color:var(--text-muted); line-height:1.8;">
+                    <strong style="color:var(--text-main);"><i class="fa-solid fa-folder-tree" style="color:var(--warning); margin-right:5px;"></i> Drive Structure:</strong><br>
+                    <span style="font-family:monospace; font-size:11px; color:var(--primary);">📁 Pocket Finance DB/</span><br>
+                    <span style="font-family:monospace; font-size:11px; color:var(--text-muted);">&nbsp;&nbsp;&nbsp;📄 pf_database.json &nbsp;<em>(main DB — wallet, loans, agents, etc.)</em></span><br>
+                    <span style="font-family:monospace; font-size:11px; color:var(--warning);">&nbsp;&nbsp;&nbsp;📁 agents/</span><br>
+                    <span style="font-family:monospace; font-size:11px; color:var(--text-muted);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;📁 agt_XXX_AgentName/ &nbsp;<em>(one per agent, auto-created)</em></span><br>
+                    <span style="font-family:monospace; font-size:11px; color:var(--text-muted);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;📄 profile.json &nbsp;📄 tokens.json &nbsp;📄 sos.json</span>
+                </div>
+                <div id="devAgentFolderList">
+                    <p style="color:var(--text-muted); font-size:13px;">Click Refresh to load agent folders from Drive.</p>
                 </div>
             </div>
 
@@ -2023,11 +2046,16 @@
         async function syncLogsDB()    { await dbWrite('logs',        state.logs).catch(e => console.warn('logs sync:', e)); }
         async function syncAgentsDB()       { await dbWrite('agents',       agentState).catch(e => console.warn('agents sync:', e)); }
         async function syncClientTokensDB() {
-            // Always write to shared DB so admin can see agent-submitted clients immediately.
-            // Do NOT write clientTokens to the agent's personal Drive folder —
-            // that would cause the shared DB to be overwritten with stale (Pending) data
-            // the next time the agent syncs, hiding admin Approve/Reject decisions.
+            // Write to shared DB (all roles see this)
             await dbWrite('clientTokens', clientTokens).catch(e => console.warn('clientTokens sync:', e));
+            // Also mirror each agent's tokens to their personal Drive subfolder
+            if (hasSharedDB()) {
+                const agentIds = [...new Set(clientTokens.map(t => t.agentId))];
+                agentIds.forEach(aid => {
+                    const ag = agentState.find(a => a.id === aid);
+                    if (ag) syncAgentTokensToFolder(ag.id, ag.name).catch(() => {});
+                });
+            }
         }
 
         // Individual helpers kept for compatibility with callers
@@ -2855,7 +2883,10 @@
             const agent = {
                 id: 'agt_' + Date.now(),
                 name, phone, email, fund, rate, tier,
-                dbUrl: appScriptUrl || '',   // pre-connect: store current DB URL so agent portal auto-connects
+                dbUrl: appScriptUrl || '',
+                driveFolder: null,
+                driveFolderUrl: null,
+                driveFolderId: null,
                 createdAt: new Date().toLocaleDateString('en-IN')
             };
             agentState.push(agent);
@@ -2863,16 +2894,36 @@
             syncAgentsDB();
             pushGlobalLog(`Agent Assigned: ${name}`, `-₹${fund}`, 'expense');
             ['agentName','agentPhone','agentEmail','agentFund','agentBaseRate'].forEach(id => document.getElementById(id).value = '');
-            triggerToast(`Agent ${name} created!`, 'success');
+            triggerToast(`Agent ${name} created! Setting up Drive folder...`, 'success');
             refreshSystemEngine();
             renderAgents();
+
+            // Create agent subfolder in Drive (if shared DB connected)
+            if (hasSharedDB()) {
+                createAgentDriveFolder(agent).then(folderInfo => {
+                    if (folderInfo) {
+                        const idx = agentState.findIndex(a => a.id === agent.id);
+                        if (idx !== -1) {
+                            agentState[idx].driveFolder    = folderInfo.folderName;
+                            agentState[idx].driveFolderUrl = folderInfo.folderUrl;
+                            agentState[idx].driveFolderId  = folderInfo.folderId;
+                        }
+                        syncAgentsDB();
+                        renderAgents();
+                        triggerToast(`✅ Drive folder created for ${name}`, 'success');
+                    }
+                }).catch(err => {
+                    console.warn('[PF] Agent folder creation failed:', err);
+                    triggerToast(`⚠️ Agent created but Drive folder setup failed.`, 'warning');
+                });
+            }
         }
 
         function renderAgents() {
             const tbody = document.getElementById('agentTableBody');
             tbody.innerHTML = '';
             if (agentState.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-muted); font-size:13px; padding:30px;">No agents assigned yet.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--text-muted); font-size:13px; padding:30px;">No agents assigned yet.</td></tr>`;
                 updateAgentStats();
                 return;
             }
@@ -2895,6 +2946,12 @@
                         <td><strong style="color:var(--warning);">${effectiveRate}%</strong></td>
                         <td style="color:var(--success); font-weight:600;">₹${estInterest.toLocaleString('en-IN')}</td>
                         <td><span style="background:rgba(59,130,246,0.1); color:var(--primary); padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600;">${agentLoans.length} Active</span></td>
+                        <td>
+                            ${a.driveFolderUrl
+                                ? `<a href="${a.driveFolderUrl}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:rgba(16,185,129,0.1);color:var(--success);border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;border:1px solid rgba(16,185,129,0.25);"><i class="fa-brands fa-google-drive"></i> Drive</a>`
+                                : `<span style="font-size:11px;color:var(--text-muted);display:inline-flex;align-items:center;gap:4px;"><i class="fa-solid fa-hourglass" style="font-size:10px;"></i> Pending</span>`
+                            }
+                        </td>
                         <td>
                             <button class="btn btn-secondary" style="padding:5px 10px; font-size:11px; margin-right:5px;" onclick="openEditAgent('${a.id}')"><i class="fa-solid fa-edit"></i></button>
                             <button class="btn btn-danger" style="padding:5px 10px; font-size:11px;" onclick="removeAgent('${a.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -3048,6 +3105,7 @@
             devShowBackendConfig();
             renderAgentLiveTracker('devTrackerGrid');
             initDriveIntegrationUI();
+            refreshAgentFolderList();
         }
 
         function devRefreshSnapshot() {
@@ -3341,79 +3399,159 @@
         // ============================================================
 
         const AS_CODE_TEMPLATE = `// ============================================================
-// Pocket Finance — Shared Database Backend
+// Pocket Finance — Unified Drive Database Backend
 // Google Apps Script — Deploy as Web App
 //   Execute as: Me
 //   Who has access: Anyone
+//
+// ARCHITECTURE:
+//   📁 Pocket Finance DB/          ← Root folder in Drive (created auto)
+//      📄 pf_database.json         ← Main DB (wallet, loans, agents, etc.)
+//      📁 agents/                  ← Agent subfolders (created on agent add)
+//         📁 agt_XXXXX_AgentName/  ← One folder per agent
+//            📄 profile.json       ← Agent profile + fund info
+//            📄 tokens.json        ← Client tokens submitted by this agent
+//            📄 sos.json           ← SOS requests by this agent
 // ============================================================
 
-const SPREADSHEET_NAME = 'Pocket Finance DB';
-const SHEET_NAME       = 'PF_Database';
+const ROOT_FOLDER_NAME = 'Pocket Finance DB';
+const MAIN_DB_FILE     = 'pf_database.json';
+const AGENTS_SUBFOLDER = 'agents';
 
-function getOrCreateSpreadsheet() {
-  // Search Drive for existing spreadsheet
-  const files = DriveApp.getFilesByName(SPREADSHEET_NAME);
+// ── Folder/File helpers ──────────────────────────────────────
+
+function getRootFolder() {
+  const folders = DriveApp.getFoldersByName(ROOT_FOLDER_NAME);
+  if (folders.hasNext()) return folders.next();
+  const folder = DriveApp.createFolder(ROOT_FOLDER_NAME);
+  return folder;
+}
+
+function getAgentsFolder() {
+  const root = getRootFolder();
+  const subs = root.getFoldersByName(AGENTS_SUBFOLDER);
+  if (subs.hasNext()) return subs.next();
+  return root.createFolder(AGENTS_SUBFOLDER);
+}
+
+function getAgentFolder(agentId, agentName) {
+  const agentsFolder = getAgentsFolder();
+  const safeName = (agentName || 'unknown').replace(/[^a-zA-Z0-9_\-]/g, '_');
+  const folderName = agentId + '_' + safeName;
+  const existing = agentsFolder.getFoldersByName(folderName);
+  if (existing.hasNext()) return existing.next();
+  return agentsFolder.createFolder(folderName);
+}
+
+function readJsonFile(folder, filename) {
+  const files = folder.getFilesByName(filename);
+  if (!files.hasNext()) return null;
+  try { return JSON.parse(files.next().getBlob().getDataAsString()); }
+  catch(e) { return null; }
+}
+
+function writeJsonFile(folder, filename, data) {
+  const json = JSON.stringify(data, null, 2);
+  const files = folder.getFilesByName(filename);
   if (files.hasNext()) {
-    return SpreadsheetApp.open(files.next());
+    files.next().setContent(json);
+  } else {
+    folder.createFile(filename, json, MimeType.PLAIN_TEXT);
   }
-  // Create new one
-  const ss = SpreadsheetApp.create(SPREADSHEET_NAME);
-  const sheet = ss.getActiveSheet();
-  sheet.setName(SHEET_NAME);
-  sheet.appendRow(['key', 'value', 'updatedAt']);
-  sheet.setFrozenRows(1);
-  return ss;
 }
 
-function getSheet() {
-  const ss = getOrCreateSpreadsheet();
-  let sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) {
-    sheet = ss.insertSheet(SHEET_NAME);
-    sheet.appendRow(['key', 'value', 'updatedAt']);
-    sheet.setFrozenRows(1);
-  }
-  return sheet;
+// ── Main DB (pf_database.json) ───────────────────────────────
+
+function readMainDb() {
+  const root = getRootFolder();
+  return readJsonFile(root, MAIN_DB_FILE) || {};
 }
+
+function writeMainDb(db) {
+  const root = getRootFolder();
+  writeJsonFile(root, MAIN_DB_FILE, db);
+}
+
+// ── doGet ────────────────────────────────────────────────────
 
 function doGet(e) {
   try {
-    const key = e && e.parameter && e.parameter.key;
-    if (!key) return jsonResp({ error: 'No key provided' });
-    const sheet = getSheet();
-    const data  = sheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]) === String(key)) {
-        try {
-          const parsed = JSON.parse(String(data[i][1]));
-          return jsonResp({ value: parsed });
-        } catch(pe) {
-          return jsonResp({ value: data[i][1] });
-        }
+    const params = e && e.parameter ? e.parameter : {};
+    const action = params.action || 'read';
+
+    // Agent folder listing (Dev Control Panel)
+    if (action === 'listAgentFolders') {
+      const agentsFolder = getAgentsFolder();
+      const subs = agentsFolder.getFolders();
+      const result = [];
+      while (subs.hasNext()) {
+        const f = subs.next();
+        result.push({ id: f.getId(), name: f.getName(), url: f.getUrl() });
       }
+      return jsonResp({ folders: result });
     }
-    return jsonResp({ value: null });
+
+    // Read agent-specific file
+    if (action === 'readAgent') {
+      const agentId   = params.agentId;
+      const agentName = params.agentName || '';
+      const file      = params.file || 'profile.json';
+      if (!agentId) return jsonResp({ error: 'No agentId' });
+      const folder = getAgentFolder(agentId, agentName);
+      const data   = readJsonFile(folder, file);
+      return jsonResp({ value: data });
+    }
+
+    // Default: read from main DB
+    const key = params.key;
+    if (!key) return jsonResp({ error: 'No key provided' });
+    const db = readMainDb();
+    return jsonResp({ value: db.hasOwnProperty(key) ? db[key] : null });
+
   } catch(err) {
     return jsonResp({ error: err.message });
   }
 }
 
+// ── doPost ───────────────────────────────────────────────────
+
 function doPost(e) {
   try {
-    const body  = JSON.parse(e.postData.contents);
-    const key   = String(body.key);
-    const value = JSON.stringify(body.value);
-    const now   = new Date().toISOString();
-    const sheet = getSheet();
-    const data  = sheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]) === key) {
-        sheet.getRange(i + 1, 2, 1, 2).setValues([[value, now]]);
-        return jsonResp({ ok: true });
-      }
+    const body   = JSON.parse(e.postData.contents);
+    const action = body.action || 'write';
+
+    // Create agent subfolder + write initial profile
+    if (action === 'createAgentFolder') {
+      const agent = body.agent;
+      if (!agent || !agent.id) return jsonResp({ error: 'No agent data' });
+      const folder = getAgentFolder(agent.id, agent.name);
+      writeJsonFile(folder, 'profile.json', { ...agent, createdAt: new Date().toISOString() });
+      writeJsonFile(folder, 'tokens.json',  []);
+      writeJsonFile(folder, 'sos.json',     []);
+      return jsonResp({ ok: true, folderId: folder.getId(), folderUrl: folder.getUrl(), folderName: folder.getName() });
     }
-    sheet.appendRow([key, value, now]);
+
+    // Write to agent-specific file
+    if (action === 'writeAgent') {
+      const agentId   = body.agentId;
+      const agentName = body.agentName || '';
+      const file      = body.file || 'profile.json';
+      const value     = body.value;
+      if (!agentId) return jsonResp({ error: 'No agentId' });
+      const folder = getAgentFolder(agentId, agentName);
+      writeJsonFile(folder, file, value);
+      return jsonResp({ ok: true });
+    }
+
+    // Default: write to main DB
+    const key   = String(body.key);
+    const value = body.value;
+    const db    = readMainDb();
+    db[key]     = value;
+    db['_updatedAt'] = new Date().toISOString();
+    writeMainDb(db);
     return jsonResp({ ok: true });
+
   } catch(err) {
     return jsonResp({ error: err.message });
   }
@@ -3553,8 +3691,95 @@ function jsonResp(obj) {
             });
         }   // { id, agentId, agentName, amount, reason, urgency, raisedAt, status, disbursement:{amount,period,dueDate,notes,source,disbursedAt} }
 
-        async function syncSOSTokensDB() {
+        // ============================================================
+        // AGENT DRIVE FOLDER MANAGEMENT
+        // ============================================================
+        async function createAgentDriveFolder(agent) {
+            if (!hasSharedDB()) return null;
+            const res = await fetch(appScriptUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'createAgentFolder', agent })
+            });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            return data; // { ok, folderId, folderUrl, folderName }
+        }
+
+        async function writeAgentFile(agentId, agentName, fileName, value) {
+            if (!hasSharedDB()) return;
+            await fetch(appScriptUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'writeAgent', agentId, agentName, file: fileName, value })
+            });
+        }
+
+        async function listAgentFolders() {
+            if (!hasSharedDB()) return [];
+            const res = await fetch(appScriptUrl + '?action=listAgentFolders');
+            if (!res.ok) return [];
+            const data = await res.json();
+            return data.folders || [];
+        }
+
+        async function syncAgentTokensToFolder(agentId, agentName) {
+            // Sync this agent's client tokens to their personal Drive subfolder
+            const agentTokens = clientTokens.filter(t => t.agentId === agentId);
+            await writeAgentFile(agentId, agentName, 'tokens.json', agentTokens).catch(e => console.warn('agent token sync:', e));
+        }
+
+        async function syncAgentSOSToFolder(agentId, agentName) {
+            const agentSOS = sosTokens.filter(t => t.agentId === agentId);
+            await writeAgentFile(agentId, agentName, 'sos.json', agentSOS).catch(e => console.warn('agent sos sync:', e));
+        }
+
+        async function refreshAgentFolderList() {
+            const container = document.getElementById('devAgentFolderList');
+            if (!container) return;
+            if (!hasSharedDB()) {
+                container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Connect the database first to see agent folders.</p>';
+                return;
+            }
+            container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</p>';
+            try {
+                const folders = await listAgentFolders();
+                if (!folders.length) {
+                    container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No agent folders yet. Create an agent to auto-generate their Drive folder.</p>';
+                    return;
+                }
+                container.innerHTML = folders.map(f => {
+                    const matched = agentState.find(a => a.driveFolderId === f.id || f.name.startsWith(a.id));
+                    const agentLabel = matched ? matched.name : f.name;
+                    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--input-bg);border:1px solid var(--panel-border);border-radius:10px;margin-bottom:10px;flex-wrap:wrap;">
+                        <div style="background:rgba(59,130,246,0.1);width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <i class="fa-brands fa-google-drive" style="color:var(--primary);"></i>
+                        </div>
+                        <div style="flex:1;min-width:140px;">
+                            <div style="font-weight:700;font-size:13px;color:var(--text-main);">
+                                <i class="fa-solid fa-folder-open" style="color:var(--warning);margin-right:5px;"></i>${agentLabel}
+                            </div>
+                            <div style="font-size:11px;color:var(--text-muted);font-family:monospace;margin-top:2px;">${f.name}</div>
+                        </div>
+                        <a href="${f.url}" target="_blank" class="btn btn-secondary" style="padding:6px 14px;font-size:11px;"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Drive</a>
+                    </div>`;
+                }).join('');
+            } catch(e) {
+                container.innerHTML = `<p style="color:var(--danger);font-size:13px;">Failed to load folders: ${e.message}</p>`;
+            }
+        }
+
+                async function syncSOSTokensDB() {
             await dbWrite('sosTokens', sosTokens).catch(e => console.warn('sos sync:', e));
+            // Mirror each agent's SOS to their Drive subfolder
+            if (hasSharedDB()) {
+                const agentIds = [...new Set(sosTokens.map(t => t.agentId))];
+                agentIds.forEach(aid => {
+                    const ag = agentState.find(a => a.id === aid);
+                    if (ag) syncAgentSOSToFolder(ag.id, ag.name).catch(() => {});
+                });
+            }
         }
 
         async function loadSOSTokens() {
