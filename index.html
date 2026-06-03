@@ -4503,13 +4503,46 @@ function jsonResp(obj) {
         function approveClientToken(tokenId) {
             const idx = clientTokens.findIndex(c => c.id === tokenId);
             if (idx === -1) return;
+
+            const token      = clientTokens[idx];
+            const loanAmount = parseFloat(token.loanAmount) || 0;
+
+            // Deduct loan amount from the agent's allocated fund
+            if (loanAmount > 0) {
+                const agentIdx = agentState.findIndex(a => a.id === token.agentId);
+                if (agentIdx !== -1) {
+                    const currentFund = agentState[agentIdx].fund || 0;
+                    if (loanAmount > currentFund) {
+                        return triggerToast(
+                            `Insufficient funds! Agent only has ₹${currentFund.toLocaleString('en-IN')} remaining (loan: ₹${loanAmount.toLocaleString('en-IN')}).`,
+                            'danger'
+                        );
+                    }
+                    agentState[agentIdx].fund = currentFund - loanAmount;
+                    syncAgentsDB();
+                    renderAgents();
+                }
+            }
+
             clientTokens[idx].status    = 'Approved';
-            clientTokens[idx].adminNote = 'Approved by Admin on ' + new Date().toLocaleDateString('en-IN');
+            clientTokens[idx].adminNote = 'Approved by Admin on ' + new Date().toLocaleDateString('en-IN')
+                + (loanAmount > 0 ? ` | ₹${loanAmount.toLocaleString('en-IN')} deducted from agent fund` : '');
             syncClientTokensDB();
             renderAdminClientTokens();
+            refreshAgentWalletBar();
             updateNotificationBadge();
             updateSOSNotificationBadge();
-            triggerToast('Client token approved!', 'success');
+            pushGlobalLog(
+                `Client Approved: ${token.clientName} (Agent: ${token.agentName})`,
+                loanAmount > 0 ? `-₹${loanAmount.toLocaleString('en-IN')}` : '—',
+                'expense'
+            );
+            triggerToast(
+                loanAmount > 0
+                    ? `Client token approved! ₹${loanAmount.toLocaleString('en-IN')} deducted from ${token.agentName}'s fund.`
+                    : 'Client token approved!',
+                'success'
+            );
         }
 
         function rejectClientToken(tokenId) {
