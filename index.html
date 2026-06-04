@@ -1638,6 +1638,18 @@
                     <button class="btn btn-secondary" style="border-color:var(--danger); color:var(--danger);" onclick="devExportData()"><i class="fa-solid fa-file-export"></i> Export Full DB JSON</button>
                     <label class="btn btn-secondary" style="border-color:#8b5cf6; color:#8b5cf6; cursor:pointer; margin:0;"><i class="fa-solid fa-file-import"></i> Import / Restore JSON <input type="file" id="devUploadInput" accept=".json" style="display:none;" onchange="devImportData(this)"></label>
                 </div>
+
+                <!-- NUCLEAR RESET SEPARATOR -->
+                <div style="border-top:1px dashed rgba(239,68,68,0.35); margin:22px 0 18px 0;"></div>
+                <div style="display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:200px;">
+                        <div style="font-size:13px; font-weight:700; color:var(--danger); margin-bottom:4px;"><i class="fa-solid fa-skull-crossbones"></i> Reset Everything</div>
+                        <div style="font-size:11px; color:var(--text-muted); line-height:1.6;">Wipes ALL data — wallet, loans, agents, logs, SOS tokens, client tokens, and all Drive files. Resets credentials to defaults. Irreversible unless you take a backup first.</div>
+                    </div>
+                    <button class="btn btn-danger" style="flex-shrink:0; background:linear-gradient(135deg,#dc2626,#991b1b); box-shadow:0 4px 14px rgba(220,38,38,0.4); font-weight:800; letter-spacing:0.3px;" onclick="openResetEverythingModal()">
+                        <i class="fa-solid fa-skull-crossbones"></i> RESET EVERYTHING
+                    </button>
+                </div>
             </div>
 
             <!-- DEV: AGENT DRIVE FOLDERS PANEL -->
@@ -1789,6 +1801,42 @@
             <h2 style="font-size:18px; font-weight:700; margin-bottom:20px;"><i class="fa-solid fa-id-card" style="color:#8b5cf6;"></i> Client Details</h2>
             <div id="clientDetailContent"></div>
             <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:20px;" id="clientDetailActions"></div>
+        </div>
+    </div>
+
+    <!-- RESET EVERYTHING MODAL — Step 1: Backup prompt -->
+    <div class="modal-overlay" id="resetEverythingModal">
+        <div class="modal-container" style="max-width:480px; text-align:center;">
+            <div style="background:rgba(220,38,38,0.12); width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px auto;">
+                <i class="fa-solid fa-skull-crossbones" style="font-size:28px; color:var(--danger);"></i>
+            </div>
+            <h2 style="font-size:20px; font-weight:800; margin-bottom:8px; color:var(--danger);">Reset Everything</h2>
+            <p style="color:var(--text-muted); font-size:13px; margin-bottom:22px; line-height:1.7;">This will permanently erase <strong style="color:var(--text-main);">all data</strong> — wallet, loans, agents, logs, SOS tokens, client tokens, and Drive files. Credentials will reset to factory defaults.</p>
+
+            <!-- Backup offer box -->
+            <div style="background:rgba(245,158,11,0.08); border:1.5px solid rgba(245,158,11,0.35); border-radius:12px; padding:18px 20px; margin-bottom:22px; text-align:left;">
+                <div style="font-size:13px; font-weight:700; color:var(--warning); margin-bottom:6px;"><i class="fa-solid fa-cloud-arrow-up"></i> Create a Backup First?</div>
+                <div style="font-size:12px; color:var(--text-muted); line-height:1.7;">A backup folder will be created inside your Drive root (<strong style="color:var(--text-main);">Pocket Finance DB / BACKUP_<span id="resetBackupDateLabel"></span>/</strong>) containing a copy of all data files before the wipe. The folder name includes today's date so you can easily identify when data was deleted.</div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button class="btn" style="background:var(--warning); font-weight:700;" onclick="executeResetEverything(true)">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Yes — Backup to Drive, then Reset
+                </button>
+                <button class="btn btn-danger" style="font-weight:700;" onclick="executeResetEverything(false)">
+                    <i class="fa-solid fa-trash"></i> No — Erase Everything Immediately
+                </button>
+                <button class="btn btn-secondary" style="border:none;" onclick="closeModal('resetEverythingModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RESET IN PROGRESS MODAL -->
+    <div class="modal-overlay" id="resetProgressModal" style="display:none; z-index:99999;">
+        <div class="modal-container" style="max-width:400px; text-align:center;">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size:36px; color:var(--danger); margin-bottom:20px;"></i>
+            <h3 style="font-size:17px; font-weight:700; margin-bottom:8px;" id="resetProgressTitle">Resetting...</h3>
+            <p style="color:var(--text-muted); font-size:13px;" id="resetProgressMsg">Please wait while data is being erased.</p>
         </div>
     </div>
 
@@ -2392,10 +2440,37 @@
             if (dashGrid) dashGrid.style.display = 'none';
         }
 
-        function handleLogin() {
+        // ─── Pre-fetch credentials from Drive before validating login ────────────
+        // On a fresh browser, localStorage is empty so _PC holds only the hardcoded
+        // defaults. If the Dev previously changed the credentials via the Credential
+        // Manager they were saved to Drive (dbKey adminCreds / devCreds).
+        // This function fetches the latest creds from Drive before the password check,
+        // so changed credentials always work — even on a brand-new device / browser.
+        async function _refreshCredsFromDrive() {
+            if (!hasSharedDB()) return;          // no DB configured → skip
+            try {
+                const [adminCr, devCr] = await Promise.all([
+                    dbRead('adminCreds').catch(() => null),
+                    dbRead('devCreds').catch(() => null)
+                ]);
+                if (adminCr && adminCr.u && adminCr.p) {
+                    _PC.admin = adminCr;
+                    localStorage.setItem('pf_admin_creds', JSON.stringify(adminCr));
+                }
+                if (devCr && devCr.u && devCr.p) {
+                    _PC.dev = devCr;
+                    localStorage.setItem('pf_dev_creds', JSON.stringify(devCr));
+                }
+            } catch(e) {
+                console.warn('[PF] Could not pre-fetch creds from Drive:', e);
+            }
+        }
+
+        async function handleLogin() {
             const u   = document.getElementById('loginUser').value.trim();
             const p   = document.getElementById('loginPass').value.trim();
             const err = document.getElementById('loginError');
+            const btn = document.getElementById('loginBtn');
 
             if (!u || !p) { err.innerText = 'Please enter username and password.'; err.style.display = 'block'; return; }
 
@@ -2406,9 +2481,18 @@
                 return;
             }
 
+            // Show a brief loading state so the user knows something is happening
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...'; }
+            err.style.display = 'none';
+
+            // ── KEY FIX: always pull the latest credentials from Drive before comparing ──
+            await _refreshCredsFromDrive();
+
+            if (btn) { btn.disabled = false; btn.innerHTML = 'Sign In'; }
+
             let role = null;
-            if (u === _PC.dev.u && p === _PC.dev.p)                           role = 'dev';
-            else if (u === _PC.admin.u && p === _PC.admin.p)                   role = 'admin';
+            if (u === _PC.dev.u && p === _PC.dev.p)                               role = 'dev';
+            else if (u === _PC.admin.u && p === _PC.admin.p)                       role = 'admin';
             else if (u === state.credentials.user && p === state.credentials.pass) role = 'user';
 
             if (role) {
@@ -3255,9 +3339,23 @@
             const dbKey   = role === 'admin' ? 'adminCreds' : 'devCreds';
             const lsKey   = role === 'admin' ? 'pf_admin_creds' : 'pf_dev_creds';
 
+            // Update in-memory _PC immediately
             _PC[role] = newCred;
+
+            // Persist to localStorage so THIS browser/session keeps working
             localStorage.setItem(lsKey, JSON.stringify(newCred));
-            dbWrite(dbKey, newCred).catch(e => console.warn(dbKey + ' sync:', e));
+
+            // Persist to Drive DB so ALL other browsers pick up the change on next login
+            if (hasSharedDB()) {
+                dbWrite(dbKey, newCred)
+                    .then(() => triggerToast('✅ Credentials saved to Drive — new-browser logins will use the updated password.', 'success'))
+                    .catch(e => {
+                        console.warn(dbKey + ' drive sync failed:', e);
+                        triggerToast('⚠️ Saved locally but Drive sync failed. Reconnect the DB and try again.', 'warning');
+                    });
+            } else {
+                triggerToast('⚠️ No Drive DB connected. Credentials saved locally only — won\'t work on a fresh browser until DB is connected.', 'warning');
+            }
 
             // If dev just changed their own creds, update the session localStorage so
             // they aren't locked out on next page load
@@ -3270,9 +3368,10 @@
                 if (el) el.value = '';
             });
 
-            // Refresh display
+            // Refresh display to show newly updated username
             switchCredTab(role);
             const roleLabel = role === 'admin' ? 'Admin' : 'Dev';
+            if (!hasSharedDB()) return; // toast already shown above
             triggerToast(roleLabel + ' credentials updated successfully!', 'success');
         }
 
@@ -3313,6 +3412,196 @@
             refreshSystemEngine();
             devRefreshAll();
             triggerToast('Wallet reset to ₹0.', 'danger');
+        }
+
+        // ============================================================
+        // RESET EVERYTHING — Nuclear option (Dev Console only)
+        // ============================================================
+        function openResetEverythingModal() {
+            // Populate the date label in the modal
+            const dateStr = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+                .replace(/\//g, '-');
+            const el = document.getElementById('resetBackupDateLabel');
+            if (el) el.innerText = dateStr;
+            document.getElementById('resetEverythingModal').style.display = 'flex';
+        }
+
+        async function executeResetEverything(doBackup) {
+            closeModal('resetEverythingModal');
+
+            // Final confirmation
+            const confirmText = doBackup
+                ? 'FINAL CONFIRMATION: Backup to Drive then erase ALL data?\n\nType YES to proceed.'
+                : 'FINAL CONFIRMATION: Permanently erase ALL data with NO backup?\n\nType YES to proceed.';
+            const answer = prompt(confirmText);
+            if ((answer || '').trim().toUpperCase() !== 'YES') {
+                triggerToast('Reset cancelled.', 'warning');
+                return;
+            }
+
+            const progModal  = document.getElementById('resetProgressModal');
+            const progTitle  = document.getElementById('resetProgressTitle');
+            const progMsg    = document.getElementById('resetProgressMsg');
+
+            function setProgress(title, msg) {
+                if (progTitle) progTitle.innerText = title;
+                if (progMsg)   progMsg.innerText   = msg;
+            }
+
+            progModal.style.display = 'flex';
+
+            try {
+                // ── STEP 1: Create Drive backup if requested ───────────────────────
+                if (doBackup && hasSharedDB()) {
+                    setProgress('Creating Drive Backup...', 'Saving a copy of all data to Drive before erasure.');
+
+                    const dateStr = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+                        .replace(/\//g, '-');
+                    const backupFolderName = 'BACKUP_' + dateStr + '_' + Date.now();
+
+                    const backupPayload = {
+                        exportedAt:    new Date().toISOString(),
+                        wallet:        state.wallet,
+                        loans:         state.loans,
+                        trash:         state.trash,
+                        logs:          state.logs,
+                        agents:        agentState,
+                        sosTokens:     sosTokens,
+                        clientTokens:  clientTokens,
+                        adminCreds:    _PC.admin,
+                        devCreds:      _PC.dev
+                    };
+
+                    // Write backup via Apps Script — we call the 'createBackup' action
+                    // which the updated Apps Script handles by creating a subfolder + file.
+                    const backupRes = await fetch(appScriptUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({
+                            action:     'createBackup',
+                            folderName: backupFolderName,
+                            data:       backupPayload
+                        })
+                    }).catch(() => null);
+
+                    if (backupRes && backupRes.ok) {
+                        const backupData = await backupRes.json().catch(() => ({}));
+                        if (backupData.error) {
+                            console.warn('[PF] Backup write error:', backupData.error);
+                            triggerToast('⚠️ Backup may have partially failed. Proceeding with reset anyway.', 'warning');
+                        } else {
+                            triggerToast('✅ Backup created in Drive: ' + backupFolderName, 'success');
+                        }
+                    } else {
+                        // Backup API call failed — fallback: auto-download a JSON backup
+                        setProgress('Backup API unavailable', 'Downloading a local JSON backup instead...');
+                        const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: 'application/json' });
+                        const url  = URL.createObjectURL(blob);
+                        const a    = document.createElement('a');
+                        a.href     = url;
+                        a.download = 'pf-backup-' + backupFolderName + '.json';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        triggerToast('Drive backup unavailable — downloaded JSON backup locally.', 'warning');
+                        // Wait briefly so user sees the download before continuing
+                        await new Promise(r => setTimeout(r, 1200));
+                    }
+                } else if (doBackup && !hasSharedDB()) {
+                    // No Drive connected — offer local download
+                    setProgress('No Drive Connected', 'Downloading a local JSON backup...');
+                    const backupPayload = {
+                        exportedAt:    new Date().toISOString(),
+                        wallet:        state.wallet,
+                        loans:         state.loans,
+                        trash:         state.trash,
+                        logs:          state.logs,
+                        agents:        agentState,
+                        sosTokens:     sosTokens,
+                        clientTokens:  clientTokens
+                    };
+                    const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: 'application/json' });
+                    const url  = URL.createObjectURL(blob);
+                    const a    = document.createElement('a');
+                    a.href     = url;
+                    a.download = 'pf-backup-' + Date.now() + '.json';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    await new Promise(r => setTimeout(r, 800));
+                }
+
+                // ── STEP 2: Wipe all Drive DB keys ────────────────────────────────
+                if (hasSharedDB()) {
+                    setProgress('Erasing Drive Database...', 'Deleting all records from the shared database.');
+                    const wipeKeys = ['wallet', 'loans', 'trash', 'logs', 'agents', 'sosTokens', 'clientTokens', 'adminCreds', 'devCreds', 'credentials'];
+                    const emptyValues = {
+                        wallet:       { cash: 0, online: 0 },
+                        loans:        [],
+                        trash:        [],
+                        logs:         [],
+                        agents:       [],
+                        sosTokens:    [],
+                        clientTokens: [],
+                        adminCreds:   null,
+                        devCreds:     null,
+                        credentials:  { user: 'admin', pass: 'admin' }
+                    };
+                    // Write each key to Drive as empty/default
+                    await Promise.all(wipeKeys.map(key =>
+                        dbWrite(key, emptyValues[key]).catch(e => console.warn('wipe key', key, e))
+                    ));
+
+                    // Also request Drive to delete all agent subfolders via 'deleteAllAgents' action
+                    await fetch(appScriptUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({ action: 'deleteAllAgents' })
+                    }).catch(() => {}); // Non-fatal
+                }
+
+                // ── STEP 3: Wipe in-memory state ─────────────────────────────────
+                setProgress('Clearing Memory...', 'Resetting all in-memory application state.');
+                state.wallet      = { cash: 0, online: 0 };
+                state.loans       = [];
+                state.trash       = [];
+                state.logs        = [];
+                state.credentials = { user: 'admin', pass: 'admin' };
+                agentState        = [];
+                sosTokens         = [];
+                clientTokens      = [];
+
+                // Reset credentials to factory defaults
+                _PC.admin = { u: 'pf_admin_2024', p: 'Adm!nSecure#99' };
+                _PC.dev   = { u: 'pf_dev_root',   p: 'D3v@RootAccess!' };
+
+                // ── STEP 4: Wipe localStorage ─────────────────────────────────────
+                setProgress('Clearing Local Storage...', 'Removing all cached session data.');
+                const keysToRemove = [
+                    'pf_admin_creds', 'pf_dev_creds', 'pf_cred_session',
+                    'pf_cred_role', 'pf_cred_name', 'sens_session_remember',
+                    'pf_google_session'
+                    // Note: pf_appsscript_url is intentionally kept so the dev
+                    // doesn't need to re-enter the DB URL after a reset.
+                ];
+                keysToRemove.forEach(k => localStorage.removeItem(k));
+
+                // ── STEP 5: Stop live sync and sign out Google ─────────────────────
+                if (liveSyncInterval) { clearInterval(liveSyncInterval); liveSyncInterval = null; }
+                auth.signOut().catch(() => {});
+                credentialSession    = false;
+                currentGoogleUser    = null;
+                currentRole          = 'user';
+
+                setProgress('Done!', 'All data has been erased. Reloading...');
+                await new Promise(r => setTimeout(r, 1000));
+
+                // Reload to a clean state
+                location.reload();
+
+            } catch(err) {
+                progModal.style.display = 'none';
+                console.error('[PF] Reset error:', err);
+                triggerToast('❌ Reset failed: ' + err.message, 'danger');
+            }
         }
 
         function devExportData() {
@@ -3529,6 +3818,32 @@ function doPost(e) {
       writeJsonFile(folder, 'tokens.json',  []);
       writeJsonFile(folder, 'sos.json',     []);
       return jsonResp({ ok: true, folderId: folder.getId(), folderUrl: folder.getUrl(), folderName: folder.getName() });
+    }
+
+    // Create a timestamped backup subfolder inside the root Drive folder
+    if (action === 'createBackup') {
+      const folderName = body.folderName || ('BACKUP_' + new Date().toISOString().slice(0,10));
+      const data       = body.data || {};
+      const root       = getRootFolder();
+      // Check if a backup folder with this name already exists
+      const existing = root.getFoldersByName(folderName);
+      const backupFolder = existing.hasNext() ? existing.next() : root.createFolder(folderName);
+      writeJsonFile(backupFolder, 'DATA_' + new Date().toISOString().slice(0,10) + '.json', data);
+      return jsonResp({ ok: true, folderId: backupFolder.getId(), folderUrl: backupFolder.getUrl(), folderName: backupFolder.getName() });
+    }
+
+    // Delete all agent subfolders (used by Reset Everything)
+    if (action === 'deleteAllAgents') {
+      try {
+        const agentsFolder = getAgentsFolder();
+        const subs = agentsFolder.getFolders();
+        while (subs.hasNext()) {
+          subs.next().setTrashed(true);
+        }
+        return jsonResp({ ok: true });
+      } catch(e) {
+        return jsonResp({ error: e.message });
+      }
     }
 
     // Write to agent-specific file
