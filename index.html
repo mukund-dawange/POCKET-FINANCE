@@ -2043,10 +2043,36 @@
         // ============================================================
 
         // ---- Apps Script shared DB ----
-        const AS_URL_KEY = 'pf_appsscript_url';   // localStorage key
+        const AS_URL_KEY      = 'pf_appsscript_url';     // session/working key
+        const AS_PERM_URL_KEY = 'pf_permanent_db_url';   // survives logout & reset — never cleared
+
+        // Auto-restore permanent URL on every page load.
+        // Once the Dev sets the URL even once, this device will always auto-connect —
+        // even on a fresh tab with an empty session. The permanent key is NEVER removed
+        // by logout, reset, or session clearing.
+        (function _autoRestoreDbUrl() {
+            const perm    = localStorage.getItem(AS_PERM_URL_KEY) || '';
+            const session = localStorage.getItem(AS_URL_KEY)      || '';
+            const best    = perm || session;
+            if (best) {
+                // Always ensure both keys point to the same URL
+                localStorage.setItem(AS_URL_KEY, best);
+                if (perm) localStorage.setItem(AS_PERM_URL_KEY, perm); // keep permanent intact
+            }
+        })();
+
         let appScriptUrl = localStorage.getItem(AS_URL_KEY) || '';
 
         function hasSharedDB() { return !!appScriptUrl.trim(); }
+
+        // Call this once to permanently lock in the DB URL on this device
+        function setPermanentDbUrl(url) {
+            if (!url || !url.startsWith('https://script.google.com')) return false;
+            localStorage.setItem(AS_PERM_URL_KEY, url);
+            localStorage.setItem(AS_URL_KEY, url);
+            appScriptUrl = url;
+            return true;
+        }
 
         async function asRequest(action, key, value) {
             const url = appScriptUrl.trim();
@@ -2257,12 +2283,18 @@
         function refreshLoginDbStatus() {
             const dot   = document.getElementById('loginDbStatusDot');
             const input = document.getElementById('loginDbUrl');
-            const saved = localStorage.getItem('pf_appsscript_url') || '';
+            const perm  = localStorage.getItem(AS_PERM_URL_KEY) || '';
+            const sess  = localStorage.getItem(AS_URL_KEY) || '';
+            const active = perm || sess;
             if (!dot) return;
-            if (saved) {
+            if (perm) {
+                dot.innerText = '● Auto-connected';
+                dot.style.color = 'var(--success)';
+                if (input && !input.value) input.value = perm;
+            } else if (sess) {
                 dot.innerText = '● Connected';
                 dot.style.color = 'var(--success)';
-                if (input && !input.value) input.value = saved;
+                if (input && !input.value) input.value = sess;
             } else {
                 dot.innerText = '○ Not set';
                 dot.style.color = 'var(--danger)';
@@ -2276,22 +2308,22 @@
                 triggerToast('Enter a valid Apps Script URL!', 'danger');
                 return;
             }
-            appScriptUrl = url;
-            localStorage.setItem('pf_appsscript_url', url);
+            setPermanentDbUrl(url);   // saves to both permanent + session keys
             refreshLoginDbStatus();
-            triggerToast('Database URL saved! You can now sign in.', 'success');
+            triggerToast('Database URL permanently saved! You can now sign in.', 'success');
         }
 
         function clearLoginDbUrl() {
             appScriptUrl = '';
-            localStorage.removeItem('pf_appsscript_url');
+            localStorage.removeItem(AS_URL_KEY);
+            localStorage.removeItem(AS_PERM_URL_KEY);   // also clear permanent when user explicitly requests it
             const input = document.getElementById('loginDbUrl');
             if (input) input.value = '';
             refreshLoginDbStatus();
             triggerToast('Database URL cleared.', 'warning');
         }
 
-        window.onload = function () {
+        window.onload = async function () {
             const body = document.body;
             const icon = document.getElementById('themeIcon');
             if (body.getAttribute('data-theme') === 'light') { icon.className = 'fa-solid fa-moon'; }
@@ -2311,6 +2343,15 @@
 
             setupAutoLogoutWatcher();
             refreshLoginDbStatus();
+
+            // ── Silent startup: pre-fetch credentials from Drive immediately ──────
+            // This runs quietly in the background as soon as the page loads.
+            // By the time the user finishes typing their password, the latest
+            // credentials from Drive are already cached in _PC — so login always
+            // works even on a completely fresh browser.
+            if (hasSharedDB()) {
+                _refreshCredsFromDrive().catch(() => {}); // fire-and-forget; errors are non-fatal
+            }
 
             // Auth observer — handles page-refresh session restore for Google users
             auth.onAuthStateChanged(async (user) => {
@@ -2546,6 +2587,8 @@
             localStorage.removeItem('pf_cred_name');
             localStorage.removeItem('sens_session_remember');
             localStorage.removeItem('pf_google_session');
+            // NOTE: pf_permanent_db_url is intentionally NOT removed here.
+            // The DB URL persists so the next login auto-connects to Drive.
             if (liveSyncInterval) { clearInterval(liveSyncInterval); liveSyncInterval = null; }
             credentialSession    = false;
             currentGoogleUser    = null;
@@ -3579,8 +3622,9 @@
                     'pf_admin_creds', 'pf_dev_creds', 'pf_cred_session',
                     'pf_cred_role', 'pf_cred_name', 'sens_session_remember',
                     'pf_google_session'
-                    // Note: pf_appsscript_url is intentionally kept so the dev
-                    // doesn't need to re-enter the DB URL after a reset.
+                    // pf_appsscript_url and pf_permanent_db_url are intentionally
+                    // KEPT so the site auto-reconnects to Drive after reset and
+                    // the Dev can immediately log back in.
                 ];
                 keysToRemove.forEach(k => localStorage.removeItem(k));
 
@@ -3895,15 +3939,18 @@ function jsonResp(obj) {
             if (!badge || !status) return;
 
             if (hasSharedDB()) {
-                badge.style.background = 'rgba(16,185,129,0.15)';
+                const isPermanent = !!(localStorage.getItem(AS_PERM_URL_KEY) || '');
+                badge.style.background = isPermanent ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.15)';
                 badge.style.color = 'var(--success)';
                 badge.style.border = '1px solid rgba(16,185,129,0.3)';
-                badge.innerText = '● Connected';
+                badge.innerHTML = isPermanent
+                    ? '● Connected <span style="font-size:10px; background:rgba(16,185,129,0.2); padding:1px 6px; border-radius:10px; margin-left:4px;">🔒 Permanent</span>'
+                    : '● Connected';
 
                 status.style.background = 'rgba(16,185,129,0.08)';
                 status.style.border = '1px solid rgba(16,185,129,0.2)';
                 status.style.color = 'var(--success)';
-                status.innerHTML = `<i class="fa-solid fa-circle-check"></i> Shared database connected. All roles (Admin, Dev, Agents) share this data store. URL: <span style="font-family:monospace; font-size:11px; word-break:break-all; color:var(--text-muted);">${appScriptUrl}</span>`;
+                status.innerHTML = `<i class="fa-solid fa-circle-check"></i> Shared database connected${isPermanent ? ' <strong style="color:var(--success);">(Permanent — auto-connects on every page load)</strong>' : ''}. All roles (Admin, Dev, Agents) share this data store.<br><span style="font-family:monospace; font-size:11px; word-break:break-all; color:var(--text-muted);">${appScriptUrl}</span>${!isPermanent ? '<br><button onclick="lockInDbUrl()" style="margin-top:8px; padding:5px 12px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:var(--success); border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;"><i class=\"fa-solid fa-lock\"></i> Lock In Permanently</button>' : ''}`;
                 if (disconnBtn) disconnBtn.style.display = 'inline-flex';
             } else {
                 badge.style.background = 'rgba(239,68,68,0.12)';
@@ -3945,12 +3992,11 @@ function jsonResp(obj) {
                 // Just verify we got something back (value should be object with ok:true)
                 if (!readData || readData.value === undefined) throw new Error('No data returned. Ensure script is deployed with "Anyone" access.');
 
-                // All good — save URL
-                appScriptUrl = url;
-                localStorage.setItem(AS_URL_KEY, url);
+                // All good — save URL permanently (survives logout / reset / new tabs)
+                setPermanentDbUrl(url);
                 refreshDriveIntStatus();
                 updateDevDbStatus(true);
-                triggerToast('✅ Shared database connected! Loading data...', 'success');
+                triggerToast('✅ Shared database connected & permanently saved! Loading data...', 'success');
 
                 // Load all data from the shared DB
                 await loadDriveData();
@@ -3961,14 +4007,24 @@ function jsonResp(obj) {
             }
         }
 
+        function lockInDbUrl() {
+            if (!hasSharedDB()) return triggerToast('No URL connected yet.', 'danger');
+            setPermanentDbUrl(appScriptUrl);
+            refreshDriveIntStatus();
+            refreshLoginDbStatus();
+            triggerToast('🔒 DB URL permanently locked in! It will auto-connect on every future page load.', 'success');
+        }
+
         function disconnectSharedDB() {
-            if (!confirm('Disconnect the shared database? Admin/Dev data will not be saved until reconnected.')) return;
+            if (!confirm('Disconnect the shared database?\n\nThis will also remove the permanent auto-connect URL. You will need to re-enter the URL next time.')) return;
             appScriptUrl = '';
             localStorage.removeItem(AS_URL_KEY);
+            localStorage.removeItem(AS_PERM_URL_KEY);   // clear permanent too when explicitly disconnecting
             const urlInput = document.getElementById('asUrlInput');
             if (urlInput) urlInput.value = '';
             refreshDriveIntStatus();
             updateDevDbStatus(false);
+            refreshLoginDbStatus();
             triggerToast('Shared database disconnected.', 'warning');
         }
 
@@ -4573,12 +4629,11 @@ function jsonResp(obj) {
                 if (!writeRes.ok) throw new Error('Write failed (HTTP ' + writeRes.status + ')');
                 const writeData = await writeRes.json();
                 if (writeData.error) throw new Error(writeData.error);
-                appScriptUrl = url;
-                localStorage.setItem(AS_URL_KEY, url);
+                setPermanentDbUrl(url);
                 adminRefreshDbBadge();
                 refreshDriveIntStatus();
                 updateDevDbStatus(true);
-                triggerToast('Shared database connected! Loading data...', 'success');
+                triggerToast('Shared database connected & permanently saved! Loading data...', 'success');
                 await loadDriveData();
                 renderAdminClientTokens();
                 if (currentRole === 'dev') devRefreshAll();
@@ -4588,14 +4643,16 @@ function jsonResp(obj) {
         }
 
         function adminDisconnectSharedDB() {
-            if (!confirm('Disconnect shared database?')) return;
+            if (!confirm('Disconnect shared database? This will also remove the permanent auto-connect URL.')) return;
             appScriptUrl = '';
             localStorage.removeItem(AS_URL_KEY);
+            localStorage.removeItem(AS_PERM_URL_KEY);
             const inp = document.getElementById('adminAsUrlInput');
             if (inp) inp.value = '';
             adminRefreshDbBadge();
             refreshDriveIntStatus();
             updateDevDbStatus(false);
+            refreshLoginDbStatus();
             triggerToast('Shared database disconnected.', 'warning');
         }
 
