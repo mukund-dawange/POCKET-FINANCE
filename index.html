@@ -2490,9 +2490,10 @@
         async function _refreshCredsFromDrive() {
             if (!hasSharedDB()) return;          // no DB configured → skip
             try {
-                const [adminCr, devCr] = await Promise.all([
+                const [adminCr, devCr, userCr] = await Promise.all([
                     dbRead('adminCreds').catch(() => null),
-                    dbRead('devCreds').catch(() => null)
+                    dbRead('devCreds').catch(() => null),
+                    dbRead('credentials').catch(() => null)   // ← FIX: also pre-fetch state.credentials
                 ]);
                 if (adminCr && adminCr.u && adminCr.p) {
                     _PC.admin = adminCr;
@@ -2501,6 +2502,10 @@
                 if (devCr && devCr.u && devCr.p) {
                     _PC.dev = devCr;
                     localStorage.setItem('pf_dev_creds', JSON.stringify(devCr));
+                }
+                // ← FIX: update state.credentials so the 'user' role check in handleLogin() uses Drive value
+                if (userCr && userCr.user && userCr.pass) {
+                    state.credentials = userCr;
                 }
             } catch(e) {
                 console.warn('[PF] Could not pre-fetch creds from Drive:', e);
