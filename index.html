@@ -1474,9 +1474,49 @@
                 </div>
             </div>
 
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:30px;">
+            <!-- ===== ACTIVITY FEED ===== -->
+            <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:14px; padding:24px; margin-bottom:30px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,#8b5cf6,#6366f1); display:flex; align-items:center; justify-content:center;">
+                            <i class="fa-solid fa-wave-square" style="color:#fff; font-size:16px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-size:15px; font-weight:800; color:var(--text-main);">Live Activity Feed
+                                <span id="devActivityCount" style="font-size:11px; font-weight:700; background:rgba(139,92,246,0.15); color:#8b5cf6; padding:2px 10px; border-radius:20px; margin-left:8px;">0</span>
+                            </div>
+                            <div style="font-size:11px; color:var(--text-muted); margin-top:1px;">Every action by Admin, Dev &amp; Agents — real-time</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-secondary" style="padding:6px 14px; font-size:12px; border:none;" onclick="renderActivityFeed(_actFeedFilter)"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                        <button class="btn btn-secondary" style="padding:6px 14px; font-size:12px; border-color:var(--danger); color:var(--danger);" onclick="clearActivityLog()"><i class="fa-solid fa-trash"></i> Clear</button>
+                    </div>
+                </div>
 
-                <!-- CREDENTIAL MANAGER — Admin & Dev -->
+                <!-- Filter Pills -->
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+                    <button class="act-filter-btn" data-filter="all"        onclick="renderActivityFeed('all')"        style="padding:5px 14px; font-size:12px; font-weight:600; border-radius:20px; border:1px solid var(--primary); cursor:pointer; background:var(--primary); color:#fff; transition:all 0.15s;">All</button>
+                    <button class="act-filter-btn" data-filter="financial"  onclick="renderActivityFeed('financial')"  style="padding:5px 14px; font-size:12px; font-weight:600; border-radius:20px; border:1px solid var(--panel-border); cursor:pointer; background:transparent; color:var(--text-muted); transition:all 0.15s;">💰 Financial</button>
+                    <button class="act-filter-btn" data-filter="auth"       onclick="renderActivityFeed('auth')"       style="padding:5px 14px; font-size:12px; font-weight:600; border-radius:20px; border:1px solid var(--panel-border); cursor:pointer; background:transparent; color:var(--text-muted); transition:all 0.15s;">🔐 Auth</button>
+                    <button class="act-filter-btn" data-filter="agent"      onclick="renderActivityFeed('agent')"      style="padding:5px 14px; font-size:12px; font-weight:600; border-radius:20px; border:1px solid var(--panel-border); cursor:pointer; background:transparent; color:var(--text-muted); transition:all 0.15s;">👤 Agents</button>
+                    <button class="act-filter-btn" data-filter="loan"       onclick="renderActivityFeed('loan')"       style="padding:5px 14px; font-size:12px; font-weight:600; border-radius:20px; border:1px solid var(--panel-border); cursor:pointer; background:transparent; color:var(--text-muted); transition:all 0.15s;">📄 Loans</button>
+                    <button class="act-filter-btn" data-filter="client"     onclick="renderActivityFeed('client')"     style="padding:5px 14px; font-size:12px; font-weight:600; border-radius:20px; border:1px solid var(--panel-border); cursor:pointer; background:transparent; color:var(--text-muted); transition:all 0.15s;">✅ Clients</button>
+                    <button class="act-filter-btn" data-filter="sos"        onclick="renderActivityFeed('sos')"        style="padding:5px 14px; font-size:12px; font-weight:600; border-radius:20px; border:1px solid var(--panel-border); cursor:pointer; background:transparent; color:var(--text-muted); transition:all 0.15s;">🚨 SOS</button>
+                    <button class="act-filter-btn" data-filter="credential" onclick="renderActivityFeed('credential')" style="padding:5px 14px; font-size:12px; font-weight:600; border-radius:20px; border:1px solid var(--panel-border); cursor:pointer; background:transparent; color:var(--text-muted); transition:all 0.15s;">🔑 Creds</button>
+                    <button class="act-filter-btn" data-filter="system"     onclick="renderActivityFeed('system')"     style="padding:5px 14px; font-size:12px; font-weight:600; border-radius:20px; border:1px solid var(--panel-border); cursor:pointer; background:transparent; color:var(--text-muted); transition:all 0.15s;">⚙️ System</button>
+                </div>
+
+                <!-- Feed Container -->
+                <div id="devActivityFeed" style="max-height:420px; overflow-y:auto; border-radius:10px; background:var(--panel-bg); border:1px solid var(--panel-border);">
+                    <div id="devActivityEmpty" style="padding:40px; text-align:center; color:var(--text-muted); font-size:13px;">
+                        <i class="fa-solid fa-wave-square" style="font-size:28px; opacity:0.2; display:block; margin-bottom:10px;"></i>
+                        No activity yet. Actions by Admin &amp; Agents will appear here in real-time.
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:30px;">
                 <div style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:14px; padding:24px;">
                     <h3 style="font-size:15px; font-weight:700; margin-bottom:6px;"><i class="fa-solid fa-key" style="color:var(--warning);"></i> Credential Manager</h3>
                     <p style="color:var(--text-muted); font-size:12px; margin-bottom:18px;">Change login credentials for Admin or Dev accounts.</p>
@@ -2118,6 +2158,7 @@
         async function syncLoansDB()   { await dbWrite('loans',       state.loans).catch(e => console.warn('loans sync:', e)); }
         async function syncTrashDB_()  { await dbWrite('trash',       state.trash).catch(e => console.warn('trash sync:', e)); }
         async function syncLogsDB()    { await dbWrite('logs',        state.logs).catch(e => console.warn('logs sync:', e)); }
+        async function syncActivityLogDB() { await dbWrite('activityLog', state.activityLog).catch(e => console.warn('activityLog sync:', e)); }
         async function syncAgentsDB()       { await dbWrite('agents',       agentState).catch(e => console.warn('agents sync:', e)); }
         async function syncClientTokensDB() {
             // Write to shared DB (all roles see this)
@@ -2175,7 +2216,7 @@
                     return;
                 }
 
-                const [creds, wallet, loans, trash, logs, agents, sos, cliTok, adminCr, devCr] = await Promise.all([
+                const [creds, wallet, loans, trash, logs, agents, sos, cliTok, adminCr, devCr, actLog] = await Promise.all([
                     dbRead('credentials'),
                     dbRead('wallet'),
                     dbRead('loans'),
@@ -2185,15 +2226,17 @@
                     dbRead('sosTokens'),
                     dbRead('clientTokens'),
                     dbRead('adminCreds'),
-                    dbRead('devCreds')
+                    dbRead('devCreds'),
+                    dbRead('activityLog')
                 ]);
 
                 if (creds)  state.credentials = creds;  else syncCredsDB();
                 if (wallet) state.wallet = wallet;       else syncWalletDB();
 
-                state.loans  = Array.isArray(loans)  ? loans  : [];
-                state.trash  = Array.isArray(trash)  ? trash  : [];
-                state.logs   = Array.isArray(logs)   ? logs.sort((a,b) => (b.timestampMs||0)-(a.timestampMs||0)) : [];
+                state.loans       = Array.isArray(loans)  ? loans  : [];
+                state.trash       = Array.isArray(trash)  ? trash  : [];
+                state.logs        = Array.isArray(logs)   ? logs.sort((a,b) => (b.timestampMs||0)-(a.timestampMs||0)) : [];
+                state.activityLog = Array.isArray(actLog) ? actLog.sort((a,b) => (b.timestampMs||0)-(a.timestampMs||0)) : [];
                 agentState   = Array.isArray(agents) ? agents : [];
                 sosTokens    = Array.isArray(sos)    ? sos    : [];
                 clientTokens = Array.isArray(cliTok) ? cliTok : [];
@@ -2240,6 +2283,7 @@
             loans: [],
             trash: [],
             logs: [],
+            activityLog: [],
             credentials: { user: 'admin', pass: 'admin' },
             wrongAttempts: 0,
             lockoutTime: 0
@@ -2422,6 +2466,8 @@
                 updateNavForGoogle(result.user);
                 // Load all data from shared DB (agents, clientTokens, sosTokens, etc.)
                 await loadDriveData();
+                const gName = result.user.displayName || result.user.email || 'Agent';
+                pushActivityLog('Agent Signed In', `${gName} signed in via Google`, 'auth', { label: gName.split(' ')[0], role: 'agent' });
                 refreshSystemEngine();
                 refreshAgentWalletBar();    // identify agent profile by email
                 startLiveSync();            // begin 30s polling so fund & SOS stay live
@@ -2553,6 +2599,7 @@
                 bypassToDashboard(displayName);
                 const label = role === 'dev' ? 'Developer' : role === 'admin' ? 'Admin' : 'User';
                 triggerToast(`Welcome, ${label}!`, 'success');
+                pushActivityLog('Signed In', `${label} logged in via credentials`, 'auth', { label: displayName, role });
                 // Always load data — shared DB needs no OAuth token
                 loadDriveData().then(() => startLiveSync());
             } else {
@@ -2954,6 +3001,138 @@
             }
         }
 
+        // ============================================================
+        // ACTIVITY LOG — Dev audit feed for every system action
+        // ============================================================
+        const _ACT_ICONS = {
+            financial:  'fa-indian-rupee-sign',
+            auth:       'fa-right-to-bracket',
+            agent:      'fa-user-tie',
+            loan:       'fa-file-invoice-dollar',
+            client:     'fa-user-check',
+            sos:        'fa-triangle-exclamation',
+            credential: 'fa-key',
+            system:     'fa-gear',
+            db:         'fa-database'
+        };
+        const _ACT_COLORS = {
+            financial:  '#10b981',
+            auth:       '#3b82f6',
+            agent:      '#8b5cf6',
+            loan:       '#f59e0b',
+            client:     '#06b6d4',
+            sos:        '#ef4444',
+            credential: '#f97316',
+            system:     '#94a3b8',
+            db:         '#6366f1'
+        };
+
+        function _getActorLabel() {
+            if (currentRole === 'dev')   return { label: 'Dev',   role: 'dev' };
+            if (currentRole === 'admin') return { label: 'Admin', role: 'admin' };
+            if (currentRole === 'agent' && currentGoogleUser) {
+                const name = currentGoogleUser.displayName || currentGoogleUser.email || 'Agent';
+                return { label: name.split(' ')[0], role: 'agent' };
+            }
+            return { label: 'System', role: 'system' };
+        }
+
+        function pushActivityLog(action, detail, category, actorOverride) {
+            const actor = actorOverride || _getActorLabel();
+            const entry = {
+                id:          Date.now().toString() + Math.floor(Math.random() * 1000),
+                timestampMs: Date.now(),
+                timestamp:   new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+                actor:       actor.label,
+                actorRole:   actor.role,
+                action,
+                detail,
+                category:    category || 'system'
+            };
+            state.activityLog.unshift(entry);
+            // Keep max 500 entries
+            if (state.activityLog.length > 500) state.activityLog = state.activityLog.slice(0, 500);
+            syncActivityLogDB();
+            // Live-update feed if dev panel is visible
+            _liveUpdateActivityFeed(entry);
+        }
+
+        function _liveUpdateActivityFeed(entry) {
+            const feed = document.getElementById('devActivityFeed');
+            if (!feed) return;
+            const existing = document.getElementById('devActivityEmpty');
+            if (existing) existing.remove();
+            feed.insertAdjacentHTML('afterbegin', _buildActivityItem(entry));
+            // Update count badge
+            const badge = document.getElementById('devActivityCount');
+            if (badge) badge.innerText = state.activityLog.length;
+        }
+
+        function _buildActivityItem(e) {
+            const cat   = e.category || 'system';
+            const color = _ACT_COLORS[cat] || '#94a3b8';
+            const icon  = _ACT_ICONS[cat]  || 'fa-circle';
+            const roleBg = {
+                dev:    'rgba(139,92,246,0.15)',   admin: 'rgba(59,130,246,0.15)',
+                agent:  'rgba(16,185,129,0.15)',   system: 'rgba(148,163,184,0.1)'
+            }[e.actorRole] || 'rgba(148,163,184,0.1)';
+            const roleColor = {
+                dev: '#8b5cf6', admin: '#3b82f6', agent: '#10b981', system: '#94a3b8'
+            }[e.actorRole] || '#94a3b8';
+            return `
+            <div class="act-item" id="act-${e.id}" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-bottom:1px solid var(--panel-border);animation:smoothFadeIn 0.3s ease;">
+                <div style="width:32px;height:32px;border-radius:8px;background:${color}1a;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">
+                    <i class="fa-solid ${icon}" style="color:${color};font-size:13px;"></i>
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+                        <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:${roleBg};color:${roleColor};">${e.actor}</span>
+                        <span style="font-size:12px;font-weight:600;color:var(--text-main);">${e.action}</span>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);line-height:1.4;">${e.detail}</div>
+                </div>
+                <div style="font-size:10px;color:var(--text-muted);white-space:nowrap;flex-shrink:0;padding-top:4px;">${e.timestamp}</div>
+            </div>`;
+        }
+
+        function renderActivityFeed(filter) {
+            const feed  = document.getElementById('devActivityFeed');
+            const badge = document.getElementById('devActivityCount');
+            if (!feed) return;
+            filter = filter || _actFeedFilter || 'all';
+            _actFeedFilter = filter;
+
+            // Update filter pill styles
+            document.querySelectorAll('.act-filter-btn').forEach(b => {
+                const active = b.dataset.filter === filter;
+                b.style.background   = active ? 'var(--primary)' : 'transparent';
+                b.style.color        = active ? '#fff' : 'var(--text-muted)';
+                b.style.borderColor  = active ? 'var(--primary)' : 'var(--panel-border)';
+            });
+
+            const entries = filter === 'all'
+                ? state.activityLog
+                : state.activityLog.filter(e => e.category === filter || e.actorRole === filter);
+
+            if (badge) badge.innerText = state.activityLog.length;
+
+            if (entries.length === 0) {
+                feed.innerHTML = `<div id="devActivityEmpty" style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px;"><i class="fa-solid fa-radar" style="font-size:28px;opacity:0.2;display:block;margin-bottom:10px;"></i>No activity yet. Actions by Admin & Agents will appear here.</div>`;
+                return;
+            }
+            feed.innerHTML = entries.map(_buildActivityItem).join('');
+        }
+
+        let _actFeedFilter = 'all';
+
+        function clearActivityLog() {
+            if (!confirm('Clear all activity log entries? This cannot be undone.')) return;
+            state.activityLog = [];
+            syncActivityLogDB();
+            renderActivityFeed();
+            triggerToast('Activity log cleared.', 'warning');
+        }
+
         function pushGlobalLog(desc, impactStr, typeClass) {
             let exactDateTime = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
             let newLog = {
@@ -2967,6 +3146,19 @@
             unreadNotifications++;
             updateNotificationBadge();
             renderGlobalLogs();
+            // Mirror every financial log to the activity feed
+            const isIncome  = typeClass === 'income';
+            const isExpense = typeClass === 'expense';
+            let subCat = 'financial';
+            if (desc.startsWith('Agent Assigned')) subCat = 'agent';
+            else if (desc.startsWith('Loan ') || desc.startsWith('Interest ')) subCat = 'loan';
+            else if (desc.startsWith('Client ')) subCat = 'client';
+            else if (desc.startsWith('SOS ')) subCat = 'sos';
+            pushActivityLog(
+                desc,
+                `${isIncome ? '▲' : isExpense ? '▼' : '↔'} ${impactStr}`,
+                subCat
+            );
         }
 
         function renderGlobalLogs() {
@@ -3204,6 +3396,7 @@
             const id  = document.getElementById('editAgentId').value;
             const idx = agentState.findIndex(x => x.id === id);
             if (idx === -1) return;
+            const oldFund = agentState[idx].fund;
             agentState[idx].name  = document.getElementById('editAgentName').value.trim();
             agentState[idx].phone = document.getElementById('editAgentPhone').value.trim();
             agentState[idx].fund  = parseFloat(document.getElementById('editAgentFund').value) || agentState[idx].fund;
@@ -3212,14 +3405,18 @@
             syncAgentsDB();
             closeModal('agentEditModal');
             renderAgents();
+            const fundChanged = oldFund !== agentState[idx].fund ? `  Fund: ₹${oldFund}→₹${agentState[idx].fund}` : '';
+            pushActivityLog('Agent Updated', `${agentState[idx].name} profile edited${fundChanged}`, 'agent');
             triggerToast('Agent profile updated!', 'success');
         }
 
         function removeAgent(id) {
+            const agent = agentState.find(x => x.id === id);
             if (!confirm('Remove this agent? Their allocated funds will NOT be returned automatically.')) return;
             agentState = agentState.filter(x => x.id !== id);
             syncAgentsDB();
             renderAgents();
+            if (agent) pushActivityLog('Agent Removed', `${agent.name} (${agent.email}) removed from system`, 'agent');
             triggerToast('Agent removed.', 'warning');
         }
 
@@ -3238,6 +3435,7 @@
             renderAgentLiveTracker('devTrackerGrid');
             initDriveIntegrationUI();
             refreshAgentFolderList();
+            renderActivityFeed(_actFeedFilter);
         }
 
         function devRefreshSnapshot() {
@@ -3416,9 +3614,12 @@
                 if (el) el.value = '';
             });
 
+            // Log the credential change
+            const roleLabel = role === 'admin' ? 'Admin' : 'Dev';
+            pushActivityLog('Credentials Changed', `${roleLabel} account username set to "${u}"`, 'credential');
+
             // Refresh display to show newly updated username
             switchCredTab(role);
-            const roleLabel = role === 'admin' ? 'Admin' : 'Dev';
             if (!hasSharedDB()) return; // toast already shown above
             triggerToast(roleLabel + ' credentials updated successfully!', 'success');
         }
@@ -3428,9 +3629,11 @@
             const online = parseFloat(document.getElementById('devSetOnline').value);
             if (isNaN(cash) && isNaN(online)) return triggerToast('Enter at least one value.', 'danger');
             if (!confirm('⚠️ This directly overwrites wallet data in Drive. Continue?')) return;
+            const before = { cash: state.wallet.cash, online: state.wallet.online };
             if (!isNaN(cash))   state.wallet.cash   = cash;
             if (!isNaN(online)) state.wallet.online = online;
             syncWalletDB();
+            pushActivityLog('Wallet Override', `Cash: ₹${before.cash}→₹${state.wallet.cash}  Online: ₹${before.online}→₹${state.wallet.online}`, 'system');
             refreshSystemEngine();
             triggerToast('Wallet overridden successfully.', 'success');
             devRefreshAll();
@@ -3441,6 +3644,7 @@
             state.logs = [];
             syncLogsDB();
             renderGlobalLogs();
+            pushActivityLog('Logs Purged', 'All financial log entries deleted from Drive', 'system');
             devRefreshAll();
             triggerToast('All logs purged.', 'warning');
         }
@@ -3449,6 +3653,7 @@
             if (!confirm('⚠️ Permanently delete all archived records?')) return;
             state.trash = [];
             syncTrashDB_();
+            pushActivityLog('Archive Cleared', 'All archived/trashed loan records permanently deleted', 'system');
             devRefreshAll();
             triggerToast('Archive cleared.', 'warning');
         }
@@ -3457,6 +3662,7 @@
             if (!confirm('⚠️ Reset BOTH wallet balances to ₹0? Irreversible!')) return;
             state.wallet = { cash: 0, online: 0 };
             syncWalletDB();
+            pushActivityLog('Wallet Hard Reset', 'Both Cash & Online wallet balances forced to ₹0 by Dev', 'system');
             refreshSystemEngine();
             devRefreshAll();
             triggerToast('Wallet reset to ₹0.', 'danger');
@@ -4001,6 +4207,7 @@ function jsonResp(obj) {
                 setPermanentDbUrl(url);
                 refreshDriveIntStatus();
                 updateDevDbStatus(true);
+                pushActivityLog('DB Connected', `Shared database connected: ${url.substring(0,50)}...`, 'db', { label: 'Dev', role: 'dev' });
                 triggerToast('✅ Shared database connected & permanently saved! Loading data...', 'success');
 
                 // Load all data from the shared DB
@@ -4022,6 +4229,7 @@ function jsonResp(obj) {
 
         function disconnectSharedDB() {
             if (!confirm('Disconnect the shared database?\n\nThis will also remove the permanent auto-connect URL. You will need to re-enter the URL next time.')) return;
+            pushActivityLog('DB Disconnected', 'Shared database disconnected by Dev', 'db', { label: 'Dev', role: 'dev' });
             appScriptUrl = '';
             localStorage.removeItem(AS_URL_KEY);
             localStorage.removeItem(AS_PERM_URL_KEY);   // clear permanent too when explicitly disconnecting
@@ -4205,6 +4413,9 @@ function jsonResp(obj) {
             sosTokens.unshift(token);
             syncSOSTokensDB();
 
+            // Log agent SOS submission
+            pushActivityLog('SOS Raised', `${agentName} requested ₹${amount.toLocaleString('en-IN')} — ${urgency} urgency — "${reason}"`, 'sos', { label: agentName.split(' ')[0], role: 'agent' });
+
             // Update admin notification badge (reflects in same session; polling handles cross-session)
             unreadNotifications++;
             updateNotificationBadge();
@@ -4360,6 +4571,7 @@ function jsonResp(obj) {
 
             syncWalletDB();
             syncSOSTokensDB();
+            pushActivityLog('SOS Fulfilled', `₹${amount.toLocaleString('en-IN')} disbursed to ${agentName} from ${source} vault`, 'sos');
             pushGlobalLog(`SOS Fund: ${agentName}`, `-₹${amount}`, 'expense');
 
             closeModal('adminFundModal');
@@ -4909,6 +5121,7 @@ function jsonResp(obj) {
             refreshAgentWalletBar();
             updateNotificationBadge();
             updateSOSNotificationBadge();
+            pushActivityLog('Client Approved', `${token.clientName} approved by Admin — submitted by ${token.agentName}${loanAmount > 0 ? ` — ₹${loanAmount.toLocaleString('en-IN')} deducted from agent fund` : ''}`, 'client');
             pushGlobalLog(
                 `Client Approved: ${token.clientName} (Agent: ${token.agentName})`,
                 loanAmount > 0 ? `-₹${loanAmount.toLocaleString('en-IN')}` : '—',
@@ -4926,12 +5139,14 @@ function jsonResp(obj) {
             const note = prompt('Reason for rejection (optional):') || '';
             const idx  = clientTokens.findIndex(c => c.id === tokenId);
             if (idx === -1) return;
+            const token = clientTokens[idx];
             clientTokens[idx].status    = 'Rejected';
             clientTokens[idx].adminNote = note || 'Rejected by Admin';
             syncClientTokensDB();
             renderAdminClientTokens();
             updateNotificationBadge();
             updateSOSNotificationBadge();
+            pushActivityLog('Client Rejected', `${token.clientName} rejected — submitted by ${token.agentName}${note ? ` — Reason: "${note}"` : ''}`, 'client');
             triggerToast('Client token rejected.', 'warning');
         }
 
