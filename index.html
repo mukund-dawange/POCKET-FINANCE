@@ -1775,6 +1775,16 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="noteViewerModal">
+        <div class="modal-container" style="max-width:520px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:18px;">
+                <h2 style="font-size:18px;"><i class="fa-solid fa-note-sticky" style="color:var(--primary);"></i> Transaction Note</h2>
+                <button class="btn btn-secondary" style="padding:7px 11px;" onclick="closeModal('noteViewerModal')" title="Close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="noteViewerText" style="background:var(--input-bg); border:1px solid var(--panel-border); border-radius:12px; padding:18px; color:var(--text-main); line-height:1.7; font-size:14px; white-space:pre-wrap; word-break:break-word;"></div>
+        </div>
+    </div>
+
     <!-- MODAL FOR PROCESS REPAYMENT -->
     <div class="modal-overlay" id="settleModal">
         <div class="modal-container">
@@ -2939,14 +2949,23 @@
             if (l.history.length === 0) {
                 stBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); font-size:13px;">No transaction history found.</td></tr>`;
             } else {
-                l.history.forEach(h => {
+                l.history.forEach((h, historyIndex) => {
                     const action = h.entryId && h.status === 'Pending' && (currentRole === 'admin' || currentRole === 'dev') ? ` <button class="btn btn-success" style="padding:4px 8px;font-size:10px;" onclick="markPendingEntryPaid(${l.id}, '${h.entryId}')">Mark Paid</button>` : '';
-                    stBody.innerHTML += `<tr><td style="font-size:12px;">${h.date}</td><td><strong style="color:var(--text-main); font-size:13px;">${h.type}${h.entryId ? ` [${h.status}]` : ''}</strong>${action}</td><td class="${h.status === 'Pending' ? 'txt-expense' : 'txt-income'}">${h.amt}</td><td style="font-size:12px;">${h.mode}</td><td style="color:var(--text-muted); font-size:12px; font-style:italic;">${h.note || '-'}</td></tr>`;
+                    const noteButton = h.note ? `<button class="btn btn-secondary" style="padding:6px 10px; font-size:12px;" onclick="openTransactionNote(${l.id}, ${historyIndex})" title="View note"><i class="fa-solid fa-eye"></i></button>` : '<span style="color:var(--text-muted);">-</span>';
+                    stBody.innerHTML += `<tr><td style="font-size:12px;">${h.date}</td><td><strong style="color:var(--text-main); font-size:13px;">${h.type}${h.entryId ? ` [${h.status}]` : ''}</strong>${action}</td><td class="${h.status === 'Pending' ? 'txt-expense' : 'txt-income'}">${h.amt}</td><td style="font-size:12px;">${h.mode}</td><td>${noteButton}</td></tr>`;
                 });
             }
             document.getElementById('pendingEntryBtn').style.display = (currentRole === 'admin' || currentRole === 'dev') ? '' : 'none';
             document.getElementById('customerPersonalBox').style.display = 'block';
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        function openTransactionNote(loanId, historyIndex) {
+            const l = state.loans.find(obj => obj.id === loanId);
+            const transaction = l && l.history[historyIndex];
+            if (!transaction || !transaction.note) return triggerToast('No note available.', 'warning');
+            document.getElementById('noteViewerText').innerText = transaction.note;
+            document.getElementById('noteViewerModal').style.display = 'flex';
         }
 
         function openPendingEntryModal() {
