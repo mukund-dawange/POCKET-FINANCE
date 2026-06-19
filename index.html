@@ -2933,17 +2933,17 @@
                 stBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); font-size:13px;">No transaction history found.</td></tr>`;
             } else {
                 l.history.forEach(h => {
-                    const action = h.entryId && h.status === 'Pending' && currentRole === 'admin' ? ` <button class="btn btn-success" style="padding:4px 8px;font-size:10px;" onclick="markPendingEntryPaid(${l.id}, '${h.entryId}')">Mark Paid</button>` : '';
+                    const action = h.entryId && h.status === 'Pending' && (currentRole === 'admin' || currentRole === 'dev') ? ` <button class="btn btn-success" style="padding:4px 8px;font-size:10px;" onclick="markPendingEntryPaid(${l.id}, '${h.entryId}')">Mark Paid</button>` : '';
                     stBody.innerHTML += `<tr><td style="font-size:12px;">${h.date}</td><td><strong style="color:var(--text-main); font-size:13px;">${h.type}${h.entryId ? ` [${h.status}]` : ''}</strong>${action}</td><td class="${h.status === 'Pending' ? 'txt-expense' : 'txt-income'}">${h.amt}</td><td style="font-size:12px;">${h.mode}</td><td style="color:var(--text-muted); font-size:12px; font-style:italic;">${h.note || '-'}</td></tr>`;
                 });
             }
-            document.getElementById('pendingEntryBtn').style.display = currentRole === 'admin' ? '' : 'none';
+            document.getElementById('pendingEntryBtn').style.display = (currentRole === 'admin' || currentRole === 'dev') ? '' : 'none';
             document.getElementById('customerPersonalBox').style.display = 'block';
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         }
 
         function openPendingEntryModal() {
-            if (currentRole !== 'admin') return triggerToast('Only admin can create pending entries.', 'danger');
+            if (currentRole !== 'admin' && currentRole !== 'dev') return triggerToast('Only admin can create pending entries.', 'danger');
             const l = state.loans.find(obj => obj.id === currentActiveLoanIdForAction);
             if (!l) return;
             document.getElementById('pendingTargetName').innerText = l.name;
@@ -2954,7 +2954,7 @@
         }
 
         function addPendingEntry() {
-            if (currentRole !== 'admin') return triggerToast('Only admin can create pending entries.', 'danger');
+            if (currentRole !== 'admin' && currentRole !== 'dev') return triggerToast('Only admin can create pending entries.', 'danger');
             const l = state.loans.find(obj => obj.id === currentActiveLoanIdForAction);
             const amount = parseFloat(document.getElementById('pendingAmount').value);
             const dueDate = document.getElementById('pendingDueDate').value;
@@ -2968,7 +2968,7 @@
         }
 
         function markPendingEntryPaid(loanId, entryId) {
-            if (currentRole !== 'admin') return triggerToast('Only admin can mark entries paid.', 'danger');
+            if (currentRole !== 'admin' && currentRole !== 'dev') return triggerToast('Only admin can mark entries paid.', 'danger');
             const l = state.loans.find(obj => obj.id === loanId);
             const entry = l && l.history.find(h => h.entryId === entryId);
             if (!entry || entry.status === 'Paid') return;
