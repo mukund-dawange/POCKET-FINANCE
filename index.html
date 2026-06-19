@@ -1226,6 +1226,7 @@
                         </span>
                     </h3>
                     <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn" id="editClientInfoBtn" style="background:var(--primary); color:#fff; padding:8px 14px; font-size:12px;" onclick="openClientGuarantorEditModal()"><i class="fa-solid fa-user-pen"></i> Edit Client & Guarantor</button>
                     <button class="btn" id="pendingEntryBtn" style="background:#f97316; color:#fff; padding:8px 14px; font-size:12px;" onclick="openPendingEntryModal()"><i class="fa-solid fa-clock"></i> Pending Entry</button>
                     <button class="btn btn-secondary"
                         style="color:var(--danger); border-color:var(--danger); padding: 8px 16px; font-size: 12px;"
@@ -1771,6 +1772,28 @@
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                 <button class="btn" style="background:#f97316; color:#fff;" onclick="addPendingEntry()">Mark Pending</button>
                 <button class="btn btn-secondary" onclick="closeModal('pendingEntryModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="clientGuarantorEditModal">
+        <div class="modal-container" style="max-width:620px;">
+            <h2 style="margin-bottom:6px;"><i class="fa-solid fa-user-pen" style="color:var(--primary);"></i> Edit Client & Guarantor</h2>
+            <p style="color:var(--text-muted); font-size:12px; margin-bottom:20px;">Update the contact information saved with this loan account.</p>
+            <h3 style="font-size:14px; color:var(--primary); margin-bottom:12px;">Client Information</h3>
+            <div class="form-grid">
+                <div class="input-group"><label>Client Full Name</label><input type="text" id="editClientName"></div>
+                <div class="input-group"><label>Client Mobile Number</label><input type="text" id="editClientPhone" maxlength="10"></div>
+                <div class="input-group"><label>Client Email</label><input type="email" id="editClientEmail"></div>
+            </div>
+            <h3 style="font-size:14px; color:var(--warning); margin:20px 0 12px;">Guarantor Information</h3>
+            <div class="form-grid">
+                <div class="input-group"><label>Guarantor Full Name</label><input type="text" id="editGuarantorName"></div>
+                <div class="input-group"><label>Guarantor Mobile Number</label><input type="text" id="editGuarantorPhone" maxlength="10"></div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:22px;">
+                <button class="btn btn-success" onclick="saveClientGuarantorInfo()"><i class="fa-solid fa-floppy-disk"></i> Save Information</button>
+                <button class="btn btn-secondary" onclick="closeModal('clientGuarantorEditModal')">Cancel</button>
             </div>
         </div>
     </div>
@@ -2956,6 +2979,7 @@
                 });
             }
             document.getElementById('pendingEntryBtn').style.display = (currentRole === 'admin' || currentRole === 'dev') ? '' : 'none';
+            document.getElementById('editClientInfoBtn').style.display = (currentRole === 'admin' || currentRole === 'dev') ? '' : 'none';
             document.getElementById('customerPersonalBox').style.display = 'block';
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         }
@@ -2966,6 +2990,43 @@
             if (!transaction || !transaction.note) return triggerToast('No note available.', 'warning');
             document.getElementById('noteViewerText').innerText = transaction.note;
             document.getElementById('noteViewerModal').style.display = 'flex';
+        }
+
+        function openClientGuarantorEditModal() {
+            if (currentRole !== 'admin' && currentRole !== 'dev') return triggerToast('Only admin can edit client information.', 'danger');
+            const l = state.loans.find(obj => obj.id === currentActiveLoanIdForAction);
+            if (!l) return;
+            document.getElementById('editClientName').value = l.name || '';
+            document.getElementById('editClientPhone').value = l.phone || '';
+            document.getElementById('editClientEmail').value = l.email === 'N/A' ? '' : (l.email || '');
+            document.getElementById('editGuarantorName').value = l.guarantorName || '';
+            document.getElementById('editGuarantorPhone').value = l.guarantorPhone || '';
+            document.getElementById('clientGuarantorEditModal').style.display = 'flex';
+        }
+
+        function saveClientGuarantorInfo() {
+            if (currentRole !== 'admin' && currentRole !== 'dev') return triggerToast('Only admin can edit client information.', 'danger');
+            const l = state.loans.find(obj => obj.id === currentActiveLoanIdForAction);
+            if (!l) return;
+            const name = document.getElementById('editClientName').value.trim();
+            const phone = document.getElementById('editClientPhone').value.trim();
+            const email = document.getElementById('editClientEmail').value.trim();
+            const guarantorName = document.getElementById('editGuarantorName').value.trim();
+            const guarantorPhone = document.getElementById('editGuarantorPhone').value.trim();
+            if (!name || phone.length !== 10 || isNaN(phone)) return triggerToast('Enter a valid client name and 10-digit mobile number.', 'danger');
+            if (!guarantorName || guarantorPhone.length !== 10 || isNaN(guarantorPhone)) return triggerToast('Enter a valid guarantor name and 10-digit mobile number.', 'danger');
+            if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return triggerToast('Enter a valid client email address.', 'danger');
+            l.name = name;
+            l.phone = phone;
+            l.email = email || 'N/A';
+            l.guarantorName = guarantorName;
+            l.guarantorPhone = guarantorPhone;
+            syncLoansDB();
+            pushGlobalLog(`Client Information Updated: ${name}`, 'Client and guarantor details changed', 'neutral');
+            closeModal('clientGuarantorEditModal');
+            refreshSystemEngine();
+            openCustomerDashboard(l.id);
+            triggerToast('Client and guarantor information updated.', 'success');
         }
 
         function openPendingEntryModal() {
