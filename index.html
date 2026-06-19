@@ -287,6 +287,70 @@
         @media (max-width: 480px) {
             .dashboard-grid { grid-template-columns: 1fr; }
         }
+
+        /* NOVA STUDIO-STYLE TOOL SIDEBAR */
+        #appContainer { max-width:none; margin:0; padding:18px 24px 28px 316px; min-height:100vh; }
+        .navbar { position:sticky; top:14px; z-index:900; min-height:64px; margin-bottom:24px; }
+        #mainTabsContainer {
+            position:fixed; left:18px; top:18px; bottom:18px; width:274px; z-index:1000;
+            display:flex; flex-direction:column; align-items:stretch; gap:7px;
+            padding:88px 14px 18px; border-radius:22px; overflow-y:auto;
+            background:var(--glass-bg); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+            box-shadow:var(--shadow);
+        }
+        #mainTabsContainer::before {
+            content:'POCKET Finance'; position:absolute; left:20px; top:25px;
+            font-size:19px; font-weight:900; color:var(--text-main);
+        }
+        #mainTabsContainer::after {
+            content:'FINANCE TOOLS'; order:-1; margin:4px 10px 5px; color:var(--text-muted);
+            font-size:10px; font-weight:800; letter-spacing:1.5px;
+        }
+        #mainTabsContainer .tab-trigger {
+            width:100%; min-height:46px; justify-content:flex-start; padding:11px 14px;
+            border-radius:12px; color:var(--text-muted);
+        }
+        #mainTabsContainer .tab-trigger i { width:22px; text-align:center; }
+        #mainTabsContainer .tab-trigger:hover { color:var(--text-main); background:rgba(59,130,246,.09); }
+        #mainTabsContainer .tab-trigger.active {
+            color:#fff; background:linear-gradient(135deg,var(--primary),#8b5cf6);
+            box-shadow:0 8px 22px rgba(59,130,246,.28);
+        }
+        .sidebar-section-label {
+            margin:18px 10px 5px; color:var(--text-muted); font-size:10px;
+            font-weight:800; letter-spacing:1.5px; text-align:left;
+        }
+        .sidebar-close,.sidebar-menu-btn { display:none; }
+        .app-section { min-height:calc(100vh - 220px); border-radius:20px; }
+        #sidebarBackdrop { display:none; }
+
+        @media (max-width:900px) {
+            #appContainer { padding:14px; }
+            .navbar { top:8px; padding:12px 15px; flex-direction:row; }
+            .sidebar-menu-btn { display:flex; flex-shrink:0; }
+            #mainTabsContainer {
+                left:0; top:0; bottom:0; height:100vh; width:min(300px,86vw);
+                border-radius:0 22px 22px 0; transform:translateX(-105%);
+                transition:transform .28s ease; z-index:3000;
+            }
+            #mainTabsContainer.sidebar-open { transform:translateX(0); }
+            .sidebar-close {
+                display:flex; position:absolute; right:14px; top:18px; width:38px; height:38px;
+                border:1px solid var(--glass-border); border-radius:10px; align-items:center;
+                justify-content:center; background:var(--input-bg); color:var(--text-main); cursor:pointer;
+            }
+            #sidebarBackdrop {
+                position:fixed; inset:0; z-index:2500; background:rgba(2,6,23,.62);
+                backdrop-filter:blur(4px);
+            }
+            #sidebarBackdrop.show { display:block; }
+            .dashboard-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        }
+        @media (max-width:520px) {
+            .nav-brand { font-size:17px; }
+            .dashboard-grid { grid-template-columns:1fr; }
+            .app-section { padding:18px; }
+        }
     </style>
 </head>
 
@@ -356,7 +420,10 @@
     <div id="appContainer">
         <!-- TOP NAVBAR -->
         <nav class="navbar glass-panel">
-            <div class="nav-brand"><i class="fa-solid fa-wallet" style="background: linear-gradient(135deg, var(--primary), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i> Pocket Finance</div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <button class="nav-icon-btn sidebar-menu-btn" onclick="toggleSidebar()" title="Open tools"><i class="fa-solid fa-bars"></i></button>
+                <div class="nav-brand"><i class="fa-solid fa-wallet" style="background: linear-gradient(135deg, var(--primary), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i> Pocket Finance</div>
+            </div>
             <div class="nav-actions">
                 <button class="nav-icon-btn" onclick="toggleTheme()" title="Toggle Theme"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
 
@@ -401,13 +468,16 @@
         <!-- TABS NAVIGATION -->
         <div style="text-align: center;">
             <div class="tabs-container glass-panel" id="mainTabsContainer">
+                <button class="sidebar-close" onclick="toggleSidebar(false)" title="Close tools"><i class="fa-solid fa-xmark"></i></button>
                 <button class="tab-trigger active" onclick="showSection('wallet')"><i class="fa-solid fa-layer-group"></i> Dashboard</button>
                 <button class="tab-trigger" id="tabLoan" onclick="showSection('loan')"><i class="fa-solid fa-file-contract"></i> Accounts</button>
                 <button class="tab-trigger" id="tabHistory" onclick="showSection('history')"><i class="fa-solid fa-clock-rotate-left"></i> Ledger</button>
+                <div class="sidebar-section-label">MANAGEMENT</div>
                 <button class="tab-trigger cp-tab-admin" id="tabAdminCP" onclick="showSection('admincp')" style="display:none;"><i class="fa-solid fa-shield-halved"></i> Admin</button>
                 <button class="tab-trigger cp-tab-dev" id="tabDevCP" onclick="showSection('devcp')" style="display:none;"><i class="fa-solid fa-terminal"></i> Console</button>
             </div>
         </div>
+        <div id="sidebarBackdrop" onclick="toggleSidebar(false)"></div>
 
         <!-- SECTION: WALLET MANAGEMENT -->
         <div id="sec-wallet" class="app-section active glass-panel">
@@ -1491,6 +1561,17 @@
             document.getElementById('profileDropdown').classList.remove('show');
             if (secId === 'admincp') { renderAgents(); renderAdminSOSPanel(); renderAgentLiveTracker('adminTrackerGrid'); renderAdminClientTokens(); adminRefreshDbBadge(); }
             if (secId === 'devcp') { devRefreshAll(); renderAgentLiveTracker('devTrackerGrid'); }
+            toggleSidebar(false);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function toggleSidebar(forceOpen) {
+            const sidebar = document.getElementById('mainTabsContainer');
+            const backdrop = document.getElementById('sidebarBackdrop');
+            if (!sidebar || !backdrop || window.innerWidth > 900) return;
+            const open = typeof forceOpen === 'boolean' ? forceOpen : !sidebar.classList.contains('sidebar-open');
+            sidebar.classList.toggle('sidebar-open', open);
+            backdrop.classList.toggle('show', open);
         }
 
         function toggleDropdown() { document.getElementById('profileDropdown').classList.toggle('show'); }
