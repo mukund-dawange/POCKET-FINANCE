@@ -490,17 +490,51 @@
             <h2 style="margin-bottom: 25px; font-weight: 700; font-size: 22px;">Wallet Operations</h2>
 
             <!-- ADMIN ANALYTICS CHARTS (Shown to Admin/Dev only) -->
-            <div id="adminAnalyticsGrid" class="dashboard-grid" style="display:none; margin-bottom: 30px;">
-                <div class="glass-panel" style="padding:20px; display:flex; flex-direction:column; align-items:center;">
-                    <h3 style="font-size:14px; font-weight:700; margin-bottom:15px; width:100%; text-align:left;"><i class="fa-solid fa-chart-pie" style="color:var(--primary); margin-right:8px;"></i> Vault Distribution</h3>
-                    <div style="position: relative; height:200px; width:100%; display:flex; justify-content:center;">
-                        <canvas id="vaultDoughnutChart"></canvas>
+            <div id="adminAnalyticsGrid" style="display:none; margin-bottom: 35px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 15px;">
+                    <h3 style="font-size:18px; font-weight:800; color:var(--text-main);"><i class="fa-solid fa-chart-pie" style="color:var(--primary); margin-right:8px;"></i> Advanced System Analytics</h3>
+                    <span style="font-size:11px; background:rgba(16,185,129,0.15); color:var(--success); padding:4px 10px; border-radius:20px; font-weight:700;"><i class="fa-solid fa-circle-dot fa-beat" style="font-size:8px;"></i> Live Updates</span>
+                </div>
+                
+                <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                    <!-- 1. Vault Distribution -->
+                    <div class="glass-panel" style="padding:20px; display:flex; flex-direction:column; align-items:center;">
+                        <h3 style="font-size:13px; font-weight:700; margin-bottom:15px; width:100%; text-align:left; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Vault Distribution</h3>
+                        <div style="position: relative; height:220px; width:100%; display:flex; justify-content:center;">
+                            <canvas id="vaultDoughnutChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- 2. Portfolio Health -->
+                    <div class="glass-panel" style="padding:20px; display:flex; flex-direction:column; align-items:center;">
+                        <h3 style="font-size:13px; font-weight:700; margin-bottom:15px; width:100%; text-align:left; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Portfolio Health (Volume)</h3>
+                        <div style="position: relative; height:220px; width:100%; display:flex; justify-content:center;">
+                            <canvas id="loanStatusPieChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 3. Top Clients -->
+                    <div class="glass-panel" style="padding:20px; display:flex; flex-direction:column; align-items:center;">
+                        <h3 style="font-size:13px; font-weight:700; margin-bottom:15px; width:100%; text-align:left; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Top Active Clients</h3>
+                        <div style="position: relative; height:220px; width:100%;">
+                            <canvas id="topClientsBarChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 4. Agent Utilization -->
+                    <div class="glass-panel" style="padding:20px; display:flex; flex-direction:column; align-items:center;">
+                        <h3 style="font-size:13px; font-weight:700; margin-bottom:15px; width:100%; text-align:left; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Agent Fund Deployment</h3>
+                        <div style="position: relative; height:220px; width:100%;">
+                            <canvas id="agentPerfChart"></canvas>
+                        </div>
                     </div>
                 </div>
-                <div class="glass-panel" style="padding:20px; display:flex; flex-direction:column; align-items:center;">
-                    <h3 style="font-size:14px; font-weight:700; margin-bottom:15px; width:100%; text-align:left;"><i class="fa-solid fa-chart-simple" style="color:var(--warning); margin-right:8px;"></i> Top Active Clients</h3>
-                    <div style="position: relative; height:200px; width:100%;">
-                        <canvas id="topClientsBarChart"></canvas>
+
+                <!-- 5. 7-Day Trend (Full Width) -->
+                <div class="glass-panel" style="padding:20px; margin-top:20px;">
+                    <h3 style="font-size:13px; font-weight:700; margin-bottom:15px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">7-Day Cashflow Trend</h3>
+                    <div style="position: relative; height:250px; width:100%;">
+                        <canvas id="cashflowLineChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -1588,128 +1622,120 @@
         }
 
         /* --- STREAMING_CHUNK:Rendering Dashboard Analytics Charts... --- */
-        let vaultChartInstance = null;
-        let clientChartInstance = null;
+        let _charts = { vault: null, clients: null, status: null, agents: null, cashflow: null };
 
         function renderAnalyticsCharts() {
-            // Chart.js global defaults for glassmorphism theme
-            Chart.defaults.color = 'rgba(255, 255, 255, 0.7)';
-            Chart.defaults.font.family = "'Inter', sans-serif";
+            const vCtx = document.getElementById('vaultDoughnutChart');
+            if (!vCtx) return; // Not on DOM yet
 
-            // 1. Vault Distribution Doughnut Chart
-            const vaultCtx = document.getElementById('vaultDoughnutChart');
-            if (vaultCtx) {
-                if (vaultChartInstance) vaultChartInstance.destroy();
-                
-                vaultChartInstance = new Chart(vaultCtx, {
+            Chart.defaults.color = 'rgba(148, 163, 184, 0.8)';
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            
+            const tooltipConfig = {
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                titleColor: '#fff', bodyColor: '#fff',
+                padding: 12, cornerRadius: 8, displayColors: true,
+                callbacks: { label: function(context) { return ' ₹' + context.parsed.toLocaleString('en-IN') || context.parsed.y.toLocaleString('en-IN'); } }
+            };
+
+            // 1. Vault Distribution Doughnut
+            const vData = [state.wallet.cash, state.wallet.online];
+            if (_charts.vault) {
+                _charts.vault.data.datasets[0].data = vData;
+                _charts.vault.update();
+            } else {
+                _charts.vault = new Chart(vCtx, {
                     type: 'doughnut',
-                    data: {
-                        labels: ['Cash Vault', 'Online Vault'],
-                        datasets: [{
-                            data: [state.wallet.cash, state.wallet.online],
-                            backgroundColor: [
-                                'rgba(16, 185, 129, 0.8)', // Success green
-                                'rgba(139, 92, 246, 0.8)'  // Purple
-                            ],
-                            borderColor: 'transparent',
-                            borderWidth: 0,
-                            hoverOffset: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        cutout: '75%',
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: { padding: 20, usePointStyle: true, pointStyle: 'circle' }
-                            },
-                            tooltip: {
-                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                                titleColor: '#fff',
-                                bodyColor: '#fff',
-                                padding: 12,
-                                cornerRadius: 8,
-                                displayColors: false,
-                                callbacks: {
-                                    label: function(context) {
-                                        return ' ₹' + context.parsed.toLocaleString('en-IN');
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    data: { labels: ['Cash Vault', 'Online Vault'], datasets: [{ data: vData, backgroundColor: ['rgba(16, 185, 129, 0.85)', 'rgba(139, 92, 246, 0.85)'], borderWidth: 0, hoverOffset: 4 }] },
+                    options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } }, tooltip: tooltipConfig } }
                 });
             }
 
-            // 2. Top Clients Bar Chart
-            const clientCtx = document.getElementById('topClientsBarChart');
-            if (clientCtx) {
-                if (clientChartInstance) clientChartInstance.destroy();
+            // 2. Portfolio Health Pie
+            let actAmt = 0, paidAmt = 0;
+            state.loans.forEach(l => { if(l.status === 'Active') actAmt += l.amount; else paidAmt += l.amount; });
+            const sData = [actAmt, paidAmt];
+            const sCtx = document.getElementById('loanStatusPieChart');
+            if (_charts.status) {
+                _charts.status.data.datasets[0].data = sData;
+                _charts.status.update();
+            } else {
+                _charts.status = new Chart(sCtx, {
+                    type: 'pie',
+                    data: { labels: ['Active Loans', 'Paid / Closed'], datasets: [{ data: sData, backgroundColor: ['rgba(245, 158, 11, 0.85)', 'rgba(59, 130, 246, 0.85)'], borderWidth: 0, hoverOffset: 4 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } }, tooltip: tooltipConfig } }
+                });
+            }
 
-                // Get top 5 active clients by loan amount
-                const activeLoans = state.loans.filter(l => l.status === 'Active');
-                activeLoans.sort((a, b) => b.amount - a.amount);
-                const topLoans = activeLoans.slice(0, 5);
-
-                const labels = topLoans.length > 0 ? topLoans.map(l => l.name) : ['No Active Clients'];
-                const data = topLoans.length > 0 ? topLoans.map(l => l.amount) : [0];
-
-                clientChartInstance = new Chart(clientCtx, {
+            // 3. Top Active Clients Bar
+            const actLoans = state.loans.filter(l => l.status === 'Active').sort((a, b) => b.amount - a.amount).slice(0, 5);
+            const cLabels = actLoans.length ? actLoans.map(l => l.name) : ['No Active Clients'];
+            const cData = actLoans.length ? actLoans.map(l => l.amount) : [0];
+            const cCtx = document.getElementById('topClientsBarChart');
+            if (_charts.clients) {
+                _charts.clients.data.labels = cLabels;
+                _charts.clients.data.datasets[0].data = cData;
+                _charts.clients.update();
+            } else {
+                _charts.clients = new Chart(cCtx, {
                     type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Principal Amount',
-                            data: data,
-                            backgroundColor: 'rgba(59, 130, 246, 0.8)', // Primary blue
-                            borderRadius: 6,
-                            borderWidth: 0,
-                            barThickness: 'flex',
-                            maxBarThickness: 40
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                                padding: 12,
-                                cornerRadius: 8,
-                                displayColors: false,
-                                callbacks: {
-                                    label: function(context) {
-                                        return ' ₹' + context.parsed.y.toLocaleString('en-IN');
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                grid: {
-                                    color: 'rgba(255, 255, 255, 0.05)',
-                                    drawBorder: false
-                                },
-                                ticks: {
-                                    callback: function(value) {
-                                        if (value >= 1000) return '₹' + (value / 1000) + 'k';
-                                        return '₹' + value;
-                                    }
-                                }
-                            },
-                            x: {
-                                grid: { display: false, drawBorder: false },
-                                ticks: {
-                                    maxRotation: 45,
-                                    minRotation: 45
-                                }
-                            }
-                        }
+                    data: { labels: cLabels, datasets: [{ label: 'Principal', data: cData, backgroundColor: 'rgba(59, 130, 246, 0.85)', borderRadius: 6, maxBarThickness: 40 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...tooltipConfig, callbacks: { label: function(c) { return ' ₹' + c.parsed.y.toLocaleString('en-IN'); } } } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { callback: v => '₹'+(v>=1000?v/1000+'k':v) } }, x: { grid: { display: false } } } }
+                });
+            }
+
+            // 4. Agent Utilization (Allocated vs Deployed) Bar
+            const aLabels = agentState.length ? agentState.map(a => a.name.split(' ')[0]) : ['No Agents'];
+            const aAlloc = agentState.length ? agentState.map(a => a.fund) : [0];
+            const aDepl = agentState.length ? agentState.map(a => state.loans.filter(l=>l.agentId === a.id && l.status === 'Active').reduce((s,l)=>s+l.amount,0)) : [0];
+            const aCtx = document.getElementById('agentPerfChart');
+            if (_charts.agents) {
+                _charts.agents.data.labels = aLabels;
+                _charts.agents.data.datasets[0].data = aAlloc;
+                _charts.agents.data.datasets[1].data = aDepl;
+                _charts.agents.update();
+            } else {
+                _charts.agents = new Chart(aCtx, {
+                    type: 'bar',
+                    data: { labels: aLabels, datasets: [
+                        { label: 'Allocated', data: aAlloc, backgroundColor: 'rgba(148, 163, 184, 0.3)', borderRadius: 4, barPercentage: 0.7 },
+                        { label: 'Deployed', data: aDepl, backgroundColor: 'rgba(16, 185, 129, 0.8)', borderRadius: 4, barPercentage: 0.7 }
+                    ]},
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle:true, boxWidth:8 } }, tooltip: { ...tooltipConfig, callbacks: { label: function(c) { return ' ' + c.dataset.label + ': ₹' + c.parsed.y.toLocaleString('en-IN'); } } } }, scales: { x: { stacked: true, grid: {display:false} }, y: { stacked: false, beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { callback: v => '₹'+(v>=1000?v/1000+'k':v) } } } }
+                });
+            }
+
+            // 5. 7-Day Cashflow Trend Area
+            const last7Days = Array.from({length: 7}, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0,0,0,0); return d; });
+            const incData = [0,0,0,0,0,0,0], expData = [0,0,0,0,0,0,0];
+            
+            state.logs.forEach(log => {
+                const logDate = new Date(log.timestampMs); logDate.setHours(0,0,0,0);
+                last7Days.forEach((day, idx) => {
+                    if (day.getTime() === logDate.getTime()) {
+                        const amt = parseFloat((log.impactStr || '').replace(/[^0-9.-]+/g,"")) || 0;
+                        if (log.typeClass === 'income') incData[idx] += amt;
+                        if (log.typeClass === 'expense') expData[idx] += Math.abs(amt);
                     }
+                });
+            });
+            
+            const cfLabels = last7Days.map(d => d.toLocaleDateString('en-IN', {day:'numeric', month:'short'}));
+            const cfCtx = document.getElementById('cashflowLineChart');
+            
+            if (_charts.cashflow) {
+                _charts.cashflow.data.labels = cfLabels;
+                _charts.cashflow.data.datasets[0].data = incData;
+                _charts.cashflow.data.datasets[1].data = expData;
+                _charts.cashflow.update();
+            } else {
+                _charts.cashflow = new Chart(cfCtx, {
+                    type: 'line',
+                    data: { labels: cfLabels, datasets: [
+                        { label: 'Income', data: incData, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3 },
+                        { label: 'Expense', data: expData, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3 }
+                    ]},
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle:true, boxWidth:8 } }, tooltip: { ...tooltipConfig, mode: 'index', intersect: false, callbacks: { label: function(c) { return ' ' + c.dataset.label + ': ₹' + c.parsed.y.toLocaleString('en-IN'); } } } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { callback: v => '₹'+(v>=1000?v/1000+'k':v) } }, x: { grid: { display: false } } }, interaction: { mode: 'nearest', axis: 'x', intersect: false } }
                 });
             }
         }
