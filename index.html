@@ -1142,6 +1142,14 @@
                     <label>Email Address</label>
                     <input type="email" id="lEmail" placeholder="Optional...">
                 </div>
+                <div class="input-group">
+                    <label>Guarantor Full Name</label>
+                    <input type="text" id="lGuarantorName" placeholder="Enter guarantor name...">
+                </div>
+                <div class="input-group">
+                    <label>Guarantor Mobile Number</label>
+                    <input type="text" id="lGuarantorPhone" maxlength="10" placeholder="10 Digits...">
+                </div>
             </div>
             <div class="form-grid">
                 <div class="input-group">
@@ -1154,11 +1162,14 @@
                 </div>
                 <div class="input-group">
                     <label>Repayment Cycle</label>
-                    <select id="lPayType">
+                    <select id="lPayType" onchange="handleFormCycleChange()">
                         <option value="Daily">Daily</option>
-                        <option value="Weekly">Weekly</option>
                         <option value="Monthly" selected>Monthly</option>
                     </select>
+                </div>
+                <div class="input-group">
+                    <label id="lblTenure">Loan Tenure (Months)</label>
+                    <input type="number" id="lTenure" placeholder="Enter months..." oninput="calculateFormDueDate()">
                 </div>
                 <div class="input-group">
                     <label>Source of Funds</label>
@@ -1166,6 +1177,10 @@
                         <option value="cash">Cash Vault</option>
                         <option value="online">Online Vault</option>
                     </select>
+                </div>
+                <div class="input-group">
+                    <label>Repayment Due Date</label>
+                    <input type="text" id="lDueDate" placeholder="Auto-calculated..." readonly>
                 </div>
             </div>
             <button class="btn" onclick="createNewLoan()"><i class="fa-solid fa-file-signature"></i> Sanction
@@ -1210,9 +1225,12 @@
                             <i class="fa-solid fa-envelope"></i> <span id="cpEmailField"></span>
                         </span>
                     </h3>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn" id="pendingEntryBtn" style="background:#f97316; color:#fff; padding:8px 14px; font-size:12px;" onclick="openPendingEntryModal()"><i class="fa-solid fa-clock"></i> Pending Entry</button>
                     <button class="btn btn-secondary"
                         style="color:var(--danger); border-color:var(--danger); padding: 8px 16px; font-size: 12px;"
                         onclick="deleteLoanRecord()"><i class="fa-solid fa-trash"></i> Move to Trash</button>
+                    </div>
                 </div>
 
                 <div class="dashboard-grid"
@@ -1220,6 +1238,14 @@
                     <div class="finance-card" style="padding: 15px;">
                         <h3>Contact</h3>
                         <div style="font-size:16px; font-weight:600;" id="cpPhone"></div>
+                    </div>
+                    <div class="finance-card" style="padding: 15px;">
+                        <h3>Guarantor</h3>
+                        <div style="font-size:14px; font-weight:600;" id="cpGuarantor"></div>
+                    </div>
+                    <div class="finance-card" style="padding: 15px;">
+                        <h3>Timeline</h3>
+                        <div style="font-size:12px; line-height:1.6;">Start: <span id="cpSanctionDate"></span><br>Tenure: <span id="cpTenureText"></span><br>Due: <span id="cpDueDate"></span></div>
                     </div>
                     <div class="finance-card" style="padding: 15px;">
                         <h3>Cycle</h3>
@@ -1726,6 +1752,20 @@
             </div>
         </div>
 
+    </div>
+
+    <div class="modal-overlay" id="pendingEntryModal">
+        <div class="modal-container" style="max-width:460px;">
+            <h2 style="margin-bottom:8px;">Add Pending Entry</h2>
+            <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">Client: <strong id="pendingTargetName"></strong></p>
+            <div class="input-group" style="margin-bottom:14px;"><label>Pending Amount</label><input type="number" id="pendingAmount" placeholder="Enter any amount"></div>
+            <div class="input-group" style="margin-bottom:14px;"><label>Due Date</label><input type="date" id="pendingDueDate"></div>
+            <div class="input-group" style="margin-bottom:20px;"><label>Reason / Note</label><input type="text" id="pendingNote" placeholder="Payment not received on time..."></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <button class="btn" style="background:#f97316; color:#fff;" onclick="addPendingEntry()">Mark Pending</button>
+                <button class="btn btn-secondary" onclick="closeModal('pendingEntryModal')">Cancel</button>
+            </div>
+        </div>
     </div>
 
     <!-- MODAL FOR PROCESS REPAYMENT -->
@@ -2785,17 +2825,37 @@
         // ============================================================
         // LOANS
         // ============================================================
+        function handleFormCycleChange() {
+            const daily = document.getElementById('lPayType').value === 'Daily';
+            document.getElementById('lblTenure').innerText = daily ? 'Loan Tenure (Days)' : 'Loan Tenure (Months)';
+            calculateFormDueDate();
+        }
+
+        function calculateFormDueDate() {
+            const tenure = parseInt(document.getElementById('lTenure').value);
+            const field = document.getElementById('lDueDate');
+            if (!tenure || tenure <= 0) { field.value = ''; return; }
+            const due = new Date();
+            if (document.getElementById('lPayType').value === 'Daily') due.setDate(due.getDate() + tenure);
+            else due.setMonth(due.getMonth() + tenure);
+            field.value = due.toLocaleDateString('en-IN', { dateStyle: 'medium' });
+        }
+
         function createNewLoan() {
             const name    = document.getElementById('lName').value.trim();
             const phone   = document.getElementById('lPhone').value.trim();
             const email   = document.getElementById('lEmail').value.trim();
+            const guarantorName = document.getElementById('lGuarantorName').value.trim();
+            const guarantorPhone = document.getElementById('lGuarantorPhone').value.trim();
             const amt     = parseFloat(document.getElementById('lAmount').value);
             const rate    = parseFloat(document.getElementById('lRate').value);
+            const tenure  = parseInt(document.getElementById('lTenure').value);
             const source  = document.getElementById('lSource').value;
             const payType = document.getElementById('lPayType').value;
 
-            if (!name || !phone || isNaN(amt) || isNaN(rate)) return triggerToast('Fill all required fields!', 'danger');
+            if (!name || !phone || !guarantorName || !guarantorPhone || isNaN(amt) || isNaN(rate) || isNaN(tenure)) return triggerToast('Fill all required fields!', 'danger');
             if (phone.length !== 10 || isNaN(phone))           return triggerToast('Invalid 10-Digit number!', 'danger');
+            if (guarantorPhone.length !== 10 || isNaN(guarantorPhone)) return triggerToast('Invalid guarantor number!', 'danger');
             if (amt <= 0 || rate < 0)                          return triggerToast('Invalid numerical values!', 'danger');
             if (source === 'cash'   && state.wallet.cash   < amt) return triggerToast('Low Cash Vault balance!', 'danger');
             if (source === 'online' && state.wallet.online < amt) return triggerToast('Low Online Vault balance!', 'danger');
@@ -2806,6 +2866,9 @@
             let newLoanObject = {
                 id: Date.now(), name, phone,
                 email: email ? email : 'N/A',
+                guarantorName, guarantorPhone, tenure,
+                sanctionDate: new Date().toLocaleDateString('en-IN', { dateStyle: 'medium' }),
+                dueDate: document.getElementById('lDueDate').value,
                 amount: amt, rate, source, payType,
                 status: 'Active', history: [],
                 agentId: (currentRole === 'agent' && getCurrentAgentProfile()) ? getCurrentAgentProfile().id : null
@@ -2816,7 +2879,7 @@
             syncLoansDB();
             pushGlobalLog(`Loan Issued: ${name}`, `-₹${amt}`, 'expense');
 
-            ['lName','lPhone','lEmail','lAmount','lRate'].forEach(id => document.getElementById(id).value = '');
+            ['lName','lPhone','lEmail','lGuarantorName','lGuarantorPhone','lAmount','lRate','lTenure','lDueDate'].forEach(id => document.getElementById(id).value = '');
             triggerToast(`Loan created for ${name}`, 'success');
             refreshSystemEngine();
         }
@@ -2856,6 +2919,10 @@
             if (!l) return;
             document.getElementById('cpName').innerText    = l.name;
             document.getElementById('cpPhone').innerText   = l.phone;
+            document.getElementById('cpGuarantor').innerText = (l.guarantorName || 'N/A') + (l.guarantorPhone ? ` (${l.guarantorPhone})` : '');
+            document.getElementById('cpSanctionDate').innerText = l.sanctionDate || 'N/A';
+            document.getElementById('cpTenureText').innerText = (l.tenure || 0) + (l.payType === 'Daily' ? ' Days' : ' Months');
+            document.getElementById('cpDueDate').innerText = l.dueDate || 'N/A';
             document.getElementById('cpPayType').innerText = l.payType || 'Monthly';
             document.getElementById('cpEmailField').innerText = (l.email && l.email !== 'N/A' && l.email !== '') ? l.email : 'No Email Provided';
             document.getElementById('cpAmount').innerText   = '₹' + l.amount.toLocaleString('en-IN');
@@ -2866,11 +2933,53 @@
                 stBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); font-size:13px;">No transaction history found.</td></tr>`;
             } else {
                 l.history.forEach(h => {
-                    stBody.innerHTML += `<tr><td style="font-size:12px;">${h.date}</td><td><strong style="color:var(--text-main); font-size:13px;">${h.type}</strong></td><td class="txt-income">${h.amt}</td><td style="font-size:12px;">${h.mode}</td><td style="color:var(--text-muted); font-size:12px; font-style:italic;">${h.note || '-'}</td></tr>`;
+                    const action = h.entryId && h.status === 'Pending' && currentRole === 'admin' ? ` <button class="btn btn-success" style="padding:4px 8px;font-size:10px;" onclick="markPendingEntryPaid(${l.id}, '${h.entryId}')">Mark Paid</button>` : '';
+                    stBody.innerHTML += `<tr><td style="font-size:12px;">${h.date}</td><td><strong style="color:var(--text-main); font-size:13px;">${h.type}${h.entryId ? ` [${h.status}]` : ''}</strong>${action}</td><td class="${h.status === 'Pending' ? 'txt-expense' : 'txt-income'}">${h.amt}</td><td style="font-size:12px;">${h.mode}</td><td style="color:var(--text-muted); font-size:12px; font-style:italic;">${h.note || '-'}</td></tr>`;
                 });
             }
+            document.getElementById('pendingEntryBtn').style.display = currentRole === 'admin' ? '' : 'none';
             document.getElementById('customerPersonalBox').style.display = 'block';
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        function openPendingEntryModal() {
+            if (currentRole !== 'admin') return triggerToast('Only admin can create pending entries.', 'danger');
+            const l = state.loans.find(obj => obj.id === currentActiveLoanIdForAction);
+            if (!l) return;
+            document.getElementById('pendingTargetName').innerText = l.name;
+            document.getElementById('pendingAmount').value = '';
+            document.getElementById('pendingNote').value = '';
+            document.getElementById('pendingDueDate').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('pendingEntryModal').style.display = 'flex';
+        }
+
+        function addPendingEntry() {
+            if (currentRole !== 'admin') return triggerToast('Only admin can create pending entries.', 'danger');
+            const l = state.loans.find(obj => obj.id === currentActiveLoanIdForAction);
+            const amount = parseFloat(document.getElementById('pendingAmount').value);
+            const dueDate = document.getElementById('pendingDueDate').value;
+            const note = document.getElementById('pendingNote').value.trim();
+            if (!l || !amount || amount <= 0 || !dueDate) return triggerToast('Enter a valid amount and due date.', 'danger');
+            l.history.push({ entryId: 'P' + Date.now(), date: new Date().toLocaleString('en-IN'), type: 'Pending Entry', amt: '₹' + amount.toLocaleString('en-IN'), amount, mode: 'Pending', note: (note || 'Payment overdue') + ' | Due: ' + new Date(dueDate).toLocaleDateString('en-IN'), status: 'Pending', dueDate });
+            syncLoansDB();
+            pushGlobalLog(`Pending Entry: ${l.name}`, `₹${amount}`, 'expense');
+            closeModal('pendingEntryModal'); refreshSystemEngine(); openCustomerDashboard(l.id);
+            triggerToast('Pending entry added.', 'warning');
+        }
+
+        function markPendingEntryPaid(loanId, entryId) {
+            if (currentRole !== 'admin') return triggerToast('Only admin can mark entries paid.', 'danger');
+            const l = state.loans.find(obj => obj.id === loanId);
+            const entry = l && l.history.find(h => h.entryId === entryId);
+            if (!entry || entry.status === 'Paid') return;
+            entry.status = 'Paid';
+            entry.paidAt = new Date().toLocaleString('en-IN');
+            entry.mode = 'Paid';
+            entry.note += ' | Paid: ' + entry.paidAt;
+            syncLoansDB();
+            pushGlobalLog(`Pending Paid: ${l.name}`, `+₹${entry.amount}`, 'income');
+            refreshSystemEngine(); openCustomerDashboard(l.id);
+            triggerToast('Pending entry marked as paid.', 'success');
         }
 
         function openRepayModal(id) {
