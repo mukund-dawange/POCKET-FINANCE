@@ -1760,6 +1760,13 @@
             <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">Client: <strong id="pendingTargetName"></strong></p>
             <div class="input-group" style="margin-bottom:14px;"><label>Pending Amount</label><input type="number" id="pendingAmount" placeholder="Enter any amount"></div>
             <div class="input-group" style="margin-bottom:14px;"><label>Due Date</label><input type="date" id="pendingDueDate"></div>
+            <div class="input-group" style="margin-bottom:14px;">
+                <label>Payment Goes To</label>
+                <select id="pendingPaymentMode">
+                    <option value="cash">Cash Vault</option>
+                    <option value="online">Online Vault</option>
+                </select>
+            </div>
             <div class="input-group" style="margin-bottom:20px;"><label>Reason / Note</label><input type="text" id="pendingNote" placeholder="Payment not received on time..."></div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                 <button class="btn" style="background:#f97316; color:#fff;" onclick="addPendingEntry()">Mark Pending</button>
@@ -2958,9 +2965,10 @@
             const l = state.loans.find(obj => obj.id === currentActiveLoanIdForAction);
             const amount = parseFloat(document.getElementById('pendingAmount').value);
             const dueDate = document.getElementById('pendingDueDate').value;
+            const paymentMode = document.getElementById('pendingPaymentMode').value;
             const note = document.getElementById('pendingNote').value.trim();
             if (!l || !amount || amount <= 0 || !dueDate) return triggerToast('Enter a valid amount and due date.', 'danger');
-            l.history.push({ entryId: 'P' + Date.now(), date: new Date().toLocaleString('en-IN'), type: 'Pending Entry', amt: '₹' + amount.toLocaleString('en-IN'), amount, mode: 'Pending', note: (note || 'Payment overdue') + ' | Due: ' + new Date(dueDate).toLocaleDateString('en-IN'), status: 'Pending', dueDate });
+            l.history.push({ entryId: 'P' + Date.now(), date: new Date().toLocaleString('en-IN'), type: 'Pending Entry', amt: '₹' + amount.toLocaleString('en-IN'), amount, mode: paymentMode, note: (note || 'Payment overdue') + ' | Due: ' + new Date(dueDate).toLocaleDateString('en-IN'), status: 'Pending', dueDate, walletApplied: false });
             syncLoansDB();
             pushGlobalLog(`Pending Entry: ${l.name}`, `₹${amount}`, 'expense');
             closeModal('pendingEntryModal'); refreshSystemEngine(); openCustomerDashboard(l.id);
@@ -2972,12 +2980,19 @@
             const l = state.loans.find(obj => obj.id === loanId);
             const entry = l && l.history.find(h => h.entryId === entryId);
             if (!entry || entry.status === 'Paid') return;
+            const amount = Number(entry.amount) || 0;
+            const paymentMode = entry.mode === 'online' ? 'online' : 'cash';
+            if (amount <= 0) return triggerToast('This pending entry has an invalid amount.', 'danger');
+            if (!entry.walletApplied) {
+                state.wallet[paymentMode] += amount;
+                entry.walletApplied = true;
+                syncWalletDB();
+            }
             entry.status = 'Paid';
             entry.paidAt = new Date().toLocaleString('en-IN');
-            entry.mode = 'Paid';
-            entry.note += ' | Paid: ' + entry.paidAt;
+            entry.note += ' | Paid to ' + (paymentMode === 'cash' ? 'Cash Vault' : 'Online Vault') + ': ' + entry.paidAt;
             syncLoansDB();
-            pushGlobalLog(`Pending Paid: ${l.name}`, `+₹${entry.amount}`, 'income');
+            pushGlobalLog(`Pending Paid: ${l.name}`, `+₹${amount}`, 'income');
             refreshSystemEngine(); openCustomerDashboard(l.id);
             triggerToast('Pending entry marked as paid.', 'success');
         }
