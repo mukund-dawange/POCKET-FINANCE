@@ -10,6 +10,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
     <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 
     <style>
         :root {
@@ -287,70 +288,6 @@
         @media (max-width: 480px) {
             .dashboard-grid { grid-template-columns: 1fr; }
         }
-
-        /* NOVA STUDIO-STYLE TOOL SIDEBAR */
-        #appContainer { max-width:none; margin:0; padding:18px 24px 28px 316px; min-height:100vh; }
-        .navbar { position:sticky; top:14px; z-index:900; min-height:64px; margin-bottom:24px; }
-        #mainTabsContainer {
-            position:fixed; left:18px; top:18px; bottom:18px; width:274px; z-index:1000;
-            display:flex; flex-direction:column; align-items:stretch; gap:7px;
-            padding:88px 14px 18px; border-radius:22px; overflow-y:auto;
-            background:var(--glass-bg); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
-            box-shadow:var(--shadow);
-        }
-        #mainTabsContainer::before {
-            content:'POCKET Finance'; position:absolute; left:20px; top:25px;
-            font-size:19px; font-weight:900; color:var(--text-main);
-        }
-        #mainTabsContainer::after {
-            content:'FINANCE TOOLS'; order:-1; margin:4px 10px 5px; color:var(--text-muted);
-            font-size:10px; font-weight:800; letter-spacing:1.5px;
-        }
-        #mainTabsContainer .tab-trigger {
-            width:100%; min-height:46px; justify-content:flex-start; padding:11px 14px;
-            border-radius:12px; color:var(--text-muted);
-        }
-        #mainTabsContainer .tab-trigger i { width:22px; text-align:center; }
-        #mainTabsContainer .tab-trigger:hover { color:var(--text-main); background:rgba(59,130,246,.09); }
-        #mainTabsContainer .tab-trigger.active {
-            color:#fff; background:linear-gradient(135deg,var(--primary),#8b5cf6);
-            box-shadow:0 8px 22px rgba(59,130,246,.28);
-        }
-        .sidebar-section-label {
-            margin:18px 10px 5px; color:var(--text-muted); font-size:10px;
-            font-weight:800; letter-spacing:1.5px; text-align:left;
-        }
-        .sidebar-close,.sidebar-menu-btn { display:none; }
-        .app-section { min-height:calc(100vh - 220px); border-radius:20px; }
-        #sidebarBackdrop { display:none; }
-
-        @media (max-width:900px) {
-            #appContainer { padding:14px; }
-            .navbar { top:8px; padding:12px 15px; flex-direction:row; }
-            .sidebar-menu-btn { display:flex; flex-shrink:0; }
-            #mainTabsContainer {
-                left:0; top:0; bottom:0; height:100vh; width:min(300px,86vw);
-                border-radius:0 22px 22px 0; transform:translateX(-105%);
-                transition:transform .28s ease; z-index:3000;
-            }
-            #mainTabsContainer.sidebar-open { transform:translateX(0); }
-            .sidebar-close {
-                display:flex; position:absolute; right:14px; top:18px; width:38px; height:38px;
-                border:1px solid var(--glass-border); border-radius:10px; align-items:center;
-                justify-content:center; background:var(--input-bg); color:var(--text-main); cursor:pointer;
-            }
-            #sidebarBackdrop {
-                position:fixed; inset:0; z-index:2500; background:rgba(2,6,23,.62);
-                backdrop-filter:blur(4px);
-            }
-            #sidebarBackdrop.show { display:block; }
-            .dashboard-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-        }
-        @media (max-width:520px) {
-            .nav-brand { font-size:17px; }
-            .dashboard-grid { grid-template-columns:1fr; }
-            .app-section { padding:18px; }
-        }
     </style>
 </head>
 
@@ -420,10 +357,7 @@
     <div id="appContainer">
         <!-- TOP NAVBAR -->
         <nav class="navbar glass-panel">
-            <div style="display:flex; align-items:center; gap:10px;">
-                <button class="nav-icon-btn sidebar-menu-btn" onclick="toggleSidebar()" title="Open tools"><i class="fa-solid fa-bars"></i></button>
-                <div class="nav-brand"><i class="fa-solid fa-wallet" style="background: linear-gradient(135deg, var(--primary), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i> Pocket Finance</div>
-            </div>
+            <div class="nav-brand"><i class="fa-solid fa-wallet" style="background: linear-gradient(135deg, var(--primary), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i> Pocket Finance</div>
             <div class="nav-actions">
                 <button class="nav-icon-btn" onclick="toggleTheme()" title="Toggle Theme"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
 
@@ -468,20 +402,33 @@
         <!-- TABS NAVIGATION -->
         <div style="text-align: center;">
             <div class="tabs-container glass-panel" id="mainTabsContainer">
-                <button class="sidebar-close" onclick="toggleSidebar(false)" title="Close tools"><i class="fa-solid fa-xmark"></i></button>
                 <button class="tab-trigger active" onclick="showSection('wallet')"><i class="fa-solid fa-layer-group"></i> Dashboard</button>
                 <button class="tab-trigger" id="tabLoan" onclick="showSection('loan')"><i class="fa-solid fa-file-contract"></i> Accounts</button>
                 <button class="tab-trigger" id="tabHistory" onclick="showSection('history')"><i class="fa-solid fa-clock-rotate-left"></i> Ledger</button>
-                <div class="sidebar-section-label">MANAGEMENT</div>
                 <button class="tab-trigger cp-tab-admin" id="tabAdminCP" onclick="showSection('admincp')" style="display:none;"><i class="fa-solid fa-shield-halved"></i> Admin</button>
                 <button class="tab-trigger cp-tab-dev" id="tabDevCP" onclick="showSection('devcp')" style="display:none;"><i class="fa-solid fa-terminal"></i> Console</button>
             </div>
         </div>
-        <div id="sidebarBackdrop" onclick="toggleSidebar(false)"></div>
 
         <!-- SECTION: WALLET MANAGEMENT -->
         <div id="sec-wallet" class="app-section active glass-panel">
             <h2 style="margin-bottom: 25px; font-weight: 700; font-size: 22px;">Wallet Operations</h2>
+
+            <!-- ADMIN ANALYTICS CHARTS (Shown to Admin/Dev only) -->
+            <div id="adminAnalyticsGrid" class="dashboard-grid" style="display:none; margin-bottom: 30px;">
+                <div class="glass-panel" style="padding:20px; display:flex; flex-direction:column; align-items:center;">
+                    <h3 style="font-size:14px; font-weight:700; margin-bottom:15px; width:100%; text-align:left;"><i class="fa-solid fa-chart-pie" style="color:var(--primary); margin-right:8px;"></i> Vault Distribution</h3>
+                    <div style="position: relative; height:200px; width:100%; display:flex; justify-content:center;">
+                        <canvas id="vaultDoughnutChart"></canvas>
+                    </div>
+                </div>
+                <div class="glass-panel" style="padding:20px; display:flex; flex-direction:column; align-items:center;">
+                    <h3 style="font-size:14px; font-weight:700; margin-bottom:15px; width:100%; text-align:left;"><i class="fa-solid fa-chart-simple" style="color:var(--warning); margin-right:8px;"></i> Top Active Clients</h3>
+                    <div style="position: relative; height:200px; width:100%;">
+                        <canvas id="topClientsBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
 
             <!-- AGENT WALLET STATUS BAR -->
             <div id="agentDbBanner" style="display:none; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:16px; padding:20px; margin-bottom:20px;">
@@ -1469,7 +1416,7 @@
         }
 
         function applyAgentUIRestrictions() {
-            ['tabAdminCP', 'tabDevCP', 'tabLoan', 'tabHistory', 'adminWalletGrid', 'adminDashboardGrid'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+            ['tabAdminCP', 'tabDevCP', 'tabLoan', 'tabHistory', 'adminWalletGrid', 'adminDashboardGrid', 'adminAnalyticsGrid'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
             const wTab = document.querySelector('[onclick*="wallet"]'); if (wTab) wTab.innerHTML = '<i class="fa-solid fa-gauge-high"></i> Dashboard';
         }
 
@@ -1522,7 +1469,13 @@
             document.getElementById('userProfileText').innerHTML = `<i class="fa-solid fa-shield" style="color:var(--primary);"></i> <strong style="color:var(--text-main); margin-left:8px; font-size:14px;">${name}</strong>${rL}`;
             document.getElementById('tabAdminCP').style.display = (currentRole === 'admin' || currentRole === 'dev') ? 'flex' : 'none';
             document.getElementById('tabDevCP').style.display = currentRole === 'dev' ? 'flex' : 'none';
+            document.getElementById('adminAnalyticsGrid').style.display = (currentRole === 'admin' || currentRole === 'dev') ? 'grid' : 'none';
             refreshSystemEngine(); if (currentRole === 'dev') devRefreshAll();
+            
+            // Re-render charts to ensure proper canvas sizing when container becomes visible
+            if (currentRole === 'admin' || currentRole === 'dev') {
+                setTimeout(renderAnalyticsCharts, 100);
+            }
         }
 
         function confirmLogout() { document.getElementById('logoutModal').style.display = 'flex'; }
@@ -1552,6 +1505,137 @@
             animateCounterValue('valTotal', state.wallet.cash + state.wallet.online);
             animateCounterValue('valLoaned', state.loans.reduce((acc, obj) => obj.status === 'Active' ? acc + obj.amount : acc, 0));
             renderLoansTable(); renderGlobalLogs(); refreshAgentWalletBar();
+            
+            if (currentRole === 'admin' || currentRole === 'dev') {
+                renderAnalyticsCharts();
+            }
+        }
+
+        /* --- STREAMING_CHUNK:Rendering Dashboard Analytics Charts... --- */
+        let vaultChartInstance = null;
+        let clientChartInstance = null;
+
+        function renderAnalyticsCharts() {
+            // Chart.js global defaults for glassmorphism theme
+            Chart.defaults.color = 'rgba(255, 255, 255, 0.7)';
+            Chart.defaults.font.family = "'Inter', sans-serif";
+
+            // 1. Vault Distribution Doughnut Chart
+            const vaultCtx = document.getElementById('vaultDoughnutChart');
+            if (vaultCtx) {
+                if (vaultChartInstance) vaultChartInstance.destroy();
+                
+                vaultChartInstance = new Chart(vaultCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Cash Vault', 'Online Vault'],
+                        datasets: [{
+                            data: [state.wallet.cash, state.wallet.online],
+                            backgroundColor: [
+                                'rgba(16, 185, 129, 0.8)', // Success green
+                                'rgba(139, 92, 246, 0.8)'  // Purple
+                            ],
+                            borderColor: 'transparent',
+                            borderWidth: 0,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '75%',
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { padding: 20, usePointStyle: true, pointStyle: 'circle' }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                titleColor: '#fff',
+                                bodyColor: '#fff',
+                                padding: 12,
+                                cornerRadius: 8,
+                                displayColors: false,
+                                callbacks: {
+                                    label: function(context) {
+                                        return ' ₹' + context.parsed.toLocaleString('en-IN');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 2. Top Clients Bar Chart
+            const clientCtx = document.getElementById('topClientsBarChart');
+            if (clientCtx) {
+                if (clientChartInstance) clientChartInstance.destroy();
+
+                // Get top 5 active clients by loan amount
+                const activeLoans = state.loans.filter(l => l.status === 'Active');
+                activeLoans.sort((a, b) => b.amount - a.amount);
+                const topLoans = activeLoans.slice(0, 5);
+
+                const labels = topLoans.length > 0 ? topLoans.map(l => l.name) : ['No Active Clients'];
+                const data = topLoans.length > 0 ? topLoans.map(l => l.amount) : [0];
+
+                clientChartInstance = new Chart(clientCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Principal Amount',
+                            data: data,
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)', // Primary blue
+                            borderRadius: 6,
+                            borderWidth: 0,
+                            barThickness: 'flex',
+                            maxBarThickness: 40
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                padding: 12,
+                                cornerRadius: 8,
+                                displayColors: false,
+                                callbacks: {
+                                    label: function(context) {
+                                        return ' ₹' + context.parsed.y.toLocaleString('en-IN');
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.05)',
+                                    drawBorder: false
+                                },
+                                ticks: {
+                                    callback: function(value) {
+                                        if (value >= 1000) return '₹' + (value / 1000) + 'k';
+                                        return '₹' + value;
+                                    }
+                                }
+                            },
+                            x: {
+                                grid: { display: false, drawBorder: false },
+                                ticks: {
+                                    maxRotation: 45,
+                                    minRotation: 45
+                                }
+                            }
+                        }
+                    }
+                });
+            }
         }
 
         function showSection(secId) {
@@ -1561,17 +1645,6 @@
             document.getElementById('profileDropdown').classList.remove('show');
             if (secId === 'admincp') { renderAgents(); renderAdminSOSPanel(); renderAgentLiveTracker('adminTrackerGrid'); renderAdminClientTokens(); adminRefreshDbBadge(); }
             if (secId === 'devcp') { devRefreshAll(); renderAgentLiveTracker('devTrackerGrid'); }
-            toggleSidebar(false);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function toggleSidebar(forceOpen) {
-            const sidebar = document.getElementById('mainTabsContainer');
-            const backdrop = document.getElementById('sidebarBackdrop');
-            if (!sidebar || !backdrop || window.innerWidth > 900) return;
-            const open = typeof forceOpen === 'boolean' ? forceOpen : !sidebar.classList.contains('sidebar-open');
-            sidebar.classList.toggle('sidebar-open', open);
-            backdrop.classList.toggle('show', open);
         }
 
         function toggleDropdown() { document.getElementById('profileDropdown').classList.toggle('show'); }
