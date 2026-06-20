@@ -8,22 +8,26 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <!-- ============ LOGIN SCREEN ============ -->
 <div id="loginScreen" class="login-screen">
-  <div class="login-blob blob-1"></div>
-  <div class="login-blob blob-2"></div>
-  <div class="login-blob blob-3"></div>
-
+  <div class="login-showcase">
+    <div class="showcase-brand"><i class="fa-solid fa-wallet"></i> Pocket Finance</div>
+    <div class="showcase-art"><div class="art-chart"><i class="fa-solid fa-arrow-trend-up"></i></div><div class="art-wallet"><i class="fa-solid fa-wallet"></i></div><div class="art-coin coin-one">₹</div><div class="art-coin coin-two">₹</div></div>
+    <h2>Take control of every rupee.</h2>
+    <p>Wallets, loans, clients and repayments—all in one secure workspace.</p>
+  </div>
+  <div class="login-panel">
   <div class="login-card">
     <div class="login-logo">
       <i class="fa-solid fa-wallet"></i>
     </div>
-    <h1 class="welcome-title">Pocket Finance</h1>
-    <p class="welcome-subtitle">Sign in to manage your wallet, loans &amp; clients</p>
+    <h1 class="welcome-title">Welcome Back :)</h1>
+    <p class="welcome-subtitle">Sign in with your assigned ID and password</p>
 
     <form id="loginForm">
       <div class="friendly-input-group">
@@ -47,7 +51,10 @@
         <button type="submit" class="btn-friendly-primary">Sign In</button>
       </div>
     </form>
-    <p class="login-hint">Demo accounts: <b>admin/admin</b> · <b>agent/agent</b></p>
+    <div class="login-divider"><span>or continue with</span></div>
+    <button type="button" class="google-login-btn" id="googleLoginBtn"><span class="google-g">G</span> Sign in with Google</button>
+    <p class="login-hint">Demo: <b>admin/admin</b> · <b>agent/agent</b> · Developer: <b>dev/dev123</b></p>
+  </div>
   </div>
 </div>
 
@@ -75,7 +82,10 @@
 
       <div class="sidebar-section-label admin-only">Administration</div>
       <button class="tab-trigger admin-only" data-section="admin"><i class="fa-solid fa-shield-halved"></i><span>Admin Panel</span></button>
-      <button class="tab-trigger admin-only" data-section="devconsole"><i class="fa-solid fa-terminal"></i><span>Dev Console</span></button>
+      <button class="tab-trigger dev-only" data-section="devconsole"><i class="fa-solid fa-terminal"></i><span>Dev Console</span></button>
+      <button class="tab-trigger dev-only" data-section="access"><i class="fa-solid fa-key"></i><span>Access Manager</span></button>
+      <button class="tab-trigger dev-only" data-section="activity"><i class="fa-solid fa-satellite-dish"></i><span>Live Activity</span><span class="live-dot"></span></button>
+      <button class="tab-trigger dev-only danger-nav" data-section="danger"><i class="fa-solid fa-skull-crossbones"></i><span>Danger Zone</span></button>
     </div>
 
     <div class="sidebar-footer">
@@ -181,12 +191,16 @@
       <section class="page-section" id="page-loans">
         <div class="section-header-row">
           <h3>Loan Accounts</h3>
-          <button class="btn-friendly-primary" id="addLoanBtn"><i class="fa-solid fa-plus"></i> New Loan</button>
+          <div class="loan-toolbar">
+            <div class="loan-search"><i class="fa-solid fa-magnifying-glass"></i><input id="loanSearch" type="search" placeholder="Search client, phone or status"></div>
+            <button class="btn-friendly-secondary compact" id="loanTrashBtn"><i class="fa-solid fa-trash-can-arrow-up"></i> Recycle Bin</button>
+            <button class="btn-friendly-primary compact" id="addLoanBtn"><i class="fa-solid fa-plus"></i> New Loan</button>
+          </div>
         </div>
         <div class="table-responsive">
           <table>
-            <thead><tr><th>Client</th><th>Amount</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
-            <tbody id="loansTableBody"><tr><td colspan="5" class="empty-row">No loans yet. Click "New Loan" to add one.</td></tr></tbody>
+            <thead><tr><th>Client</th><th>Principal</th><th>Interest</th><th>Outstanding</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
+            <tbody id="loansTableBody"><tr><td colspan="7" class="empty-row">No loans yet. Click "New Loan" to add one.</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -258,7 +272,36 @@
           <h3 class="panel-title"><i class="fa-solid fa-code"></i> Raw State Inspector</h3>
           <pre id="devStateOutput" class="dev-console-output">{}</pre>
           <button class="btn-friendly-secondary" id="refreshStateBtn">Refresh</button>
-          <button class="btn-friendly-secondary danger" id="resetStateBtn">Reset All Data</button>
+        </div>
+      </section>
+
+      <section class="page-section" id="page-access">
+        <div class="section-header-row"><div><h3>Access Manager</h3><p class="muted-text">Change the only valid login ID and password for each role.</p></div></div>
+        <div class="access-grid" id="accessAccounts"></div>
+        <div class="glass-panel google-config-card">
+          <h3 class="panel-title"><i class="fa-brands fa-google"></i> Google Sign-In</h3>
+          <p class="muted-text">Enter your Google OAuth Web Client ID to activate Google login.</p>
+          <input type="text" id="googleClientId" placeholder="000000000000-xxxx.apps.googleusercontent.com">
+          <button class="btn-friendly-primary full" id="saveGoogleClientBtn">Save Google Client ID</button>
+        </div>
+      </section>
+
+      <section class="page-section" id="page-activity">
+        <div class="section-header-row"><div><h3>Live Activity Tracker</h3><p class="muted-text">Login attempts, navigation and financial actions update automatically.</p></div><button class="btn-friendly-secondary compact" id="clearAuditBtn"><i class="fa-solid fa-broom"></i> Clear Activity</button></div>
+        <div class="activity-summary"><div><strong id="auditTotal">0</strong><span>Total events</span></div><div><strong id="auditToday">0</strong><span>Today</span></div><div><strong id="auditFailed">0</strong><span>Failed logins</span></div></div>
+        <div class="table-responsive"><table><thead><tr><th>Time</th><th>User</th><th>Role</th><th>Activity</th><th>Details</th></tr></thead><tbody id="auditTableBody"></tbody></table></div>
+      </section>
+
+      <!-- DEVELOPER DANGER ZONE -->
+      <section class="page-section" id="page-danger">
+        <div class="danger-zone">
+          <div class="danger-zone-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          <div>
+            <p class="danger-kicker">DEVELOPER ACCESS ONLY</p>
+            <h3>Danger Zone</h3>
+            <p>Permanently erase all wallets, loans, clients, ledger entries and SOS records from this browser.</p>
+          </div>
+          <button class="danger-action-btn" id="dangerResetBtn"><i class="fa-solid fa-trash-can"></i> Reset All Application Data</button>
         </div>
       </section>
 

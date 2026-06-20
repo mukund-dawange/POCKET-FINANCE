@@ -14,10 +14,14 @@ const SECTION_TITLES = {
     clients: 'Clients',
     sos: 'SOS Requests',
     admin: 'Admin Panel',
-    devconsole: 'Dev Console'
+    devconsole: 'Dev Console',
+    access: 'Access Manager',
+    activity: 'Live Activity',
+    danger: 'Danger Zone'
 };
 
 function switchSection(sectionKey) {
+    if (['access','activity','danger','devconsole'].includes(sectionKey) && state.user?.role !== 'developer') sectionKey='dashboard';
     document.querySelectorAll('.tab-trigger[data-section]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.section === sectionKey);
     });
@@ -37,6 +41,8 @@ function switchSection(sectionKey) {
     document.getElementById('sidebar').classList.remove('mobile-open');
 
     localStorage.setItem('pf_lastSection', sectionKey);
+    if(state.user) addAudit('Navigation', `Opened ${SECTION_TITLES[sectionKey] || sectionKey}`);
+    if(sectionKey==='activity' && typeof renderAuditLog==='function') renderAuditLog();
 }
 
 function initSidebar() {
