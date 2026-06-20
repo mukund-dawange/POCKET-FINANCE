@@ -137,10 +137,10 @@ function renderLedgerTable() {
     }
     body.innerHTML = state.logs.slice(0, 100).map(log => `
         <tr>
-            <td>${new Date(log.timestampMs).toLocaleString('en-IN')}</td>
-            <td>${escapeHTML(log.description)}</td>
-            <td><span class="status-pill ${log.typeClass === 'income' ? 'paid' : 'active'}">${log.typeClass}</span></td>
-            <td>${log.impactStr}</td>
+            <td data-label="Date">${new Date(log.timestampMs).toLocaleString('en-IN')}</td>
+            <td data-label="Description">${escapeHTML(log.description)}</td>
+            <td data-label="Type"><span class="status-pill ${log.typeClass === 'income' ? 'paid' : 'active'}">${log.typeClass}</span></td>
+            <td data-label="Impact">${log.impactStr}</td>
         </tr>
     `).join('');
 }
@@ -168,10 +168,10 @@ function renderClientsTable() {
     }
     body.innerHTML = state.clients.map(c => `
         <tr>
-            <td>${escapeHTML(c.name)}</td>
-            <td>${escapeHTML(c.phone || '—')}</td>
-            <td>${fmtINR(c.outstanding)}</td>
-            <td><button class="row-action-btn" onclick="deleteClient('${c.id}')" title="Delete"><i class="fa-solid fa-trash"></i></button></td>
+            <td data-label="Name">${escapeHTML(c.name)}</td>
+            <td data-label="Phone">${escapeHTML(c.phone || '—')}</td>
+            <td data-label="Outstanding">${fmtINR(c.outstanding)}</td>
+            <td data-label="Actions"><button class="row-action-btn" onclick="deleteClient('${c.id}')" title="Delete"><i class="fa-solid fa-trash"></i></button></td>
         </tr>
     `).join('');
 }
@@ -213,9 +213,9 @@ function renderSosTable() {
     } else {
         body.innerHTML = state.sos.map(s => `
             <tr>
-                <td>${new Date(s.raisedOn).toLocaleString('en-IN')}</td>
-                <td>${escapeHTML(s.reason)}</td>
-                <td><span class="status-pill active">${s.status}</span></td>
+                <td data-label="Raised On">${new Date(s.raisedOn).toLocaleString('en-IN')}</td>
+                <td data-label="Reason">${escapeHTML(s.reason)}</td>
+                <td data-label="Status"><span class="status-pill active">${s.status}</span></td>
             </tr>
         `).join('');
     }
@@ -344,7 +344,7 @@ function renderAuditLog(){
     document.getElementById('auditTotal').textContent=logs.length;
     document.getElementById('auditToday').textContent=logs.filter(x=>x.timestamp>=start.getTime()).length;
     document.getElementById('auditFailed').textContent=logs.filter(x=>x.action==='Failed login').length;
-    body.innerHTML=logs.length?logs.map(x=>`<tr><td>${new Date(x.timestamp).toLocaleString('en-IN')}</td><td>${escapeHTML(x.username)}</td><td><span class="role-chip">${escapeHTML(x.role)}</span></td><td>${escapeHTML(x.action)}</td><td>${escapeHTML(x.details||'—')}</td></tr>`).join(''):'<tr><td colspan="5" class="empty-row">No activity recorded yet.</td></tr>';
+    body.innerHTML=logs.length?logs.map(x=>`<tr><td data-label="Time">${new Date(x.timestamp).toLocaleString('en-IN')}</td><td data-label="User">${escapeHTML(x.username)}</td><td data-label="Role"><span class="role-chip">${escapeHTML(x.role)}</span></td><td data-label="Activity">${escapeHTML(x.action)}</td><td data-label="Details">${escapeHTML(x.details||'—')}</td></tr>`).join(''):'<tr><td colspan="5" class="empty-row">No activity recorded yet.</td></tr>';
 }
 
 /* ---------------- ADVANCED LOAN MODULE (2.3 parity) ---------------- */
@@ -365,7 +365,7 @@ function renderLoansTable() {
     const q=(document.getElementById('loanSearch')?.value||'').toLowerCase();
     const loans=state.loans.filter(l=>[l.name,l.phone,l.status].some(v=>String(v||'').toLowerCase().includes(q)));
     if(!loans.length){body.innerHTML='<tr><td colspan="7" class="empty-row">No matching loan accounts.</td></tr>';return;}
-    body.innerHTML=loans.map(l=>{normaliseLoan(l);return `<tr><td class="loan-client-cell"><strong>${escapeHTML(l.name)}</strong><small>${escapeHTML(l.phone||'No phone')}</small></td><td>${fmtINR(l.amount)}</td><td>${fmtINR(l.interestAmount)}</td><td>${fmtINR(l.outstanding)}</td><td><span class="status-pill ${l.status==='Active'?'active':'paid'}">${l.status}</span></td><td>${l.dueDate||'—'}</td><td><div class="loan-action-group"><button class="row-action-btn" onclick="viewLoan('${l.id}')" title="View"><i class="fa-solid fa-eye"></i></button>${l.status==='Active'?`<button class="row-action-btn" onclick="repayLoan('${l.id}')" title="Repay"><i class="fa-solid fa-indian-rupee-sign"></i></button>`:''}<button class="row-action-btn" onclick="editLoan('${l.id}')" title="Edit"><i class="fa-solid fa-pen"></i></button><button class="row-action-btn" onclick="deleteLoan('${l.id}')" title="Recycle"><i class="fa-solid fa-trash"></i></button></div></td></tr>`}).join('');
+    body.innerHTML=loans.map(l=>{normaliseLoan(l);return `<tr><td class="loan-client-cell" data-label="Client"><strong>${escapeHTML(l.name)}</strong><small>${escapeHTML(l.phone||'No phone')}</small></td><td data-label="Principal">${fmtINR(l.amount)}</td><td data-label="Interest">${fmtINR(l.interestAmount)}</td><td data-label="Outstanding">${fmtINR(l.outstanding)}</td><td data-label="Status"><span class="status-pill ${l.status==='Active'?'active':'paid'}">${l.status}</span></td><td data-label="Due Date">${l.dueDate||'—'}</td><td data-label="Actions"><div class="loan-action-group"><button class="row-action-btn" onclick="viewLoan('${l.id}')" title="View"><i class="fa-solid fa-eye"></i></button>${l.status==='Active'?`<button class="row-action-btn" onclick="repayLoan('${l.id}')" title="Repay"><i class="fa-solid fa-indian-rupee-sign"></i></button>`:''}<button class="row-action-btn" onclick="editLoan('${l.id}')" title="Edit"><i class="fa-solid fa-pen"></i></button><button class="row-action-btn" onclick="deleteLoan('${l.id}')" title="Recycle"><i class="fa-solid fa-trash"></i></button></div></td></tr>`}).join('');
 }
 function initLoanActions() {
     state.loanTrash=state.loanTrash||[];
@@ -385,7 +385,7 @@ function repayLoan(id) {
 }
 function viewLoan(id) {
     const l=state.loans.find(x=>x.id===id);if(!l)return;normaliseLoan(l);const o=document.createElement('div');o.className='modal-overlay modal-wide';
-    o.innerHTML=`<div class="modal-card"><div class="modal-header"><div class="modal-icon"><i class="fa-solid fa-address-card"></i></div><div class="loan-profile-heading"><h3>${escapeHTML(l.name)}</h3><small>${l.status} loan account</small></div><button class="modal-close-btn"><i class="fa-solid fa-xmark"></i></button></div><div class="loan-profile-body"><div class="loan-hero"><div><small>Amount still due</small><strong>${fmtINR(l.outstanding)}</strong></div><span class="status-pill ${l.status==='Active'?'active':'paid'}">${l.status}</span></div><div class="loan-detail-grid"><div class="loan-detail-item"><small>Phone & Email</small>${escapeHTML(l.phone||'Not provided')}<br><span>${escapeHTML(l.email||'No email')}</span></div><div class="loan-detail-item"><small>Guarantor</small>${escapeHTML(l.guarantor||'Not provided')}</div><div class="loan-detail-item"><small>Principal</small>${fmtINR(l.amount)}</div><div class="loan-detail-item"><small>Interest (${l.rate}%)</small>${fmtINR(l.interestAmount)}</div><div class="loan-detail-item"><small>Payment Plan</small>${l.payType||'Monthly'} · ${l.tenure||'—'} payments</div><div class="loan-detail-item"><small>Due Date</small>${l.dueDate||'Not set'}</div></div><div class="loan-profile-actions">${l.status==='Active'?`<button class="btn-friendly-primary" data-repay>Receive Payment</button>`:''}<button class="btn-friendly-secondary" data-edit>Edit Details</button></div><h4 class="statement-title">Payment history</h4><div class="table-responsive loan-statement"><table><thead><tr><th>Date</th><th>Entry</th><th>Mode</th><th>Amount</th></tr></thead><tbody>${l.history.length?l.history.map(h=>`<tr><td>${new Date(h.date).toLocaleDateString('en-IN')}</td><td>${escapeHTML(h.type)}</td><td>${escapeHTML(h.mode||'—')}</td><td>${fmtINR(h.amount||0)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty-row">No payments recorded yet.</td></tr>'}</tbody></table></div></div></div>`;document.body.appendChild(o);o.querySelector('.modal-close-btn').onclick=()=>o.remove();o.querySelector('[data-repay]')?.addEventListener('click',()=>{o.remove();repayLoan(id)});o.querySelector('[data-edit]').onclick=()=>{o.remove();editLoan(id)};o.onclick=e=>{if(e.target===o)o.remove();};
+    o.innerHTML=`<div class="modal-card"><div class="modal-header"><div class="modal-icon"><i class="fa-solid fa-address-card"></i></div><div class="loan-profile-heading"><h3>${escapeHTML(l.name)}</h3><small>${l.status} loan account</small></div><button class="modal-close-btn"><i class="fa-solid fa-xmark"></i></button></div><div class="loan-profile-body"><div class="loan-hero"><div><small>Amount still due</small><strong>${fmtINR(l.outstanding)}</strong></div><span class="status-pill ${l.status==='Active'?'active':'paid'}">${l.status}</span></div><div class="loan-detail-grid"><div class="loan-detail-item"><small>Phone & Email</small>${escapeHTML(l.phone||'Not provided')}<br><span>${escapeHTML(l.email||'No email')}</span></div><div class="loan-detail-item"><small>Guarantor</small>${escapeHTML(l.guarantor||'Not provided')}</div><div class="loan-detail-item"><small>Principal</small>${fmtINR(l.amount)}</div><div class="loan-detail-item"><small>Interest (${l.rate}%)</small>${fmtINR(l.interestAmount)}</div><div class="loan-detail-item"><small>Payment Plan</small>${l.payType||'Monthly'} · ${l.tenure||'—'} payments</div><div class="loan-detail-item"><small>Due Date</small>${l.dueDate||'Not set'}</div></div><div class="loan-profile-actions">${l.status==='Active'?`<button class="btn-friendly-primary" data-repay>Receive Payment</button>`:''}<button class="btn-friendly-secondary" data-edit>Edit Details</button></div><h4 class="statement-title">Payment history</h4><div class="table-responsive loan-statement"><table><thead><tr><th>Date</th><th>Entry</th><th>Mode</th><th>Amount</th></tr></thead><tbody>${l.history.length?l.history.map(h=>`<tr><td data-label="Date">${new Date(h.date).toLocaleDateString('en-IN')}</td><td data-label="Entry">${escapeHTML(h.type)}</td><td data-label="Mode">${escapeHTML(h.mode||'—')}</td><td data-label="Amount">${fmtINR(h.amount||0)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty-row">No payments recorded yet.</td></tr>'}</tbody></table></div></div></div>`;document.body.appendChild(o);o.querySelector('.modal-close-btn').onclick=()=>o.remove();o.querySelector('[data-repay]')?.addEventListener('click',()=>{o.remove();repayLoan(id)});o.querySelector('[data-edit]').onclick=()=>{o.remove();editLoan(id)};o.onclick=e=>{if(e.target===o)o.remove();};
 }
 function editLoan(id) {
     const l=state.loans.find(x=>x.id===id);if(!l)return;showFormModal({title:`Edit ${l.name}`,icon:'fa-pen',submitLabel:'Save Changes',wide:true,fields:[{id:'name',label:'Client Name',required:true,value:l.name},{id:'phone',label:'Phone',required:true,value:l.phone||''},{id:'email',label:'Email',type:'email',value:l.email||''},{id:'guarantor',label:'Guarantor',value:l.guarantor||''},{id:'dueDate',label:'Due Date',type:'date',value:l.dueDate||''}],onSubmit:v=>{l.name=v.name||l.name;l.phone=v.phone||l.phone;l.email=v.email;l.guarantor=v.guarantor;l.dueDate=v.dueDate||l.dueDate;saveState();renderAll();showToast('Loan updated.','success');}});
@@ -394,7 +394,7 @@ function deleteLoan(id) {
     if(!confirm('Move this loan to the recycle bin?'))return;const i=state.loans.findIndex(l=>l.id===id);if(i<0)return;state.loanTrash=state.loanTrash||[];state.loanTrash.unshift({...state.loans[i],deletedAt:Date.now()});state.loans.splice(i,1);saveState();renderAll();showToast('Loan moved to recycle bin.','warning');
 }
 function showLoanTrash() {
-    const o=document.createElement('div');o.className='modal-overlay modal-wide';state.loanTrash=state.loanTrash||[];o.innerHTML=`<div class="modal-card"><div class="modal-header"><h3>Recycle Bin</h3><button class="modal-close-btn"><i class="fa-solid fa-xmark"></i></button></div><div class="table-responsive"><table><thead><tr><th>Client</th><th>Amount</th><th>Deleted</th><th>Action</th></tr></thead><tbody>${state.loanTrash.length?state.loanTrash.map(l=>`<tr><td>${escapeHTML(l.name)}</td><td>${fmtINR(l.amount)}</td><td>${new Date(l.deletedAt).toLocaleString('en-IN')}</td><td><button class="row-action-btn" data-restore="${l.id}"><i class="fa-solid fa-rotate-left"></i></button></td></tr>`).join(''):'<tr><td colspan="4" class="empty-row">Recycle bin is empty.</td></tr>'}</tbody></table></div></div>`;document.body.appendChild(o);o.querySelector('.modal-close-btn').onclick=()=>o.remove();o.querySelectorAll('[data-restore]').forEach(b=>b.onclick=()=>{const i=state.loanTrash.findIndex(l=>l.id===b.dataset.restore);if(i>=0){const [l]=state.loanTrash.splice(i,1);delete l.deletedAt;state.loans.push(l);saveState();renderAll();o.remove();showToast('Loan restored.','success');}});
+    const o=document.createElement('div');o.className='modal-overlay modal-wide';state.loanTrash=state.loanTrash||[];o.innerHTML=`<div class="modal-card"><div class="modal-header"><h3>Recycle Bin</h3><button class="modal-close-btn"><i class="fa-solid fa-xmark"></i></button></div><div class="table-responsive"><table><thead><tr><th>Client</th><th>Amount</th><th>Deleted</th><th>Action</th></tr></thead><tbody>${state.loanTrash.length?state.loanTrash.map(l=>`<tr><td data-label="Client">${escapeHTML(l.name)}</td><td data-label="Amount">${fmtINR(l.amount)}</td><td data-label="Deleted">${new Date(l.deletedAt).toLocaleString('en-IN')}</td><td data-label="Action"><button class="row-action-btn" data-restore="${l.id}"><i class="fa-solid fa-rotate-left"></i></button></td></tr>`).join(''):'<tr><td colspan="4" class="empty-row">Recycle bin is empty.</td></tr>'}</tbody></table></div></div>`;document.body.appendChild(o);o.querySelector('.modal-close-btn').onclick=()=>o.remove();o.querySelectorAll('[data-restore]').forEach(b=>b.onclick=()=>{const i=state.loanTrash.findIndex(l=>l.id===b.dataset.restore);if(i>=0){const [l]=state.loanTrash.splice(i,1);delete l.deletedAt;state.loans.push(l);saveState();renderAll();o.remove();showToast('Loan restored.','success');}});
 }
 
 /* ---------------- UTIL ---------------- */

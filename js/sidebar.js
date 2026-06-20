@@ -20,6 +20,11 @@ const SECTION_TITLES = {
     danger: 'Danger Zone'
 };
 
+function closeMobileSidebar() {
+    document.getElementById('sidebar')?.classList.remove('mobile-open');
+    document.getElementById('sidebarBackdrop')?.classList.remove('show');
+}
+
 function switchSection(sectionKey) {
     if (['access','activity','danger','devconsole'].includes(sectionKey) && state.user?.role !== 'developer') sectionKey='dashboard';
     document.querySelectorAll('.tab-trigger[data-section]').forEach(btn => {
@@ -38,7 +43,7 @@ function switchSection(sectionKey) {
     }
 
     // Close mobile sidebar after navigating
-    document.getElementById('sidebar').classList.remove('mobile-open');
+    closeMobileSidebar();
 
     localStorage.setItem('pf_lastSection', sectionKey);
     if(state.user) addAudit('Navigation', `Opened ${SECTION_TITLES[sectionKey] || sectionKey}`);
@@ -56,7 +61,10 @@ function initSidebar() {
 
     document.getElementById('mobileMenuBtn').addEventListener('click', () => {
         document.getElementById('sidebar').classList.toggle('mobile-open');
+        document.getElementById('sidebarBackdrop')?.classList.toggle('show');
     });
+
+    document.getElementById('sidebarBackdrop')?.addEventListener('click', closeMobileSidebar);
 
     document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
 

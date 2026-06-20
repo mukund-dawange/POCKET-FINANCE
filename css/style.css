@@ -40,10 +40,10 @@
     --sidebar-bg: #1e293b;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-html, body { height: 100%; background: var(--bg-color); color: var(--text-main); transition: background .3s, color .3s; }
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; background: var(--bg-color); color: var(--text-main); transition: background .3s, color .3s; -webkit-text-size-adjust: 100%; overscroll-behavior-y: none; }
 .hidden { display: none !important; }
-button { font-family: inherit; }
+button { font-family: inherit; touch-action: manipulation; }
 
 /* ===================== LOGIN SCREEN ===================== */
 .login-screen {
@@ -130,6 +130,12 @@ button { font-family: inherit; }
 
 /* ===================== APP SHELL ===================== */
 .app-shell { display: flex; height: 100vh; overflow: hidden; }
+
+.sidebar-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, .5);
+    z-index: 99; opacity: 0; transition: opacity .25s ease;
+}
+.sidebar-backdrop.show { display: block; opacity: 1; }
 
 .sidebar {
     width: var(--sidebar-width); background: var(--sidebar-bg); border-right: 1px solid var(--glass-border);
@@ -339,24 +345,161 @@ tr:hover td { background: rgba(249,115,22,.03); }
 .modal-footer { display: flex; gap: 10px; padding: 16px 22px; border-top:1px solid var(--glass-border); background:var(--glass-bg); }
 .modal-footer button { width: auto; flex: 1; margin-top: 0; }
 
-/* RESPONSIVE */
+/* ===================================================================
+   RESPONSIVE / MOBILE
+   =================================================================== */
+
+/* ---- Tablet & below: sidebar becomes an off-canvas drawer ---- */
 @media (max-width: 900px) {
-    .login-screen{grid-template-columns:1fr}.login-showcase{display:none}.login-panel{min-height:100vh}.login-card{padding:24px}
-    .access-grid{grid-template-columns:1fr}.activity-summary{grid-template-columns:1fr}
+    .login-screen { grid-template-columns: 1fr; }
+    .login-showcase { display: none; }
+    .login-panel { min-height: 100vh; padding: 24px; }
+    .login-card { padding: 24px; }
+    .access-grid { grid-template-columns: 1fr; }
+    .activity-summary { grid-template-columns: 1fr; }
     .finance-cards-grid { grid-template-columns: repeat(2, 1fr); }
     .charts-grid { grid-template-columns: repeat(2, 1fr); }
     .panel-grid { grid-template-columns: 1fr; }
-    .sidebar { position: fixed; left: -100%; top: 0; height: 100%; z-index: 100; box-shadow: var(--glass-shadow); }
+
+    .sidebar {
+        position: fixed; left: -100%; top: 0; height: 100%; height: 100dvh; z-index: 100;
+        box-shadow: var(--glass-shadow); width: min(300px, 84vw);
+        transition: left .28s cubic-bezier(.4,0,.2,1);
+        padding-top: env(safe-area-inset-top);
+    }
     .sidebar.mobile-open { left: 0; }
-    .mobile-menu-btn { display: block; }
+    .mobile-menu-btn { display: flex; align-items: center; justify-content: center; }
 }
-@media (max-width: 560px) {
-    .finance-cards-grid { grid-template-columns: 1fr; }
-    .charts-grid { grid-template-columns: 1fr; }
+
+/* ---- Phones ---- */
+@media (max-width: 640px) {
+    /* Safe-area aware shell */
+    .app-shell { height: 100dvh; }
+
+    /* Topbar: sticky, safe-area padded, larger tap targets */
+    .topbar {
+        height: auto; min-height: 60px; padding: 10px 14px;
+        padding-top: calc(10px + env(safe-area-inset-top));
+        gap: 10px; position: sticky; top: 0; z-index: 40;
+    }
+    .topbar h2 { font-size: 16px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mobile-menu-btn, .icon-btn { width: 42px; height: 42px; font-size: 17px; flex-shrink: 0; }
+    .avatar-btn.small { width: 36px; height: 36px; font-size: 13px; }
+    .topbar-right { gap: 8px; }
+
+    .content-scroll {
+        padding: 16px 14px;
+        padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    }
+
+    /* Sidebar nav rows: bigger touch targets */
+    .sidebar-brand { padding: 16px; }
+    .tab-trigger { min-height: 50px; font-size: 15px; padding: 12px 14px; }
+    .sidebar-collapse-btn { display: none; } /* collapse is a desktop-only affordance */
+
+    /* Login screen tightened for small phones */
+    .login-panel { padding: 18px; }
+    .login-card { padding: 18px; max-width: 100%; }
+    .welcome-title { font-size: 26px; }
+    .login-hint { display: block; font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 16px; line-height: 1.5; }
+
+    /* Inputs: 16px min font-size prevents iOS auto-zoom on focus */
+    .friendly-input-group input,
+    .modal-body input, .modal-body select,
+    .glass-panel input, .glass-panel select,
+    .loan-search input, #sharedDbUrl, #googleClientId {
+        font-size: 16px;
+    }
+
+    /* Stat cards: single column, roomy */
+    .finance-cards-grid { grid-template-columns: 1fr; gap: 12px; margin-bottom: 18px; }
+    .finance-card { padding: 16px; }
+    .finance-card .counter-value { font-size: 24px; }
+
+    /* Charts: stack, shrink height so they don't dominate the screen */
+    .charts-grid { grid-template-columns: 1fr; gap: 12px; }
+    .chart-card { padding: 14px; }
+    .chart-box { height: 200px; }
+
+    /* Panels (wallet deposit/withdraw/transfer forms) */
+    .panel-grid { gap: 12px; }
+    .glass-panel { padding: 16px; }
+
+    /* Section headers & toolbars stack and go full width */
+    .section-header-row { align-items: stretch; }
+    .section-header-row h3 { font-size: 16px; }
+    .section-header-row button,
+    .section-header-row .btn-friendly-primary,
+    .section-header-row .btn-friendly-secondary { width: 100%; justify-content: center; }
+    .loan-toolbar { flex-direction: column; align-items: stretch; }
+    .loan-toolbar .compact { width: 100%; justify-content: center; }
+    .loan-search { min-width: 0; }
+
+    /* ---- Tables → stacked cards ---- */
+    .table-responsive { overflow-x: visible; border: none; background: transparent; box-shadow: none; border-radius: 0; }
+    .table-responsive table,
+    .table-responsive thead,
+    .table-responsive tbody,
+    .table-responsive tr { display: block; width: 100%; }
+    .table-responsive thead { display: none; }
+    .table-responsive tr {
+        background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 14px;
+        box-shadow: var(--glass-shadow); margin-bottom: 12px; padding: 4px 14px; position: relative;
+    }
+    .table-responsive tr:last-child { margin-bottom: 0; }
+    .table-responsive td {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 10px 0; border-bottom: 1px solid var(--glass-border); text-align: right; font-size: 13px;
+    }
+    .table-responsive td:last-child { border-bottom: none; }
+    .table-responsive td::before {
+        content: attr(data-label); font-weight: 700; font-size: 11px; text-transform: uppercase;
+        letter-spacing: .4px; color: var(--text-muted); text-align: left; flex-shrink: 0;
+    }
+    /* Cells without a meaningful "value vs label" split read better left-aligned */
+    .table-responsive td.loan-client-cell { flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; }
+    .table-responsive td.loan-client-cell::before { margin-bottom: 2px; }
+    .table-responsive td[data-label="Actions"],
+    .table-responsive td[data-label="Action"] { padding-top: 12px; }
+    .table-responsive td[data-label="Actions"] .loan-action-group,
+    .table-responsive td[data-label="Action"] { justify-content: flex-end; flex: 1; }
+    .row-action-btn { font-size: 16px; padding: 8px; }
+    .empty-row { padding: 24px 0 !important; }
+    /* Empty-state row spans no real columns once stacked; let it render as a plain card */
+    .table-responsive tr:has(.empty-row) { padding: 18px 14px; text-align: center; }
+    .table-responsive tr:has(.empty-row) td { display: block; text-align: center; border-bottom: none; padding: 0; }
+    .table-responsive tr:has(.empty-row) td::before { display: none; }
+
+    /* Loan detail grid inside the loan profile modal */
+    .loan-detail-grid { grid-template-columns: 1fr; }
+    .loan-hero { flex-wrap: wrap; gap: 10px; }
+    .loan-hero strong { font-size: 22px; }
+    .loan-profile-actions { flex-direction: column; }
+    .loan-profile-actions button { width: 100%; }
+
+    /* ---- Modals as bottom sheets, keyboard-safe ---- */
     .modal-overlay { padding: 0; align-items: flex-end; }
-    .modal-card, .modal-form-wide .modal-card { max-width:none; max-height:94vh; border-radius:20px 20px 0 0; }
-    .modal-form-wide .modal-fields-grid { grid-template-columns:1fr; }
-    .modal-header { padding:16px 18px; }
-    .modal-body { padding:16px 18px; }
-    .modal-footer { padding:12px 18px 18px; }
+    .modal-card, .modal-form-wide .modal-card, .modal-wide .modal-card {
+        max-width: none; width: 100%; max-height: 90dvh; border-radius: 18px 18px 0 0;
+    }
+    .modal-form-wide .modal-fields-grid { grid-template-columns: 1fr; }
+    .modal-header { padding: 14px 16px; }
+    .modal-icon { width: 34px; height: 34px; font-size: 13px; }
+    .modal-header h3 { font-size: 15px; }
+    .modal-body { padding: 14px 16px; }
+    .modal-footer {
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+        flex-direction: column-reverse;
+    }
+    .modal-footer button { width: 100%; min-height: 46px; }
+
+    /* Recipe-style action buttons get a comfortable minimum height everywhere */
+    .btn-friendly-primary, .btn-friendly-secondary { min-height: 46px; }
+    .google-login-btn { min-height: 46px; }
 }
+
+/* Slightly larger phones / phablets: 2-up stat cards still fits nicely */
+@media (min-width: 421px) and (max-width: 640px) {
+    .finance-cards-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
