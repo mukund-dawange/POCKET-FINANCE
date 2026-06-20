@@ -18,19 +18,15 @@ let state = {
 };
 
 let agentState = []; // { id, name, fund }
-const AUTH_KEY = 'pocketFinanceAccounts_v1';
 const AUDIT_KEY = 'pocketFinanceAudit_v1';
 
-function getAccounts() {
-    try {
-        const saved=JSON.parse(localStorage.getItem(AUTH_KEY)||'null');
-        if(saved) return saved;
-    } catch {}
-    const defaults=[{role:'admin',username:'admin',password:'admin'},{role:'agent',username:'agent',password:'agent'},{role:'client',username:'client',password:'client'},{role:'developer',username:'dev',password:'dev123'}];
-    localStorage.setItem(AUTH_KEY,JSON.stringify(defaults));
-    return defaults;
-}
-function saveAccounts(accounts){localStorage.setItem(AUTH_KEY,JSON.stringify(accounts));}
+// NOTE: Login credentials are no longer stored in localStorage at all.
+// They live in one shared Drive file via the Apps Script backend
+// (see js/api.js). That's the single source of truth for every
+// device — the old getAccounts()/saveAccounts() localStorage-seeding
+// behavior is why a developer's credential change on one device
+// never showed up on another.
+
 function getAuditLog(){try{return JSON.parse(localStorage.getItem(AUDIT_KEY)||'[]')}catch{return[]}}
 function addAudit(action,details='',user=state.user){
     const logs=getAuditLog();

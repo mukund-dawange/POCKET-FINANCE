@@ -313,25 +313,29 @@ function initDevConsoleActions() {
     });
 }
 
-function renderAccessManager(){
+async function renderAccessManager(){
     const root=document.getElementById('accessAccounts');if(!root)return;
-    const accounts=getAccounts().filter(a=>a.role!=='developer');
+    root.innerHTML='<p class="empty-row">Loading logins…</p>';
+    const res=await apiListAccounts();
+    if(!res.success){root.innerHTML=`<p class="empty-row">${escapeHTML(res.message||'Could not load logins.')}</p>`;return;}
+    const accounts=res.accounts;
     root.innerHTML=accounts.map(a=>`<div class="access-card"><div class="access-card-head"><div class="role-icon"><i class="fa-solid ${a.role==='admin'?'fa-shield-halved':a.role==='agent'?'fa-user-tie':'fa-user'}"></i></div><div><h4>${a.role[0].toUpperCase()+a.role.slice(1)} Login</h4><small>Current ID: ${escapeHTML(a.username)}</small></div></div><button class="btn-friendly-secondary full" data-edit-role="${a.role}"><i class="fa-solid fa-key"></i> Change Login</button></div>`).join('');
     root.querySelectorAll('[data-edit-role]').forEach(btn=>btn.onclick=()=>editRoleLogin(btn.dataset.editRole));
     document.getElementById('googleClientId').value=localStorage.getItem('pf_googleClientId')||'';
 }
-function editRoleLogin(role){
+async function editRoleLogin(role){
     if(state.user?.role!=='developer')return;
-    const accounts=getAccounts(),account=accounts.find(a=>a.role===role);
-    showFormModal({title:`Change ${role} Login`,icon:'fa-key',submitLabel:'Replace Login',intro:'After saving, the old ID and password will stop working immediately.',fields:[
-        {id:'username',label:'New Login ID',required:true,value:account.username},
+    const list=await apiListAccounts();
+    const account=list.success?list.accounts.find(a=>a.role===role):null;
+    showFormModal({title:`Change ${role} Login`,icon:'fa-key',submitLabel:'Replace Login',intro:'After saving, the old ID and password will stop working immediately — on every device.',fields:[
+        {id:'username',label:'New Login ID',required:true,value:account?.username||''},
         {id:'password',label:'New Password',type:'password',required:true,placeholder:'Minimum 6 characters'},
-        {id:'googleEmail',label:'Allowed Google Email',type:'email',value:account.googleEmail||'',placeholder:'Optional'}
-    ],onSubmit:v=>{
+        {id:'googleEmail',label:'Allowed Google Email',type:'email',value:account?.googleEmail||'',placeholder:'Optional'}
+    ],onSubmit:async v=>{
         if(v.password.length<6)return showToast('Password must contain at least 6 characters.','danger');
-        if(accounts.some(a=>a.role!==role&&a.username.toLowerCase()===v.username.toLowerCase()))return showToast('That login ID is already in use.','danger');
-        account.username=v.username;account.password=v.password;account.googleEmail=v.googleEmail||'';saveAccounts(accounts);
-        addAudit('Credentials changed',`${role} login replaced by developer`);renderAccessManager();showToast(`${role} login updated. Old credentials no longer work.`,'success');
+        const result=await apiUpdateAccount({role,username:v.username,password:v.password,googleEmail:v.googleEmail||''});
+        if(!result.success)return showToast(result.message||'Could not update login.','danger');
+        addAudit('Credentials changed',`${role} login replaced by developer`);renderAccessManager();showToast(`${role} login updated. Old credentials no longer work on any device.`,'success');
     }});
 }
 function renderAuditLog(){

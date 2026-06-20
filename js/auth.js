@@ -1,18 +1,19 @@
 /* ============================================================
    auth.js — Login / logout
-   Demo-only credential check. Replace checkCredentials() with a
-   real API/Apps Script call when you wire up a backend.
+   Credentials are checked against the shared Apps Script + Drive
+   backend (js/api.js) — never stored locally.
    ============================================================ */
 
-function checkCredentials(username, password) {
-    const u=getAccounts().find(a=>a.username.toLowerCase()===username.toLowerCase() && a.password===password);
-    return u ? {username:u.username,role:u.role} : null;
+async function checkCredentials(username, password) {
+    const res = await apiLogin(username, password);
+    return res.success ? res.user : null;
 }
 
 function initAuth() {
     const form = document.getElementById('loginForm');
     const togglePass = document.getElementById('togglePass');
     const passInput = document.getElementById('loginPass');
+    const submitBtn = form.querySelector('button[type="submit"]');
 
     togglePass.addEventListener('click', () => {
         const isPass = passInput.type === 'password';
@@ -21,11 +22,19 @@ function initAuth() {
         togglePass.classList.toggle('fa-eye-slash', isPass);
     });
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const username = document.getElementById('loginUser').value.trim();
         const password = document.getElementById('loginPass').value;
-        const user = checkCredentials(username, password);
+
+        const originalLabel = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Checking...';
+
+        const user = await checkCredentials(username, password);
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalLabel;
 
         if (!user) {
             addAudit('Failed login', `Attempted ID: ${username}`, {username:username||'Unknown',role:'guest'});
@@ -62,13 +71,13 @@ function startGoogleLogin() {
     google.accounts.id.initialize({client_id:clientId,callback:handleGoogleCredential});
     google.accounts.id.prompt();
 }
-function handleGoogleCredential(response) {
+async function handleGoogleCredential(response) {
     try {
         const base=response.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
         const payload=JSON.parse(atob(base.padEnd(base.length+(4-base.length%4)%4,'=')));
-        const account=getAccounts().find(a=>a.googleEmail?.toLowerCase()===payload.email.toLowerCase());
-        if(!account) return showToastOnLogin('This Google account has not been assigned by the developer.', 'danger');
-        state.user={username:account.username,role:account.role,email:payload.email};
+        const res=await apiCheckGoogle(payload.email);
+        if(!res.success) return showToastOnLogin(res.message || 'This Google account has not been assigned by the developer.', 'danger');
+        state.user={username:res.user.username,role:res.user.role,email:payload.email};
         addAudit('Login','Google login successful',state.user);saveState();enterApp();
     } catch { showToastOnLogin('Google login could not be verified.', 'danger'); }
 }
