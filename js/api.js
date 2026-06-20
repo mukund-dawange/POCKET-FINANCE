@@ -10,7 +10,7 @@
    Paste your deployed Apps Script Web App URL below.
    ============================================================ */
 
-const ACCOUNTS_API_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
+const ACCOUNTS_API_URL = 'https://script.google.com/macros/s/AKfycbxgioYPEoNsmItNA3pF-19eqs56MYpb1Q8vlalpjkYxdnCi-oyrsoGNyCwCxiBC9jGH/exec';
 
 async function apiPost(action, data = {}) {
     if (!ACCOUNTS_API_URL || ACCOUNTS_API_URL.includes('PASTE_YOUR')) {

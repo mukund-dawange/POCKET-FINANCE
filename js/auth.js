@@ -5,8 +5,7 @@
    ============================================================ */
 
 async function checkCredentials(username, password) {
-    const res = await apiLogin(username, password);
-    return res.success ? res.user : null;
+    return apiLogin(username, password);
 }
 
 function initAuth() {
@@ -31,19 +30,19 @@ function initAuth() {
         submitBtn.disabled = true;
         submitBtn.textContent = 'Checking...';
 
-        const user = await checkCredentials(username, password);
+        const res = await checkCredentials(username, password);
 
         submitBtn.disabled = false;
         submitBtn.textContent = originalLabel;
 
-        if (!user) {
+        if (!res.success) {
             addAudit('Failed login', `Attempted ID: ${username}`, {username:username||'Unknown',role:'guest'});
-            showToastOnLogin('Invalid username or password.', 'danger');
+            showToastOnLogin(res.message || 'Invalid username or password.', 'danger');
             return;
         }
 
-        state.user = user;
-        addAudit('Login', 'Password login successful', user);
+        state.user = res.user;
+        addAudit('Login', 'Password login successful', res.user);
         saveState();
         enterApp();
     });
