@@ -1,427 +1,277 @@
-<!-- ... existing code ... -->
-    <style>
-        :root {
-            /* CLEAN ORANGE & WHITE THEME (Default) */
-            --bg-color: #f4f7fb;
-            --blob-1: #fed7aa; /* Soft Orange */
-            --blob-2: #ffedd5;
-            --blob-3: #fef3c7;
-            
-            --glass-bg: #ffffff;
-            --glass-bg-hover: #fdfdfd;
-            --glass-border: rgba(0, 0, 0, 0.04);
-            --glass-border-highlight: rgba(249, 115, 22, 0.2);
-            --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
-            
-            --text-main: #1e293b;
-            --text-muted: #64748b;
-            --primary: #f97316;       /* Bright Orange */
-            --primary-hover: #ea580c; /* Darker Orange */
-            --success: #10b981;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --input-bg: #f8fafc;
-        }
-
-        [data-theme="dark"] {
-            /* ORANGE DARK THEME */
-            --bg-color: #0f172a;
-            --blob-1: #c2410c; 
-            --blob-2: #9a3412;
-            --blob-3: #10b981;
-
-            --glass-bg: #1e293b;
-            --glass-bg-hover: #334155;
-            --glass-border: rgba(255, 255, 255, 0.05);
-            --glass-border-highlight: rgba(249, 115, 22, 0.3);
-            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-            
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --input-bg: #0f172a;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-<!-- ... existing code ... -->
-        .welcome-title {
-            color: var(--primary);
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 12px;
-            text-align: center;
-        }
-
-        .welcome-subtitle {
-            color: #64748b;
-            font-size: 13px;
-            line-height: 1.6;
-            text-align: center;
-            margin-bottom: 35px;
-        }
-
-        /* Friendly Form Inputs */
-        .friendly-input-group {
-            position: relative;
-            margin-bottom: 20px;
-        }
-
-        .friendly-input-group input {
-            width: 100%;
-            padding: 16px 45px 16px 45px;
-            border-radius: 12px;
-            border: 2px solid transparent;
-            background: #ffffff;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-            color: #334155;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            outline: none;
-        }
-
-        .friendly-input-group input:focus {
-            border-color: rgba(249, 115, 22, 0.4);
-            box-shadow: 0 4px 20px rgba(249, 115, 22, 0.1);
-        }
-
-        .friendly-input-group input::placeholder { color: #cbd5e1; }
-
-        .friendly-input-icon {
-            position: absolute; top: 50%; left: 18px; transform: translateY(-50%);
-            color: #94a3b8; font-size: 15px; transition: color 0.3s;
-        }
-        
-        .friendly-input-group input:focus + .friendly-input-icon { color: var(--primary); }
-
-        .friendly-input-action {
-            position: absolute; top: 50%; right: 18px; transform: translateY(-50%);
-            color: #10b981; font-size: 15px;
-        }
-        
-        .friendly-input-eye {
-            position: absolute; top: 50%; right: 18px; transform: translateY(-50%);
-            color: #94a3b8; font-size: 15px; cursor: pointer; transition: color 0.2s;
-        }
-        .friendly-input-eye:hover { color: #475569; }
-
-        /* Form Options (Remember / Forgot) */
-        .login-options {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 30px; padding: 0 5px;
-        }
-
-        .remember-me {
-            display: flex; align-items: center; gap: 8px;
-            font-size: 12px; color: #64748b; font-weight: 500; cursor: pointer;
-        }
-        .remember-me input {
-            accent-color: #10b981; width: 16px; height: 16px; cursor: pointer;
-        }
-
-        .forgot-pass {
-            font-size: 12px; color: #94a3b8; text-decoration: none; font-weight: 500;
-            transition: color 0.2s;
-        }
-        .forgot-pass:hover { color: var(--primary); }
-
-        /* Action Buttons */
-        .login-btn-row {
-            display: flex; gap: 15px; margin-bottom: 35px;
-        }
-
-        .btn-friendly-primary {
-            flex: 1.5;
-            background: var(--primary);
-            color: white;
-            border: none; border-radius: 30px;
-            padding: 14px 0; font-size: 15px; font-weight: 600;
-            cursor: pointer; transition: all 0.2s;
-            box-shadow: 0 8px 20px rgba(249, 115, 22, 0.25);
-        }
-        .btn-friendly-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(249, 115, 22, 0.35); }
-
-        .btn-friendly-secondary {
-<!-- ... existing code ... -->
-        .badge {
-            display: none; position: absolute; top: -5px; right: -5px; background: var(--danger); color: white;
-            font-size: 10px; height: 18px; min-width: 18px; padding: 0 5px; border-radius: 10px;
-            font-weight: bold; display: flex; align-items: center; justify-content: center;
-            animation: pulseBadge 2s infinite; border: 2px solid var(--bg-color);
-        }
-
-        .avatar-btn {
-            background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: white;
-            width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
-            font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 4px 10px rgba(249, 115, 22, 0.3);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        .dropdown-menu {
-<!-- ... existing code ... -->
-        .finance-card:hover { transform: translateY(-3px); background: var(--glass-bg-hover); border-color: var(--glass-border-highlight); }
-        .finance-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--primary); border-radius: 4px 0 0 4px; }
-        .finance-card.card-cash::before { background: var(--success); }
-        .finance-card.card-online::before { background: var(--warning); }
-        .finance-card.card-loaned::before { background: var(--warning); }
-        .finance-card h3 { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 600; }
-        .finance-card .counter-value { font-size: 32px; font-weight: 800; letter-spacing: -1px; }
-<!-- ... existing code ... -->
-        /* --- STREAMING_CHUNK:Styling tables and badges... --- */
-        .table-responsive { overflow-x: auto; border-radius: 12px; border: 1px solid var(--glass-border); background: var(--glass-bg); }
-        table { width: 100%; border-collapse: collapse; text-align: left; }
-        th, td { padding: 16px; border-bottom: 1px solid var(--glass-border); font-size: 14px; }
-        th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; background: rgba(0,0,0,0.03); }
-        tr:last-child td { border-bottom: none; }
-        tr:hover td { background: rgba(0,0,0,0.02); }
-        .customer-name-link { color: var(--primary); font-weight: 600; cursor: pointer; text-decoration: none; }
-        .customer-name-link:hover { text-decoration: underline; }
-<!-- ... existing code ... -->
-        .tab-trigger {
-            width:100%; min-height:46px; justify-content:flex-start; padding:11px 14px;
-            border-radius:12px; color:var(--text-muted); background: transparent; border: none;
-            font-weight: 600; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.2s ease;
-        }
-        .tab-trigger i { width:22px; text-align:center; font-size: 16px; }
-        .tab-trigger:hover { color:var(--text-main); background:rgba(255,255,255,0.05); }
-        .tab-trigger.active {
-            color:#fff; background:linear-gradient(135deg,var(--primary),var(--primary-hover));
-            box-shadow:0 8px 22px rgba(249,115,22,.28); border-color: transparent;
-        }
-        
-        .sidebar-section-label {
-<!-- ... existing code ... -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pocket Finance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="css/style.css">
 </head>
+<body>
 
-<body data-theme="light">
-    <!-- BACKGROUND ANIMATED SHAPES -->
-    <div class="bg-shapes">
-<!-- ... existing code ... -->
-        <!-- TOP NAVBAR -->
-        <nav class="navbar glass-panel">
-            <div style="display:flex; align-items:center; gap:10px;">
-                <button class="sidebar-menu-btn" onclick="toggleSidebar()" title="Open tools"><i class="fa-solid fa-bars"></i></button>
-                <div class="nav-brand"><i class="fa-solid fa-wallet" style="color: var(--primary);"></i> Pocket Finance</div>
-            </div>
-            <div class="nav-actions">
-<!-- ... existing code ... -->
-        <div class="dashboard-grid" id="adminDashboardGrid">
-            <div class="finance-card glass-panel">
-                <h3>Total Balance</h3>
-                <div class="counter-value" id="valTotal">₹0</div>
-            </div>
-            <div class="finance-card card-cash glass-panel">
-                <h3>Cash Vault</h3>
-                <div class="counter-value" id="valCash" style="color: var(--success);">₹0</div>
-            </div>
-            <div class="finance-card card-online glass-panel">
-                <h3>Online Funds</h3>
-                <div class="counter-value" id="valOnline" style="color: var(--warning);">₹0</div>
-            </div>
-            <div class="finance-card card-loaned glass-panel">
-                <h3>Active Loans</h3>
-<!-- ... existing code ... -->
-                <div id="agentDashStats" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:20px; margin-bottom:25px;">
-                    <div class="glass-panel" style="padding:20px; border-top: 4px solid var(--primary);">
-                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase; margin-bottom:8px;">Allocated Funds</div>
-                        <div id="agentWalletAmt" style="font-size:28px; font-weight:800; color:var(--primary);">₹0</div>
-                    </div>
-                    <div class="glass-panel" style="padding:20px; border-top: 4px solid var(--danger);">
-                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase; margin-bottom:8px;">Amount Spent</div>
-                        <div id="agentSpentAmt" style="font-size:28px; font-weight:800; color:var(--danger);">₹0</div>
-                    </div>
-                    <div class="glass-panel" style="padding:20px; border-top: 4px solid var(--success);">
-                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase; margin-bottom:8px;">Available Balance</div>
-                        <div id="agentBalanceAmt" style="font-size:28px; font-weight:800; color:var(--success);">₹0</div>
-                    </div>
-                    <div class="glass-panel" style="padding:20px; border-top: 4px solid var(--primary);">
-                        <div style="font-size:12px; color:var(--text-muted); font-weight:600; text-transform:uppercase; margin-bottom:8px;">Active Clients</div>
-                        <div id="agentClientCount" style="font-size:28px; font-weight:800; color:var(--primary);">0</div>
-                    </div>
-                </div>
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-blob blob-1"></div>
+  <div class="login-blob blob-2"></div>
+  <div class="login-blob blob-3"></div>
 
-                <div id="agentFundBar" class="glass-panel" style="padding:20px; margin-bottom:25px; display:none;">
-<!-- ... existing code ... -->
-                <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:25px; align-items:center;">
-                    <button class="btn btn-secondary" onclick="manualAgentRefresh()"><i class="fa-solid fa-rotate"></i> Refresh</button>
-                    <button class="sos-btn" onclick="openSOSModal()"><i class="fa-solid fa-circle-exclamation"></i> Raise SOS</button>
-                    <button class="btn" style="background:var(--primary);" onclick="openClientTokenModal()"><i class="fa-solid fa-user-plus"></i> Add Client</button>
-                    <div style="margin-left:auto; font-size:12px; color:var(--text-muted); padding:8px 12px; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border);">
-                        ID: <span id="agentWalletId" style="color:var(--text-main); font-weight:600; font-family:monospace;">—</span>
-                    </div>
-                </div>
+  <div class="login-card">
+    <div class="login-logo">
+      <i class="fa-solid fa-wallet"></i>
+    </div>
+    <h1 class="welcome-title">Pocket Finance</h1>
+    <p class="welcome-subtitle">Sign in to manage your wallet, loans &amp; clients</p>
 
-                <div class="dashboard-grid">
-                    <div id="agentTokenHistory" class="glass-panel" style="padding:25px;">
-                        <h3 style="font-size:16px; font-weight:700; margin-bottom:20px;"><i class="fa-solid fa-ticket" style="color:var(--warning);"></i> My SOS Requests</h3>
-                        <div id="agentTokenList"><p style="color:var(--text-muted); font-size:13px;">No SOS tokens raised yet.</p></div>
-                    </div>
-                    <div id="agentClientTokenHistory" class="glass-panel" style="padding:25px;">
-                        <h3 style="font-size:16px; font-weight:700; margin-bottom:20px;"><i class="fa-solid fa-users" style="color:var(--primary);"></i> My Clients</h3>
-                        <div id="agentClientList"><p style="color:var(--text-muted); font-size:13px;">No clients added yet.</p></div>
-                    </div>
-                </div>
-<!-- ... existing code ... -->
-        function renderAnalyticsCharts() {
-            const vCtx = document.getElementById('vaultDoughnutChart');
-            if (!vCtx) return; // Not on DOM yet
+    <form id="loginForm">
+      <div class="friendly-input-group">
+        <input type="text" id="loginUser" placeholder="Username" autocomplete="username" required>
+        <i class="fa-regular fa-user friendly-input-icon"></i>
+      </div>
+      <div class="friendly-input-group">
+        <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password" required>
+        <i class="fa-solid fa-lock friendly-input-icon"></i>
+        <i class="fa-regular fa-eye friendly-input-eye" id="togglePass"></i>
+      </div>
 
-            Chart.defaults.color = '#64748b';
-            Chart.defaults.font.family = "'Inter', sans-serif";
-            
-            const tooltipConfig = {
-<!-- ... existing code ... -->
-            // 1. Vault Distribution Doughnut
-            const vData = [state.wallet.cash, state.wallet.online];
-            if (_charts.vault) {
-                _charts.vault.data.datasets[0].data = vData;
-                _charts.vault.update();
-            } else {
-                _charts.vault = new Chart(vCtx, {
-                    type: 'doughnut',
-                    data: { labels: ['Cash Vault', 'Online Vault'], datasets: [{ data: vData, backgroundColor: ['rgba(16, 185, 129, 0.85)', 'rgba(249, 115, 22, 0.85)'], borderWidth: 0, hoverOffset: 4 }] },
-                    options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } }, tooltip: tooltipConfig } }
-                });
-            }
+      <div class="login-options">
+        <label class="remember-me">
+          <input type="checkbox" id="rememberMe"> Remember me
+        </label>
+        <a href="#" class="forgot-pass">Forgot password?</a>
+      </div>
 
-            // 2. Portfolio Health Pie
-            let actAmt = 0, paidAmt = 0;
-            state.loans.forEach(l => { if(l.status === 'Active') actAmt += l.amount; else paidAmt += l.amount; });
-            const sData = [actAmt, paidAmt];
-            const sCtx = document.getElementById('loanStatusPieChart');
-            if (_charts.status) {
-                _charts.status.data.datasets[0].data = sData;
-                _charts.status.update();
-            } else {
-                _charts.status = new Chart(sCtx, {
-                    type: 'pie',
-                    data: { labels: ['Active Loans', 'Paid / Closed'], datasets: [{ data: sData, backgroundColor: ['rgba(245, 158, 11, 0.85)', 'rgba(16, 185, 129, 0.85)'], borderWidth: 0, hoverOffset: 4 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } }, tooltip: tooltipConfig } }
-                });
-            }
+      <div class="login-btn-row">
+        <button type="submit" class="btn-friendly-primary">Sign In</button>
+      </div>
+    </form>
+    <p class="login-hint">Demo accounts: <b>admin/admin</b> · <b>agent/agent</b></p>
+  </div>
+</div>
 
-            // 3. Top Active Clients Bar
-            const actLoans = state.loans.filter(l => l.status === 'Active').sort((a, b) => b.amount - a.amount).slice(0, 5);
-            const cLabels = actLoans.length ? actLoans.map(l => l.name) : ['No Active Clients'];
-            const cData = actLoans.length ? actLoans.map(l => l.amount) : [0];
-            const cCtx = document.getElementById('topClientsBarChart');
-            if (_charts.clients) {
-                _charts.clients.data.labels = cLabels;
-                _charts.clients.data.datasets[0].data = cData;
-                _charts.clients.update();
-            } else {
-                _charts.clients = new Chart(cCtx, {
-                    type: 'bar',
-                    data: { labels: cLabels, datasets: [{ label: 'Principal', data: cData, backgroundColor: 'rgba(249, 115, 22, 0.85)', borderRadius: 6, maxBarThickness: 40 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...tooltipConfig, callbacks: { label: function(c) { return ' ₹' + c.parsed.y.toLocaleString('en-IN'); } } } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { callback: v => '₹'+(v>=1000?v/1000+'k':v) } }, x: { grid: { display: false } } } }
-                });
-            }
+<!-- ============ APP SHELL ============ -->
+<div id="appShell" class="app-shell hidden">
 
-            // 4. Agent Utilization (Allocated vs Deployed) Bar
-            const aLabels = agentState.length ? agentState.map(a => a.name.split(' ')[0]) : ['No Agents'];
-            const aAlloc = agentState.length ? agentState.map(a => a.fund) : [0];
-            const aDepl = agentState.length ? agentState.map(a => state.loans.filter(l=>l.agentId === a.id && l.status === 'Active').reduce((s,l)=>s+l.amount,0)) : [0];
-            const aCtx = document.getElementById('agentPerfChart');
-            if (_charts.agents) {
-                _charts.agents.data.labels = aLabels;
-                _charts.agents.data.datasets[0].data = aAlloc;
-                _charts.agents.data.datasets[1].data = aDepl;
-                _charts.agents.update();
-            } else {
-                _charts.agents = new Chart(aCtx, {
-                    type: 'bar',
-                    data: { labels: aLabels, datasets: [
-                        { label: 'Allocated', data: aAlloc, backgroundColor: 'rgba(148, 163, 184, 0.3)', borderRadius: 4, barPercentage: 0.7 },
-                        { label: 'Deployed', data: aDepl, backgroundColor: 'rgba(16, 185, 129, 0.8)', borderRadius: 4, barPercentage: 0.7 }
-                    ]},
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle:true, boxWidth:8 } }, tooltip: { ...tooltipConfig, callbacks: { label: function(c) { return ' ' + c.dataset.label + ': ₹' + c.parsed.y.toLocaleString('en-IN'); } } } }, scales: { x: { stacked: true, grid: {display:false} }, y: { stacked: false, beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { callback: v => '₹'+(v>=1000?v/1000+'k':v) } } } }
-                });
-            }
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="avatar-btn"><i class="fa-solid fa-wallet"></i></div>
+      <span class="brand-text">Pocket Finance</span>
+      <button class="sidebar-collapse-btn" id="collapseBtn"><i class="fa-solid fa-angles-left"></i></button>
+    </div>
 
-            // 5. 7-Day Cashflow Trend Area
-            const last7Days = Array.from({length: 7}, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0,0,0,0); return d; });
-            const incData = [0,0,0,0,0,0,0], expData = [0,0,0,0,0,0,0];
-            
-            state.logs.forEach(log => {
-                const logDate = new Date(log.timestampMs); logDate.setHours(0,0,0,0);
-                last7Days.forEach((day, idx) => {
-                    if (day.getTime() === logDate.getTime()) {
-                        const amt = parseFloat((log.impactStr || '').replace(/[^0-9.-]+/g,"")) || 0;
-                        if (log.typeClass === 'income') incData[idx] += amt;
-                        if (log.typeClass === 'expense') expData[idx] += Math.abs(amt);
-                    }
-                });
-            });
-            
-            const cfLabels = last7Days.map(d => d.toLocaleDateString('en-IN', {day:'numeric', month:'short'}));
-            const cfCtx = document.getElementById('cashflowLineChart');
-            
-            if (_charts.cashflow) {
-                _charts.cashflow.data.labels = cfLabels;
-                _charts.cashflow.data.datasets[0].data = incData;
-                _charts.cashflow.data.datasets[1].data = expData;
-                _charts.cashflow.update();
-            } else {
-                _charts.cashflow = new Chart(cfCtx, {
-                    type: 'line',
-                    data: { labels: cfLabels, datasets: [
-                        { label: 'Income', data: incData, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3 },
-                        { label: 'Expense', data: expData, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3 }
-                    ]},
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle:true, boxWidth:8 } }, tooltip: { ...tooltipConfig, mode: 'index', intersect: false, callbacks: { label: function(c) { return ' ' + c.dataset.label + ': ₹' + c.parsed.y.toLocaleString('en-IN'); } } } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { callback: v => '₹'+(v>=1000?v/1000+'k':v) } }, x: { grid: { display: false } } }, interaction: { mode: 'nearest', axis: 'x', intersect: false } }
-                });
-            }
+    <div class="sidebar-scroll">
+      <div class="sidebar-section-label">Overview</div>
+      <button class="tab-trigger active" data-section="dashboard"><i class="fa-solid fa-house"></i><span>Dashboard</span></button>
 
-            // 6. Pending Dues by Client (Bar)
-            let overdueClients = [];
-            const pdToday = new Date(); pdToday.setHours(0,0,0,0);
-            state.loans.forEach(l => {
-                if (l.status === 'Active') {
-                    const isOverdue = l.dueDate ? new Date(l.dueDate) < pdToday : false;
-                    const pendingHist = l.history.filter(h => h.status === 'Pending').reduce((sum, h) => sum + (Number(h.amount) || 0), 0);
-                    let cAmt = pendingHist + (isOverdue ? l.amount : 0);
-                    if (cAmt > 0) overdueClients.push({name: l.name, amt: cAmt});
-                }
-            });
-            overdueClients.sort((a,b) => b.amt - a.amt).slice(0, 5); // Top 5
-            const pLabels = overdueClients.length ? overdueClients.map(c => c.name) : ['No Pending Dues'];
-            const pData = overdueClients.length ? overdueClients.map(c => c.amt) : [0];
-            const pCtx = document.getElementById('pendingDuesChart');
-            
-            if (_charts.pending) {
-                _charts.pending.data.labels = pLabels;
-                _charts.pending.data.datasets[0].data = pData;
-                _charts.pending.update();
-            } else if (pCtx) {
-                _charts.pending = new Chart(pCtx, {
-                    type: 'bar',
-                    data: { labels: pLabels, datasets: [{ label: 'Pending Amount', data: pData, backgroundColor: 'rgba(239, 68, 68, 0.85)', borderRadius: 6, maxBarThickness: 40 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...tooltipConfig, callbacks: { label: function(c) { return ' ₹' + c.parsed.y.toLocaleString('en-IN'); } } } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { callback: v => '₹'+(v>=1000?v/1000+'k':v) } }, x: { grid: { display: false } } } }
-                });
-            }
+      <div class="sidebar-section-label">Functions</div>
+      <button class="tab-trigger" data-section="wallet"><i class="fa-solid fa-building-columns"></i><span>Wallet Management</span></button>
+      <button class="tab-trigger" data-section="loans"><i class="fa-solid fa-hand-holding-dollar"></i><span>Loan Accounts</span></button>
+      <button class="tab-trigger" data-section="ledger"><i class="fa-solid fa-clock-rotate-left"></i><span>Master Ledger</span></button>
+      <button class="tab-trigger" data-section="clients"><i class="fa-solid fa-users"></i><span>Clients</span></button>
+      <button class="tab-trigger" data-section="sos"><i class="fa-solid fa-tower-broadcast"></i><span>SOS Requests</span><span class="badge" id="sosBadge">0</span></button>
 
-            // 7. Client Size Distribution (Doughnut)
-            let cBuckets = { 'Micro (<10k)': 0, 'Small (10k-50k)': 0, 'Medium (50k-1L)': 0, 'Large (>1L)': 0 };
-            state.loans.forEach(l => {
-                if (l.status === 'Active') {
-                    if (l.amount < 10000) cBuckets['Micro (<10k)'] += l.amount;
-                    else if (l.amount <= 50000) cBuckets['Small (10k-50k)'] += l.amount;
-                    else if (l.amount <= 100000) cBuckets['Medium (50k-1L)'] += l.amount;
-                    else cBuckets['Large (>1L)'] += l.amount;
-                }
-            });
-            const csLabels = Object.keys(cBuckets);
-            const csData = Object.values(cBuckets);
-            const csCtx = document.getElementById('clientSizeChart');
+      <div class="sidebar-section-label admin-only">Administration</div>
+      <button class="tab-trigger admin-only" data-section="admin"><i class="fa-solid fa-shield-halved"></i><span>Admin Panel</span></button>
+      <button class="tab-trigger admin-only" data-section="devconsole"><i class="fa-solid fa-terminal"></i><span>Dev Console</span></button>
+    </div>
 
-            if (_charts.clientSize) {
-                _charts.clientSize.data.datasets[0].data = csData;
-                _charts.clientSize.update();
-            } else if (csCtx) {
-                _charts.clientSize = new Chart(csCtx, {
-                    type: 'doughnut',
-                    data: { labels: csLabels, datasets: [{ data: csData, backgroundColor: ['rgba(249, 115, 22, 0.85)', 'rgba(16, 185, 129, 0.85)', 'rgba(245, 158, 11, 0.85)', 'rgba(234, 88, 12, 0.85)'], borderWidth: 0, hoverOffset: 4 }] },
-                    options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } }, tooltip: tooltipConfig } }
-                });
-            }
-        }
-<!-- ... existing code ... -->
+    <div class="sidebar-footer">
+      <button class="tab-trigger" id="themeToggleBtn"><i class="fa-solid fa-moon"></i><span>Dark Mode</span></button>
+      <button class="tab-trigger" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i><span>Logout</span></button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    <header class="topbar">
+      <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fa-solid fa-bars"></i></button>
+      <h2 id="pageTitle">Dashboard</h2>
+      <div class="topbar-right">
+        <button class="icon-btn" id="notifBtn"><i class="fa-solid fa-bell"></i><span class="badge" id="notifBadge">0</span></button>
+        <div class="avatar-btn small" id="userAvatar">D</div>
+      </div>
+    </header>
+
+    <div class="toast-stack" id="toastStack"></div>
+
+    <div class="content-scroll">
+
+      <!-- DASHBOARD -->
+      <section class="page-section active" id="page-dashboard">
+        <div class="finance-cards-grid">
+          <div class="finance-card">
+            <h3>Total Balance</h3>
+            <div class="counter-value" id="statTotalBalance">₹0</div>
+          </div>
+          <div class="finance-card card-cash">
+            <h3>Cash Vault</h3>
+            <div class="counter-value" id="statCashVault">₹0</div>
+          </div>
+          <div class="finance-card card-online">
+            <h3>Online Funds</h3>
+            <div class="counter-value" id="statOnlineFunds">₹0</div>
+          </div>
+          <div class="finance-card card-loaned">
+            <h3>Active Loans</h3>
+            <div class="counter-value" id="statActiveLoans">₹0</div>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card"><h4>Vault Distribution</h4><div class="chart-box"><canvas id="vaultDoughnutChart"></canvas></div></div>
+          <div class="chart-card"><h4>Portfolio Health</h4><div class="chart-box"><canvas id="loanStatusPieChart"></canvas></div></div>
+          <div class="chart-card wide"><h4>7-Day Cashflow</h4><div class="chart-box"><canvas id="cashflowLineChart"></canvas></div></div>
+          <div class="chart-card"><h4>Top Active Clients</h4><div class="chart-box"><canvas id="topClientsBarChart"></canvas></div></div>
+          <div class="chart-card"><h4>Pending Dues</h4><div class="chart-box"><canvas id="pendingDuesChart"></canvas></div></div>
+          <div class="chart-card"><h4>Client Size Distribution</h4><div class="chart-box"><canvas id="clientSizeChart"></canvas></div></div>
+        </div>
+      </section>
+
+      <!-- WALLET MANAGEMENT -->
+      <section class="page-section" id="page-wallet">
+        <div class="panel-grid">
+          <div class="glass-panel">
+            <h3 class="panel-title success"><i class="fa-solid fa-arrow-down"></i> Deposit Funds</h3>
+            <form id="depositForm">
+              <label>Amount (₹)</label>
+              <input type="number" id="depositAmount" placeholder="0.00" min="0" step="0.01" required>
+              <label>Deposit Into</label>
+              <select id="depositTarget">
+                <option value="cash">Cash Balance</option>
+                <option value="online">Online Balance</option>
+              </select>
+              <button type="submit" class="btn-friendly-primary full">Process Deposit</button>
+            </form>
+          </div>
+
+          <div class="glass-panel">
+            <h3 class="panel-title danger"><i class="fa-solid fa-arrow-up"></i> Withdraw Funds</h3>
+            <form id="withdrawForm">
+              <label>Amount (₹)</label>
+              <input type="number" id="withdrawAmount" placeholder="0.00" min="0" step="0.01" required>
+              <label>Withdraw From</label>
+              <select id="withdrawSource">
+                <option value="cash">Cash Balance</option>
+                <option value="online">Online Balance</option>
+              </select>
+              <button type="submit" class="btn-friendly-secondary full">Process Withdrawal</button>
+            </form>
+          </div>
+
+          <div class="glass-panel">
+            <h3 class="panel-title"><i class="fa-solid fa-right-left"></i> Transfer Between Vaults</h3>
+            <form id="transferForm">
+              <label>Amount (₹)</label>
+              <input type="number" id="transferAmount" placeholder="0.00" min="0" step="0.01" required>
+              <label>Direction</label>
+              <select id="transferDirection">
+                <option value="cash2online">Cash → Online</option>
+                <option value="online2cash">Online → Cash</option>
+              </select>
+              <button type="submit" class="btn-friendly-primary full">Transfer</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- LOAN ACCOUNTS -->
+      <section class="page-section" id="page-loans">
+        <div class="section-header-row">
+          <h3>Loan Accounts</h3>
+          <button class="btn-friendly-primary" id="addLoanBtn"><i class="fa-solid fa-plus"></i> New Loan</button>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead><tr><th>Client</th><th>Amount</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
+            <tbody id="loansTableBody"><tr><td colspan="5" class="empty-row">No loans yet. Click "New Loan" to add one.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- MASTER LEDGER -->
+      <section class="page-section" id="page-ledger">
+        <div class="section-header-row">
+          <h3>Master Ledger</h3>
+          <button class="btn-friendly-secondary" id="exportLedgerBtn"><i class="fa-solid fa-download"></i> Export CSV</button>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead><tr><th>Date</th><th>Description</th><th>Type</th><th>Impact</th></tr></thead>
+            <tbody id="ledgerTableBody"><tr><td colspan="4" class="empty-row">No transactions logged yet.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- CLIENTS -->
+      <section class="page-section" id="page-clients">
+        <div class="section-header-row">
+          <h3>My Clients</h3>
+          <button class="btn-friendly-primary" id="addClientBtn"><i class="fa-solid fa-user-plus"></i> Add Client</button>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead><tr><th>Name</th><th>Phone</th><th>Outstanding</th><th>Actions</th></tr></thead>
+            <tbody id="clientsTableBody"><tr><td colspan="4" class="empty-row">No clients added yet.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- SOS -->
+      <section class="page-section" id="page-sos">
+        <div class="section-header-row">
+          <h3>My SOS Requests</h3>
+          <button class="btn-friendly-secondary danger" id="raiseSosBtn"><i class="fa-solid fa-triangle-exclamation"></i> Raise SOS</button>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead><tr><th>Raised On</th><th>Reason</th><th>Status</th></tr></thead>
+            <tbody id="sosTableBody"><tr><td colspan="3" class="empty-row">No SOS tokens raised yet.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ADMIN PANEL -->
+      <section class="page-section" id="page-admin">
+        <h3>Admin Panel</h3>
+        <div class="panel-grid">
+          <div class="glass-panel">
+            <h3 class="panel-title"><i class="fa-solid fa-users-gear"></i> Manage Agents</h3>
+            <p class="muted-text">Allocate funds and manage agent accounts here.</p>
+            <button class="btn-friendly-primary full" id="manageAgentsBtn">Open Agent Manager</button>
+          </div>
+          <div class="glass-panel">
+            <h3 class="panel-title"><i class="fa-solid fa-database"></i> Shared Database</h3>
+            <p class="muted-text">Connect this app to your Google Apps Script backend.</p>
+            <input type="text" id="sharedDbUrl" placeholder="Paste Apps Script Web App URL">
+            <button class="btn-friendly-primary full" id="connectDbBtn">Connect</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- DEV CONSOLE -->
+      <section class="page-section" id="page-devconsole">
+        <h3>Dev Console</h3>
+        <div class="glass-panel">
+          <h3 class="panel-title"><i class="fa-solid fa-code"></i> Raw State Inspector</h3>
+          <pre id="devStateOutput" class="dev-console-output">{}</pre>
+          <button class="btn-friendly-secondary" id="refreshStateBtn">Refresh</button>
+          <button class="btn-friendly-secondary danger" id="resetStateBtn">Reset All Data</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="js/state.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/sidebar.js"></script>
+<script src="js/wallet.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
