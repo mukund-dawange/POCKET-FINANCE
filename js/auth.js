@@ -88,9 +88,10 @@ function showToastOnLogin(msg, type) {
     if (!warn) {
         warn = document.createElement('p');
         warn.className = 'login-inline-warn';
-        warn.style.cssText = 'color:#ef4444;font-size:12px;text-align:center;margin-top:14px;font-weight:600;';
+        warn.style.cssText = 'font-size:12px;text-align:center;margin-top:14px;font-weight:600;';
         card.appendChild(warn);
     }
+    warn.style.color = type === 'info' ? '#64748b' : '#ef4444';
     warn.textContent = msg;
 }
 

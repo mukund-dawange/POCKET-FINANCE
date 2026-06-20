@@ -45,3 +45,36 @@ function apiUpdateAccount({ role, username, password, googleEmail }) {
         role, username, password, googleEmail
     });
 }
+
+// ---- Generic shared key/value storage (wallet, loans, clients, etc.) ----
+// Reads/writes go straight to pf_database.json on Drive via doGet/doPost's
+// default key/value branches — same backend, same file, no local copy.
+
+async function apiReadKey(key) {
+    if (!ACCOUNTS_API_URL || ACCOUNTS_API_URL.includes('PASTE_YOUR')) {
+        return { error: 'Login backend is not configured yet. Set ACCOUNTS_API_URL in js/api.js.' };
+    }
+    try {
+        const res = await fetch(`${ACCOUNTS_API_URL}?key=${encodeURIComponent(key)}`);
+        return await res.json();
+    } catch (err) {
+        console.error('Backend read failed:', err);
+        return { error: 'Could not reach the server.' };
+    }
+}
+
+async function apiWriteKey(key, value) {
+    if (!ACCOUNTS_API_URL || ACCOUNTS_API_URL.includes('PASTE_YOUR')) {
+        return { ok: false };
+    }
+    try {
+        const res = await fetch(ACCOUNTS_API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ key, value })
+        });
+        return await res.json();
+    } catch (err) {
+        console.error('Backend write failed:', err);
+        return { ok: false };
+    }
+}

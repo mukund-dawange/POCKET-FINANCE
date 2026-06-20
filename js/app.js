@@ -3,9 +3,13 @@
    load; everything else is just function definitions.
    ============================================================ */
 
-document.addEventListener('DOMContentLoaded', () => {
-    loadState();
+document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
+
+    showToastOnLogin('Loading your data…', 'info');
+    await loadState();             // pulls shared wallet/loans/etc. from the Drive backend
+    showToastOnLogin('', 'info');  // clear the loading message
+
     initAuth();        // shows login screen, or auto-enters app if session exists
     initSidebar();
     initWalletForms();

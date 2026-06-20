@@ -1,11 +1,16 @@
 /* ============================================================
-   state.js — Central app state + localStorage persistence
-   This is the single source of truth for all data in the app.
-   Swap saveState()/loadState() for real API calls later if you
-   connect a Google Apps Script backend (see Admin Panel).
+   state.js — Central app state
+   The logged-in session (state.user) stays local to this device
+   on purpose — that's just "who's signed in on this browser."
+   Everything else (wallet, loans, clients, logs, sos, agentState)
+   is the actual shared data, and now lives in the same Drive
+   backend that auth uses (js/api.js), under one key. No browser
+   keeps its own private copy anymore, so a fresh browser sees
+   the same data as every other device.
    ============================================================ */
 
-const STORAGE_KEY = 'pocketFinanceState_v1';
+const SESSION_KEY = 'pf_session_v1';     // local-only: who is logged in on this device
+const APP_STATE_KEY = 'pf_appState';     // shared backend key: everything else
 
 let state = {
     wallet: { cash: 0, online: 0 },
@@ -14,18 +19,14 @@ let state = {
     clients: [],   // { id, name, phone, outstanding }
     logs: [],      // { id, timestampMs, description, typeClass: 'income'|'expense', impactStr }
     sos: [],       // { id, raisedOn, reason, status }
-    user: null     // { username, role: 'admin'|'agent' }
+    user: null     // { username, role: 'admin'|'agent' } — local session only, never synced
 };
 
 let agentState = []; // { id, name, fund }
 const AUDIT_KEY = 'pocketFinanceAudit_v1';
 
-// NOTE: Login credentials are no longer stored in localStorage at all.
-// They live in one shared Drive file via the Apps Script backend
-// (see js/api.js). That's the single source of truth for every
-// device — the old getAccounts()/saveAccounts() localStorage-seeding
-// behavior is why a developer's credential change on one device
-// never showed up on another.
+// NOTE: Login credentials are not stored here at all — they live in
+// the shared Drive file via js/api.js (apiLogin/apiListAccounts/etc).
 
 function getAuditLog(){try{return JSON.parse(localStorage.getItem(AUDIT_KEY)||'[]')}catch{return[]}}
 function addAudit(action,details='',user=state.user){
@@ -34,32 +35,51 @@ function addAudit(action,details='',user=state.user){
     localStorage.setItem(AUDIT_KEY,JSON.stringify(logs.slice(0,500)));
 }
 
-function saveState() {
+async function saveState() {
+    // Session: who's logged in on THIS device — stays local on purpose.
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, agentState }));
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ user: state.user }));
     } catch (e) {
-        console.error('Failed to save state:', e);
+        console.error('Failed to save session:', e);
+    }
+
+    // Everything else: shared data, goes to the Drive backend.
+    const { user, ...sharedState } = state;
+    try {
+        await apiWriteKey(APP_STATE_KEY, { state: sharedState, agentState });
+    } catch (e) {
+        console.error('Failed to save shared state:', e);
     }
 }
 
-function loadState() {
+async function loadState() {
+    // Restore this device's own login session
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(SESSION_KEY);
         if (raw) {
             const parsed = JSON.parse(raw);
-            if (parsed.state) state = Object.assign(state, parsed.state);
-            if (parsed.agentState) agentState = parsed.agentState;
+            if (parsed.user) state.user = parsed.user;
         }
     } catch (e) {
-        console.error('Failed to load state:', e);
+        console.error('Failed to load session:', e);
+    }
+
+    // Pull the shared financial data from the backend
+    try {
+        const res = await apiReadKey(APP_STATE_KEY);
+        if (res && res.value) {
+            if (res.value.state) state = Object.assign(state, res.value.state);
+            if (res.value.agentState) agentState = res.value.agentState;
+        }
+    } catch (e) {
+        console.error('Failed to load shared state:', e);
     }
 }
 
-function resetState() {
-    localStorage.removeItem(STORAGE_KEY);
+async function resetState() {
     state = { wallet: { cash: 0, online: 0 }, loans: [], loanTrash: [], clients: [], logs: [], sos: [], user: state.user };
     agentState = [];
-    saveState();
+    await saveState();
 }
 
 function addLog(description, typeClass, impactAmount) {
