@@ -38,7 +38,7 @@ function renderAnalyticsCharts() {
     // 2. Portfolio Health Pie
     let actAmt = 0, paidAmt = 0;
     const healthScopeLoans = state.user?.role === 'agent' ? state.loans.filter(l => l.agentId === state.user.agentId) : state.loans;
-    healthScopeLoans.forEach(l => { if (l.status === 'Active') actAmt += l.amount; else paidAmt += l.amount; });
+    healthScopeLoans.forEach(l => { if (l.status !== 'Paid') actAmt += l.amount; else paidAmt += l.amount; });
     const sData = [actAmt, paidAmt];
     const sCtx = document.getElementById('loanStatusPieChart');
     if (_charts.status) {
@@ -54,7 +54,7 @@ function renderAnalyticsCharts() {
 
     // 3. Top Active Clients Bar
     const topScopeLoans = state.user?.role === 'agent' ? state.loans.filter(l => l.agentId === state.user.agentId) : state.loans;
-    const actLoans = topScopeLoans.filter(l => l.status === 'Active').sort((a, b) => b.amount - a.amount).slice(0, 5);
+    const actLoans = topScopeLoans.filter(l => l.status !== 'Paid').sort((a, b) => b.amount - a.amount).slice(0, 5);
     const cLabels = actLoans.length ? actLoans.map(l => l.name) : ['No Active Clients'];
     const cData = actLoans.length ? actLoans.map(l => l.amount) : [0];
     const cCtx = document.getElementById('topClientsBarChart');
@@ -109,7 +109,7 @@ function renderAnalyticsCharts() {
     // 5. Pending Dues by Client (Bar) — scoped to the logged-in agent, or all clients for admin/dev
     const isAgentUser = state.user?.role === 'agent';
     const scopedActiveLoans = (isAgentUser ? state.loans.filter(l => l.agentId === state.user.agentId) : state.loans)
-        .filter(l => l.status === 'Active' && (Number(l.outstanding) || 0) > 0);
+        .filter(l => l.status !== 'Paid' && (Number(l.outstanding) || 0) > 0);
 
     let pendingByClient = {};
     scopedActiveLoans.forEach(l => {
@@ -137,7 +137,7 @@ function renderAnalyticsCharts() {
     let cBuckets = { 'Micro (<10k)': 0, 'Small (10k-50k)': 0, 'Medium (50k-1L)': 0, 'Large (>1L)': 0 };
     const sizeScopeLoans = state.user?.role === 'agent' ? state.loans.filter(l => l.agentId === state.user.agentId) : state.loans;
     sizeScopeLoans.forEach(l => {
-        if (l.status === 'Active') {
+        if (l.status !== 'Paid') {
             if (l.amount < 10000) cBuckets['Micro (<10k)'] += l.amount;
             else if (l.amount <= 50000) cBuckets['Small (10k-50k)'] += l.amount;
             else if (l.amount <= 100000) cBuckets['Medium (50k-1L)'] += l.amount;

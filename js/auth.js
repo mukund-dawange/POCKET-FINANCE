@@ -113,7 +113,10 @@ function enterApp() {
     document.getElementById('appShell').classList.remove('hidden');
 
     const avatar = document.getElementById('userAvatar');
-    if (avatar) avatar.textContent = (state.user.username || '?')[0].toUpperCase();
+    if (avatar) {
+        if (typeof refreshTopbarAvatar === 'function') refreshTopbarAvatar();
+        else avatar.textContent = (state.user.username || '?')[0].toUpperCase();
+    }
 
     // Show/hide admin-only nav items based on role
     const isDeveloper = state.user.role === 'developer';

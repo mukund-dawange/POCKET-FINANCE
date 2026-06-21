@@ -8,6 +8,7 @@
 
 const SECTION_TITLES = {
     dashboard: 'Dashboard',
+    settings: 'Settings',
     wallet: 'Wallet Management',
     loans: 'Loan Accounts',
     ledger: 'Master Ledger',
@@ -48,6 +49,7 @@ function switchSection(sectionKey) {
     localStorage.setItem('pf_lastSection', sectionKey);
     if(state.user) addAudit('Navigation', `Opened ${SECTION_TITLES[sectionKey] || sectionKey}`);
     if(sectionKey==='activity' && typeof renderAuditLog==='function') renderAuditLog();
+    if(sectionKey==='settings' && typeof renderSettingsPage==='function') renderSettingsPage();
 }
 
 function initSidebar() {

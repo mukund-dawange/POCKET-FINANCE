@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     showToastOnLogin('Loading your data…', 'info');
     await loadState();             // pulls shared wallet/loans/etc. from the Drive backend
+    if (typeof loadProfiles === 'function') await loadProfiles(); // pulls admin/developer profile extras
     showToastOnLogin('', 'info');  // clear the loading message
 
     initAuth();        // shows login screen, or auto-enters app if session exists
@@ -18,4 +19,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     initSosActions();
     initAdminActions();
     initDevConsoleActions();
+    if (typeof initSettings === 'function') initSettings();
 });
