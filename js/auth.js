@@ -137,7 +137,11 @@ function enterApp() {
         localStorage.setItem('pf_lastSection', 'dashboard');
         switchSection('dashboard');
     }
-    if (!isAdmin && (savedSection === 'wallet' || savedSection === 'admin')) {
+    if (!isAdmin && (savedSection === 'wallet' || savedSection === 'admin' || savedSection === 'levels')) {
+        localStorage.setItem('pf_lastSection', 'dashboard');
+        switchSection('dashboard');
+    }
+    if (!isAgent && savedSection === 'myrank') {
         localStorage.setItem('pf_lastSection', 'dashboard');
         switchSection('dashboard');
     }

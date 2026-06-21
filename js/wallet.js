@@ -280,13 +280,16 @@ function renderAgentManager() {
             <div class="agent-fund-amt">${fmtINR(a.fund)}</div>
             <div class="agent-card-actions">
                 <button class="btn-friendly-primary compact" data-give="${a.id}"><i class="fa-solid fa-money-bill-transfer"></i> Give Fund</button>
+                <button class="btn-friendly-secondary compact" data-allocate="${a.id}"><i class="fa-solid fa-bullseye"></i> Allocation</button>
                 <button class="btn-friendly-secondary compact" data-edit="${a.id}"><i class="fa-solid fa-key"></i> Edit Login</button>
                 <button class="btn-friendly-secondary compact" data-toggle="${a.id}"><i class="fa-solid fa-power-off"></i> ${a.disabled ? 'Enable' : 'Disable'}</button>
                 <button class="row-action-btn" data-delete="${a.id}" title="Delete"><i class="fa-solid fa-trash"></i></button>
             </div>
+            ${typeof getAgentCurrentLevel === 'function' ? `<small style="display:block;margin-top:10px;color:var(--text-muted);">${escapeHTML(getAgentCurrentLevel(a)?.rankName || 'Unranked')} · ${getAgentProgressPct(a)}% progress</small>` : ''}
         </div>
     `).join('');
     root.querySelectorAll('[data-give]').forEach(b => b.onclick = () => giveAgentFund(b.dataset.give));
+    root.querySelectorAll('[data-allocate]').forEach(b => b.onclick = () => showSetAllocationModal(b.dataset.allocate));
     root.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editAgentLogin(b.dataset.edit));
     root.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => toggleAgent(b.dataset.toggle));
     root.querySelectorAll('[data-delete]').forEach(b => b.onclick = () => deleteAgent(b.dataset.delete));
@@ -697,4 +700,5 @@ function renderAll() {
     renderDevConsole();
     renderAgentManager();
     if (typeof renderAnalyticsCharts === 'function') renderAnalyticsCharts();
+    if (typeof renderMyRankPage === 'function') renderMyRankPage();
 }

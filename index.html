@@ -85,6 +85,8 @@
       <button class="tab-trigger" data-section="loans"><i class="fa-solid fa-hand-holding-dollar"></i><span>Loan Accounts</span></button>
       <button class="tab-trigger" data-section="ledger"><i class="fa-solid fa-clock-rotate-left"></i><span>Master Ledger</span></button>
       <button class="tab-trigger" data-section="sos"><i class="fa-solid fa-tower-broadcast"></i><span>SOS Requests</span><span class="badge" id="sosBadge">0</span></button>
+      <button class="tab-trigger agent-only" data-section="myrank"><i class="fa-solid fa-ranking-star"></i><span>My Rank</span></button>
+      <button class="tab-trigger admin-only" data-section="levels"><i class="fa-solid fa-trophy"></i><span>Levels &amp; Ranking</span></button>
 
       <div class="sidebar-section-label admin-only">Administration</div>
       <button class="tab-trigger admin-only" data-section="admin"><i class="fa-solid fa-shield-halved"></i><span>Admin Panel</span></button>
@@ -318,6 +320,21 @@
         </div>
       </section>
 
+      <!-- MY RANK (agent) -->
+      <section class="page-section" id="page-myrank">
+        <div class="section-header-row">
+          <div>
+            <h3>My Rank</h3>
+            <p class="muted-text">Track your progress, level and where you stand on the leaderboard.</p>
+          </div>
+        </div>
+        <div class="glass-panel" id="myRankCard"></div>
+        <div class="glass-panel" style="margin-top:18px;">
+          <h3 class="panel-title"><i class="fa-solid fa-list-ol"></i> Leaderboard</h3>
+          <div class="leaderboard-list" id="leaderboardList"></div>
+        </div>
+      </section>
+
       <!-- SOS -->
       <section class="page-section" id="page-sos">
         <div class="section-header-row">
@@ -348,6 +365,30 @@
             <input type="text" id="sharedDbUrl" placeholder="Paste Apps Script Web App URL">
             <button class="btn-friendly-primary full" id="connectDbBtn">Connect</button>
           </div>
+        </div>
+      </section>
+
+      <!-- LEVELS & RANKING (admin/dev) -->
+      <section class="page-section" id="page-levels">
+        <div class="section-header-row">
+          <div>
+            <h3>Agent Level &amp; Ranking System</h3>
+            <p class="muted-text">Define levels, ranks, targets and benefits. Review upgrade requests and check the leaderboard.</p>
+          </div>
+          <button class="btn-friendly-primary compact" id="addLevelBtn"><i class="fa-solid fa-plus"></i> New Level</button>
+        </div>
+
+        <div class="glass-panel">
+          <h3 class="panel-title"><i class="fa-solid fa-inbox"></i> Upgrade Requests</h3>
+          <div id="upgradeRequestsList"></div>
+        </div>
+
+        <h3 style="margin:24px 0 4px;">Levels</h3>
+        <div class="levels-grid" id="levelsAdminGrid"></div>
+
+        <div class="glass-panel" style="margin-top:18px;">
+          <h3 class="panel-title"><i class="fa-solid fa-list-ol"></i> Agent Leaderboard</h3>
+          <div class="leaderboard-list" id="leaderboardListAdmin"></div>
         </div>
       </section>
 
@@ -402,6 +443,7 @@
 <script src="js/sidebar.js"></script>
 <script src="js/wallet.js"></script>
 <script src="js/settings.js"></script>
+<script src="js/ranking.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/app.js"></script>
 </body>

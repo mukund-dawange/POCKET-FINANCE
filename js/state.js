@@ -19,6 +19,7 @@ let state = {
     clients: [],   // { id, name, phone, outstanding }
     logs: [],      // { id, timestampMs, description, typeClass: 'income'|'expense', impactStr }
     sos: [],       // { id, raisedOn, reason, status }
+    levelDefs: [], // { id, name, rankName, targetPct, allocationLimit, benefits: [string,...], order }
     user: null     // { username, role: 'admin'|'agent' } — local session only, never synced
 };
 
@@ -77,7 +78,7 @@ async function loadState() {
 }
 
 async function resetState() {
-    state = { wallet: { cash: 0, online: 0 }, loans: [], loanTrash: [], clients: [], logs: [], sos: [], user: state.user };
+    state = { wallet: { cash: 0, online: 0 }, loans: [], loanTrash: [], clients: [], logs: [], sos: [], levelDefs: [], user: state.user };
     agentState = [];
     await saveState();
 }

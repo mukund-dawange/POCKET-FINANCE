@@ -13,6 +13,8 @@ const SECTION_TITLES = {
     loans: 'Loan Accounts',
     ledger: 'Master Ledger',
     sos: 'SOS Requests',
+    myrank: 'My Rank',
+    levels: 'Levels & Ranking',
     admin: 'Admin Panel',
     devconsole: 'Dev Console',
     access: 'Access Manager',
@@ -27,7 +29,8 @@ function closeMobileSidebar() {
 
 function switchSection(sectionKey) {
     if (['access','activity','danger','devconsole'].includes(sectionKey) && state.user?.role !== 'developer') sectionKey='dashboard';
-    if (['wallet','admin'].includes(sectionKey) && !['admin','developer'].includes(state.user?.role)) sectionKey='dashboard';
+    if (['wallet','admin','levels'].includes(sectionKey) && !['admin','developer'].includes(state.user?.role)) sectionKey='dashboard';
+    if (sectionKey==='myrank' && state.user?.role !== 'agent') sectionKey='dashboard';
     document.querySelectorAll('.tab-trigger[data-section]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.section === sectionKey);
     });
@@ -50,6 +53,7 @@ function switchSection(sectionKey) {
     if(state.user) addAudit('Navigation', `Opened ${SECTION_TITLES[sectionKey] || sectionKey}`);
     if(sectionKey==='activity' && typeof renderAuditLog==='function') renderAuditLog();
     if(sectionKey==='settings' && typeof renderSettingsPage==='function') renderSettingsPage();
+    if((sectionKey==='myrank' || sectionKey==='levels') && typeof renderMyRankPage==='function') renderMyRankPage();
 }
 
 function initSidebar() {
