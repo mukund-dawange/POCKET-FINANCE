@@ -15,7 +15,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     initWalletForms();
     initLoanActions();
     initLedgerActions();
-    initClientActions();
     initSosActions();
     initAdminActions();
     initDevConsoleActions();

@@ -11,7 +11,6 @@ const SECTION_TITLES = {
     wallet: 'Wallet Management',
     loans: 'Loan Accounts',
     ledger: 'Master Ledger',
-    clients: 'Clients',
     sos: 'SOS Requests',
     admin: 'Admin Panel',
     devconsole: 'Dev Console',
@@ -27,6 +26,7 @@ function closeMobileSidebar() {
 
 function switchSection(sectionKey) {
     if (['access','activity','danger','devconsole'].includes(sectionKey) && state.user?.role !== 'developer') sectionKey='dashboard';
+    if (['wallet','admin'].includes(sectionKey) && !['admin','developer'].includes(state.user?.role)) sectionKey='dashboard';
     document.querySelectorAll('.tab-trigger[data-section]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.section === sectionKey);
     });

@@ -80,10 +80,9 @@
       <button class="tab-trigger active" data-section="dashboard"><i class="fa-solid fa-house"></i><span>Dashboard</span></button>
 
       <div class="sidebar-section-label">Functions</div>
-      <button class="tab-trigger" data-section="wallet"><i class="fa-solid fa-building-columns"></i><span>Wallet Management</span></button>
+      <button class="tab-trigger admin-only" data-section="wallet"><i class="fa-solid fa-building-columns"></i><span>Wallet Management</span></button>
       <button class="tab-trigger" data-section="loans"><i class="fa-solid fa-hand-holding-dollar"></i><span>Loan Accounts</span></button>
       <button class="tab-trigger" data-section="ledger"><i class="fa-solid fa-clock-rotate-left"></i><span>Master Ledger</span></button>
-      <button class="tab-trigger" data-section="clients"><i class="fa-solid fa-users"></i><span>Clients</span></button>
       <button class="tab-trigger" data-section="sos"><i class="fa-solid fa-tower-broadcast"></i><span>SOS Requests</span><span class="badge" id="sosBadge">0</span></button>
 
       <div class="sidebar-section-label admin-only">Administration</div>
@@ -118,15 +117,19 @@
       <!-- DASHBOARD -->
       <section class="page-section active" id="page-dashboard">
         <div class="finance-cards-grid">
-          <div class="finance-card">
+          <div class="finance-card agent-only" style="display:none;">
+            <h3>My Fund Balance</h3>
+            <div class="counter-value" id="statAgentFund">₹0</div>
+          </div>
+          <div class="finance-card admin-only">
             <h3>Total Balance</h3>
             <div class="counter-value" id="statTotalBalance">₹0</div>
           </div>
-          <div class="finance-card card-cash">
+          <div class="finance-card card-cash admin-only">
             <h3>Cash Vault</h3>
             <div class="counter-value" id="statCashVault">₹0</div>
           </div>
-          <div class="finance-card card-online">
+          <div class="finance-card card-online admin-only">
             <h3>Online Funds</h3>
             <div class="counter-value" id="statOnlineFunds">₹0</div>
           </div>
@@ -134,14 +137,18 @@
             <h3>Active Loans</h3>
             <div class="counter-value" id="statActiveLoans">₹0</div>
           </div>
+          <div class="finance-card card-pending">
+            <h3>Pending From Clients</h3>
+            <div class="counter-value" id="statPendingDues">₹0</div>
+          </div>
         </div>
 
         <div class="charts-grid">
-          <div class="chart-card"><h4>Vault Distribution</h4><div class="chart-box"><canvas id="vaultDoughnutChart"></canvas></div></div>
+          <div class="chart-card admin-only"><h4>Vault Distribution</h4><div class="chart-box"><canvas id="vaultDoughnutChart"></canvas></div></div>
           <div class="chart-card"><h4>Portfolio Health</h4><div class="chart-box"><canvas id="loanStatusPieChart"></canvas></div></div>
-          <div class="chart-card wide"><h4>7-Day Cashflow</h4><div class="chart-box"><canvas id="cashflowLineChart"></canvas></div></div>
+          <div class="chart-card wide admin-only"><h4>7-Day Cashflow</h4><div class="chart-box"><canvas id="cashflowLineChart"></canvas></div></div>
           <div class="chart-card"><h4>Top Active Clients</h4><div class="chart-box"><canvas id="topClientsBarChart"></canvas></div></div>
-          <div class="chart-card"><h4>Pending Dues</h4><div class="chart-box"><canvas id="pendingDuesChart"></canvas></div></div>
+          <div class="chart-card"><h4>Pending Dues by Client</h4><div class="chart-box"><canvas id="pendingDuesChart"></canvas></div></div>
           <div class="chart-card"><h4>Client Size Distribution</h4><div class="chart-box"><canvas id="clientSizeChart"></canvas></div></div>
         </div>
       </section>
@@ -199,6 +206,7 @@
           <h3>Loan Accounts</h3>
           <div class="loan-toolbar">
             <div class="loan-search"><i class="fa-solid fa-magnifying-glass"></i><input id="loanSearch" type="search" placeholder="Search client, phone or status"></div>
+            <select id="loanAgentFilter" class="admin-only" style="min-width:160px;"></select>
             <button class="btn-friendly-secondary compact" id="loanTrashBtn"><i class="fa-solid fa-trash-can-arrow-up"></i> Recycle Bin</button>
             <button class="btn-friendly-primary compact" id="addLoanBtn"><i class="fa-solid fa-plus"></i> New Loan</button>
           </div>
@@ -225,20 +233,6 @@
         </div>
       </section>
 
-      <!-- CLIENTS -->
-      <section class="page-section" id="page-clients">
-        <div class="section-header-row">
-          <h3>My Clients</h3>
-          <button class="btn-friendly-primary" id="addClientBtn"><i class="fa-solid fa-user-plus"></i> Add Client</button>
-        </div>
-        <div class="table-responsive">
-          <table>
-            <thead><tr><th>Name</th><th>Phone</th><th>Outstanding</th><th>Actions</th></tr></thead>
-            <tbody id="clientsTableBody"><tr><td colspan="4" class="empty-row">No clients added yet.</td></tr></tbody>
-          </table>
-        </div>
-      </section>
-
       <!-- SOS -->
       <section class="page-section" id="page-sos">
         <div class="section-header-row">
@@ -259,8 +253,9 @@
         <div class="panel-grid">
           <div class="glass-panel">
             <h3 class="panel-title"><i class="fa-solid fa-users-gear"></i> Manage Agents</h3>
-            <p class="muted-text">Allocate funds and manage agent accounts here.</p>
-            <button class="btn-friendly-primary full" id="manageAgentsBtn">Open Agent Manager</button>
+            <p class="muted-text">Create agent logins, allocate funds from a chosen vault, and manage existing agents here.</p>
+            <button class="btn-friendly-primary full" id="addAgentBtn"><i class="fa-solid fa-user-plus"></i> Add New Agent</button>
+            <div id="agentManagerList" class="agent-list"></div>
           </div>
           <div class="glass-panel">
             <h3 class="panel-title"><i class="fa-solid fa-database"></i> Shared Database</h3>

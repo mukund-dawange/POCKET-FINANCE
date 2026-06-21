@@ -5,6 +5,19 @@
    ============================================================ */
 
 async function checkCredentials(username, password) {
+    // Agents are created locally by the admin and live in the shared
+    // agentState array (synced via the same backend, but checked here
+    // directly — no need to round-trip through the accounts API).
+    const agent = agentState.find(a => a.username && a.username === username);
+    if (agent) {
+        if (agent.password !== password) {
+            return { success: false, message: 'Invalid username or password.' };
+        }
+        if (agent.disabled) {
+            return { success: false, message: 'This agent account has been disabled by the admin.' };
+        }
+        return { success: true, user: { username: agent.username, role: 'agent', agentId: agent.id, name: agent.name } };
+    }
     return apiLogin(username, password);
 }
 
@@ -105,15 +118,23 @@ function enterApp() {
     // Show/hide admin-only nav items based on role
     const isDeveloper = state.user.role === 'developer';
     const isAdmin = state.user.role === 'admin' || isDeveloper;
+    const isAgent = state.user.role === 'agent';
     document.querySelectorAll('.admin-only').forEach(el => {
         el.style.display = isAdmin ? '' : 'none';
     });
     document.querySelectorAll('.dev-only').forEach(el => {
         el.style.display = isDeveloper ? '' : 'none';
     });
+    document.querySelectorAll('.agent-only').forEach(el => {
+        el.style.display = isAgent ? '' : 'none';
+    });
 
     const savedSection = localStorage.getItem('pf_lastSection');
     if (!isDeveloper && (savedSection === 'devconsole' || savedSection === 'danger')) {
+        localStorage.setItem('pf_lastSection', 'dashboard');
+        switchSection('dashboard');
+    }
+    if (!isAdmin && (savedSection === 'wallet' || savedSection === 'admin')) {
         localStorage.setItem('pf_lastSection', 'dashboard');
         switchSection('dashboard');
     }

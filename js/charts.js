@@ -37,7 +37,8 @@ function renderAnalyticsCharts() {
 
     // 2. Portfolio Health Pie
     let actAmt = 0, paidAmt = 0;
-    state.loans.forEach(l => { if (l.status === 'Active') actAmt += l.amount; else paidAmt += l.amount; });
+    const healthScopeLoans = state.user?.role === 'agent' ? state.loans.filter(l => l.agentId === state.user.agentId) : state.loans;
+    healthScopeLoans.forEach(l => { if (l.status === 'Active') actAmt += l.amount; else paidAmt += l.amount; });
     const sData = [actAmt, paidAmt];
     const sCtx = document.getElementById('loanStatusPieChart');
     if (_charts.status) {
@@ -52,7 +53,8 @@ function renderAnalyticsCharts() {
     }
 
     // 3. Top Active Clients Bar
-    const actLoans = state.loans.filter(l => l.status === 'Active').sort((a, b) => b.amount - a.amount).slice(0, 5);
+    const topScopeLoans = state.user?.role === 'agent' ? state.loans.filter(l => l.agentId === state.user.agentId) : state.loans;
+    const actLoans = topScopeLoans.filter(l => l.status === 'Active').sort((a, b) => b.amount - a.amount).slice(0, 5);
     const cLabels = actLoans.length ? actLoans.map(l => l.name) : ['No Active Clients'];
     const cData = actLoans.length ? actLoans.map(l => l.amount) : [0];
     const cCtx = document.getElementById('topClientsBarChart');
@@ -104,18 +106,17 @@ function renderAnalyticsCharts() {
         });
     }
 
-    // 5. Pending Dues by Client (Bar)
-    let overdueClients = [];
-    const pdToday = new Date(); pdToday.setHours(0, 0, 0, 0);
-    state.loans.forEach(l => {
-        if (l.status === 'Active') {
-            const isOverdue = l.dueDate ? new Date(l.dueDate) < pdToday : false;
-            const pendingHist = (l.history || []).filter(h => h.status === 'Pending').reduce((sum, h) => sum + (Number(h.amount) || 0), 0);
-            let cAmt = pendingHist + (isOverdue ? l.amount : 0);
-            if (cAmt > 0) overdueClients.push({ name: l.name, amt: cAmt });
-        }
+    // 5. Pending Dues by Client (Bar) — scoped to the logged-in agent, or all clients for admin/dev
+    const isAgentUser = state.user?.role === 'agent';
+    const scopedActiveLoans = (isAgentUser ? state.loans.filter(l => l.agentId === state.user.agentId) : state.loans)
+        .filter(l => l.status === 'Active' && (Number(l.outstanding) || 0) > 0);
+
+    let pendingByClient = {};
+    scopedActiveLoans.forEach(l => {
+        const key = l.name || 'Unknown';
+        pendingByClient[key] = (pendingByClient[key] || 0) + (Number(l.outstanding) || 0);
     });
-    overdueClients = overdueClients.sort((a, b) => b.amt - a.amt).slice(0, 5);
+    let overdueClients = Object.entries(pendingByClient).map(([name, amt]) => ({ name, amt })).sort((a, b) => b.amt - a.amt).slice(0, 6);
     const pLabels = overdueClients.length ? overdueClients.map(c => c.name) : ['No Pending Dues'];
     const pData = overdueClients.length ? overdueClients.map(c => c.amt) : [0];
     const pCtx = document.getElementById('pendingDuesChart');
@@ -127,14 +128,15 @@ function renderAnalyticsCharts() {
     } else if (pCtx) {
         _charts.pending = new Chart(pCtx, {
             type: 'bar',
-            data: { labels: pLabels, datasets: [{ label: 'Pending Amount', data: pData, backgroundColor: 'rgba(239, 68, 68, 0.85)', borderRadius: 6, maxBarThickness: 40 }] },
+            data: { labels: pLabels, datasets: [{ label: 'Pending Amount', data: pData, backgroundColor: 'rgba(168, 85, 247, 0.85)', borderRadius: 6, maxBarThickness: 40 }] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...tooltipConfig, callbacks: { label: c => ' ₹' + c.parsed.y.toLocaleString('en-IN') } } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { callback: v => '₹' + (v >= 1000 ? v / 1000 + 'k' : v) } }, x: { grid: { display: false } } } }
         });
     }
 
     // 6. Client Size Distribution (Doughnut)
     let cBuckets = { 'Micro (<10k)': 0, 'Small (10k-50k)': 0, 'Medium (50k-1L)': 0, 'Large (>1L)': 0 };
-    state.loans.forEach(l => {
+    const sizeScopeLoans = state.user?.role === 'agent' ? state.loans.filter(l => l.agentId === state.user.agentId) : state.loans;
+    sizeScopeLoans.forEach(l => {
         if (l.status === 'Active') {
             if (l.amount < 10000) cBuckets['Micro (<10k)'] += l.amount;
             else if (l.amount <= 50000) cBuckets['Small (10k-50k)'] += l.amount;

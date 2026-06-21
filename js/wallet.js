@@ -5,11 +5,23 @@
 function renderStatCards() {
     const total = state.wallet.cash + state.wallet.online;
     const activeLoanTotal = state.loans.filter(l => l.status === 'Active').reduce((s, l) => s + l.amount, 0);
+    const isAgent = state.user?.role === 'agent';
+    const scopedLoans = isAgent ? state.loans.filter(l => l.agentId === state.user.agentId) : state.loans;
+    const pendingTotal = scopedLoans.filter(l => l.status === 'Active').reduce((s, l) => s + (Number(l.outstanding) || 0), 0);
 
     document.getElementById('statTotalBalance').textContent = fmtINR(total);
     document.getElementById('statCashVault').textContent = fmtINR(state.wallet.cash);
     document.getElementById('statOnlineFunds').textContent = fmtINR(state.wallet.online);
-    document.getElementById('statActiveLoans').textContent = fmtINR(activeLoanTotal);
+    document.getElementById('statPendingDues').textContent = fmtINR(pendingTotal);
+
+    if (isAgent) {
+        const me = agentState.find(a => a.id === state.user.agentId);
+        const activeAgentLoanTotal = scopedLoans.filter(l => l.status === 'Active').reduce((s, l) => s + l.amount, 0);
+        document.getElementById('statAgentFund').textContent = fmtINR(me ? me.fund : 0);
+        document.getElementById('statActiveLoans').textContent = fmtINR(activeAgentLoanTotal);
+    } else {
+        document.getElementById('statActiveLoans').textContent = fmtINR(activeLoanTotal);
+    }
 }
 
 /* ---------------- WALLET OPERATIONS ---------------- */
@@ -160,50 +172,9 @@ function initLedgerActions() {
 }
 
 /* ---------------- CLIENTS ---------------- */
-function renderClientsTable() {
-    const body = document.getElementById('clientsTableBody');
-    if (!state.clients.length) {
-        body.innerHTML = '<tr><td colspan="4" class="empty-row">No clients added yet.</td></tr>';
-        return;
-    }
-    body.innerHTML = state.clients.map(c => `
-        <tr>
-            <td data-label="Name">${escapeHTML(c.name)}</td>
-            <td data-label="Phone">${escapeHTML(c.phone || '—')}</td>
-            <td data-label="Outstanding">${fmtINR(c.outstanding)}</td>
-            <td data-label="Actions"><button class="row-action-btn" onclick="deleteClient('${c.id}')" title="Delete"><i class="fa-solid fa-trash"></i></button></td>
-        </tr>
-    `).join('');
-}
-
-function initClientActions() {
-    document.getElementById('addClientBtn').addEventListener('click', () => {
-        showFormModal({
-            title: 'Add Client',
-            icon: 'fa-user-plus',
-            submitLabel: 'Add Client',
-            fields: [
-                { id: 'name', label: 'Client Name', required: true, placeholder: 'e.g. Rahul Verma' },
-                { id: 'phone', label: 'Phone Number', placeholder: 'Optional' }
-            ],
-            onSubmit: (v) => {
-                if (!v.name) return showToast('Client name is required.', 'danger');
-                state.clients.push({ id: genId('client'), name: v.name, phone: v.phone || '', outstanding: 0 });
-                saveState();
-                renderAll();
-                showToast('Client added.', 'success');
-            }
-        });
-    });
-}
-
-function deleteClient(id) {
-    if (!confirm('Remove this client?')) return;
-    state.clients = state.clients.filter(c => c.id !== id);
-    saveState();
-    renderAll();
-    showToast('Client removed.', 'warning');
-}
+/* Client Directory has been removed — agents give money to clients via
+   Loan Accounts directly, and admin/dev track pending dues per agent
+   through the Loan Accounts agent filter + Dashboard analytics instead. */
 
 /* ---------------- SOS ---------------- */
 function renderSosTable() {
@@ -244,26 +215,7 @@ function initSosActions() {
 
 /* ---------------- ADMIN PANEL ---------------- */
 function initAdminActions() {
-    document.getElementById('manageAgentsBtn').addEventListener('click', () => {
-        showFormModal({
-            title: 'Add Agent',
-            icon: 'fa-users-gear',
-            submitLabel: 'Add Agent',
-            fields: [
-                { id: 'name', label: 'Agent Name', required: true, placeholder: 'e.g. Priya Singh' },
-                { id: 'fund', label: 'Fund Allocation (₹)', type: 'number', required: true, min: 0, step: '0.01', placeholder: '0.00' }
-            ],
-            onSubmit: (v) => {
-                const fund = parseFloat(v.fund);
-                if (!v.name) return showToast('Agent name is required.', 'danger');
-                if (!fund || fund <= 0) return showToast('Invalid fund amount.', 'danger');
-                agentState.push({ id: genId('agent'), name: v.name, fund });
-                saveState();
-                renderAll();
-                showToast(`Agent "${v.name}" added with ${fmtINR(fund)} allocated.`, 'success');
-            }
-        });
-    });
+    document.getElementById('addAgentBtn').addEventListener('click', showAddAgentModal);
 
     document.getElementById('connectDbBtn').addEventListener('click', () => {
         const url = document.getElementById('sharedDbUrl').value.trim();
@@ -274,6 +226,143 @@ function initAdminActions() {
 
     const savedUrl = localStorage.getItem('pf_sharedDbUrl');
     if (savedUrl) document.getElementById('sharedDbUrl').value = savedUrl;
+}
+
+function showAddAgentModal() {
+    showFormModal({
+        title: 'Add Agent',
+        icon: 'fa-users-gear',
+        submitLabel: 'Create Agent',
+        wide: true,
+        intro: 'The agent will log in with this ID & password. Initial funds are deducted from the vault you choose.',
+        fields: [
+            { id: 'name', label: 'Agent Name', required: true, placeholder: 'e.g. Priya Singh' },
+            { id: 'username', label: 'Login ID', required: true, placeholder: 'e.g. priya.agent' },
+            { id: 'password', label: 'Password', type: 'password', required: true, placeholder: 'Minimum 6 characters' },
+            { id: 'fund', label: 'Initial Fund Allocation (₹)', type: 'number', required: true, min: 0, step: '0.01', placeholder: '0.00' },
+            { id: 'source', label: 'Give From', type: 'select', options: [{ value: 'cash', label: 'Cash Vault' }, { value: 'online', label: 'Online Funds' }] }
+        ],
+        onSubmit: (v) => {
+            const fund = parseFloat(v.fund) || 0;
+            if (!v.name) return showToast('Agent name is required.', 'danger');
+            if (!v.username) return showToast('Login ID is required.', 'danger');
+            if (!v.password || v.password.length < 6) return showToast('Password must be at least 6 characters.', 'danger');
+            if (agentState.some(a => a.username.toLowerCase() === v.username.toLowerCase())) return showToast('That Login ID is already in use by another agent.', 'danger');
+            if (fund > 0 && state.wallet[v.source] < fund) return showToast(`Insufficient balance in ${v.source === 'cash' ? 'Cash Vault' : 'Online Funds'}.`, 'danger');
+
+            if (fund > 0) {
+                state.wallet[v.source] -= fund;
+                addLog(`Fund allocated to new agent ${v.name}`, 'expense', fund);
+            }
+            agentState.push({ id: genId('agent'), name: v.name, username: v.username, password: v.password, fund, createdAt: Date.now() });
+            addAudit('Agent created', `Agent "${v.name}" (${v.username}) created with ${fmtINR(fund)} from ${v.source}`);
+            saveState();
+            renderAll();
+            showToast(`Agent "${v.name}" created with ${fmtINR(fund)} allocated.`, 'success');
+        }
+    });
+}
+
+function renderAgentManager() {
+    const root = document.getElementById('agentManagerList');
+    if (!root) return;
+    if (!agentState.length) {
+        root.innerHTML = '<p class="empty-row">No agents yet. Click "Add New Agent" to create one.</p>';
+        return;
+    }
+    root.innerHTML = agentState.map(a => `
+        <div class="agent-card">
+            <h4>${escapeHTML(a.name)}</h4>
+            <small>Login ID: ${escapeHTML(a.username)}${a.disabled ? ' · <span style="color:#ef4444;">Disabled</span>' : ''}</small>
+            <div class="agent-fund-amt">${fmtINR(a.fund)}</div>
+            <div class="agent-card-actions">
+                <button class="btn-friendly-primary compact" data-give="${a.id}"><i class="fa-solid fa-money-bill-transfer"></i> Give Fund</button>
+                <button class="btn-friendly-secondary compact" data-edit="${a.id}"><i class="fa-solid fa-key"></i> Edit Login</button>
+                <button class="btn-friendly-secondary compact" data-toggle="${a.id}"><i class="fa-solid fa-power-off"></i> ${a.disabled ? 'Enable' : 'Disable'}</button>
+                <button class="row-action-btn" data-delete="${a.id}" title="Delete"><i class="fa-solid fa-trash"></i></button>
+            </div>
+        </div>
+    `).join('');
+    root.querySelectorAll('[data-give]').forEach(b => b.onclick = () => giveAgentFund(b.dataset.give));
+    root.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editAgentLogin(b.dataset.edit));
+    root.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => toggleAgent(b.dataset.toggle));
+    root.querySelectorAll('[data-delete]').forEach(b => b.onclick = () => deleteAgent(b.dataset.delete));
+}
+
+function giveAgentFund(id) {
+    const a = agentState.find(x => x.id === id);
+    if (!a) return;
+    showFormModal({
+        title: `Give Fund — ${a.name}`,
+        icon: 'fa-money-bill-transfer',
+        submitLabel: 'Give Fund',
+        intro: `Current fund: ${fmtINR(a.fund)}. Choose which vault this comes from.`,
+        fields: [
+            { id: 'amount', label: 'Amount (₹)', type: 'number', required: true, min: 0.01, step: '0.01', placeholder: '0.00' },
+            { id: 'source', label: 'Give From', type: 'select', options: [{ value: 'cash', label: `Cash Vault (${fmtINR(state.wallet.cash)})` }, { value: 'online', label: `Online Funds (${fmtINR(state.wallet.online)})` }] }
+        ],
+        onSubmit: (v) => {
+            const amt = parseFloat(v.amount);
+            if (!amt || amt <= 0) return showToast('Enter a valid amount.', 'danger');
+            if (state.wallet[v.source] < amt) return showToast('Insufficient balance in selected vault.', 'danger');
+            state.wallet[v.source] -= amt;
+            a.fund += amt;
+            addLog(`Fund given to agent ${a.name}`, 'expense', amt);
+            addAudit('Agent fund given', `${fmtINR(amt)} given to agent "${a.name}" from ${v.source}`);
+            saveState();
+            renderAll();
+            showToast(`${fmtINR(amt)} given to ${a.name}.`, 'success');
+        }
+    });
+}
+
+function editAgentLogin(id) {
+    const a = agentState.find(x => x.id === id);
+    if (!a) return;
+    showFormModal({
+        title: `Edit ${a.name}`,
+        icon: 'fa-pen',
+        submitLabel: 'Save Changes',
+        fields: [
+            { id: 'name', label: 'Agent Name', required: true, value: a.name },
+            { id: 'username', label: 'Login ID', required: true, value: a.username },
+            { id: 'password', label: 'New Password', type: 'password', placeholder: 'Leave blank to keep current' }
+        ],
+        onSubmit: (v) => {
+            if (!v.name || !v.username) return showToast('Name and Login ID are required.', 'danger');
+            if (agentState.some(x => x.id !== id && x.username.toLowerCase() === v.username.toLowerCase())) return showToast('That Login ID is already in use.', 'danger');
+            if (v.password && v.password.length < 6) return showToast('Password must be at least 6 characters.', 'danger');
+            a.name = v.name;
+            a.username = v.username;
+            if (v.password) a.password = v.password;
+            addAudit('Agent updated', `Agent "${a.name}" login updated by admin`);
+            saveState();
+            renderAll();
+            showToast('Agent updated.', 'success');
+        }
+    });
+}
+
+function toggleAgent(id) {
+    const a = agentState.find(x => x.id === id);
+    if (!a) return;
+    a.disabled = !a.disabled;
+    addAudit('Agent status changed', `Agent "${a.name}" ${a.disabled ? 'disabled' : 'enabled'}`);
+    saveState();
+    renderAll();
+    showToast(`${a.name} ${a.disabled ? 'disabled' : 'enabled'}.`, a.disabled ? 'warning' : 'success');
+}
+
+function deleteAgent(id) {
+    const a = agentState.find(x => x.id === id);
+    if (!a) return;
+    if (!confirm(`Delete agent "${a.name}"? Their remaining fund (${fmtINR(a.fund)}) will be returned to the Cash Vault.`)) return;
+    state.wallet.cash += a.fund;
+    agentState = agentState.filter(x => x.id !== id);
+    addAudit('Agent deleted', `Agent "${a.name}" deleted; ${fmtINR(a.fund)} returned to Cash Vault`);
+    saveState();
+    renderAll();
+    showToast('Agent deleted.', 'warning');
 }
 
 /* ---------------- DEV CONSOLE ---------------- */
@@ -360,28 +449,91 @@ function calculateDueDate(cycle, tenure) {
     cycle === 'Daily' ? d.setDate(d.getDate()+tenure) : cycle === 'Weekly' ? d.setDate(d.getDate()+tenure*7) : d.setMonth(d.getMonth()+tenure);
     return d.toISOString().slice(0,10);
 }
+let loanAgentFilter = 'all';
+function renderLoanAgentFilterOptions() {
+    const sel = document.getElementById('loanAgentFilter');
+    if (!sel) return;
+    const current = sel.dataset.initialised ? sel.value : loanAgentFilter;
+    sel.innerHTML = '<option value="all">All Agents</option><option value="direct">Admin / Direct</option>' +
+        agentState.map(a => `<option value="${a.id}">${escapeHTML(a.name)}</option>`).join('');
+    sel.value = agentState.some(a => a.id === current) || current === 'all' || current === 'direct' ? current : 'all';
+    loanAgentFilter = sel.value;
+    sel.dataset.initialised = '1';
+}
 function renderLoansTable() {
     const body=document.getElementById('loansTableBody');
     const q=(document.getElementById('loanSearch')?.value||'').toLowerCase();
-    const loans=state.loans.filter(l=>[l.name,l.phone,l.status].some(v=>String(v||'').toLowerCase().includes(q)));
+    const isAgent = state.user?.role === 'agent';
+    let scoped = isAgent ? state.loans.filter(l => l.agentId === state.user.agentId) : state.loans;
+    if (!isAgent && loanAgentFilter !== 'all') {
+        scoped = scoped.filter(l => loanAgentFilter === 'direct' ? !l.agentId : l.agentId === loanAgentFilter);
+    }
+    const loans=scoped.filter(l=>[l.name,l.phone,l.status].some(v=>String(v||'').toLowerCase().includes(q)));
     if(!loans.length){body.innerHTML='<tr><td colspan="7" class="empty-row">No matching loan accounts.</td></tr>';return;}
     body.innerHTML=loans.map(l=>{normaliseLoan(l);return `<tr><td class="loan-client-cell" data-label="Client"><strong>${escapeHTML(l.name)}</strong><small>${escapeHTML(l.phone||'No phone')}</small></td><td data-label="Principal">${fmtINR(l.amount)}</td><td data-label="Interest">${fmtINR(l.interestAmount)}</td><td data-label="Outstanding">${fmtINR(l.outstanding)}</td><td data-label="Status"><span class="status-pill ${l.status==='Active'?'active':'paid'}">${l.status}</span></td><td data-label="Due Date">${l.dueDate||'—'}</td><td data-label="Actions"><div class="loan-action-group"><button class="row-action-btn" onclick="viewLoan('${l.id}')" title="View"><i class="fa-solid fa-eye"></i></button>${l.status==='Active'?`<button class="row-action-btn" onclick="repayLoan('${l.id}')" title="Repay"><i class="fa-solid fa-indian-rupee-sign"></i></button>`:''}<button class="row-action-btn" onclick="editLoan('${l.id}')" title="Edit"><i class="fa-solid fa-pen"></i></button><button class="row-action-btn" onclick="deleteLoan('${l.id}')" title="Recycle"><i class="fa-solid fa-trash"></i></button></div></td></tr>`}).join('');
 }
 function initLoanActions() {
     state.loanTrash=state.loanTrash||[];
     document.getElementById('loanSearch').addEventListener('input',renderLoansTable);
+    document.getElementById('loanAgentFilter')?.addEventListener('change',e=>{loanAgentFilter=e.target.value;renderLoansTable();});
     document.getElementById('loanTrashBtn').addEventListener('click',showLoanTrash);
-    document.getElementById('addLoanBtn').addEventListener('click',()=>showFormModal({title:'Create New Loan',icon:'fa-hand-holding-dollar',submitLabel:'Create Loan',wide:true,intro:'Enter the customer and loan details. The due date and total payable amount will be calculated automatically.',fields:[
-        {id:'name',label:'Client Name',required:true,placeholder:'e.g. Mukul Sharma'},{id:'phone',label:'Phone Number',required:true,placeholder:'10-digit mobile number'},
-        {id:'email',label:'Email',type:'email',placeholder:'Optional'},{id:'guarantor',label:'Guarantor',placeholder:'Name or phone (optional)'},
-        {id:'amount',label:'Loan Amount (₹)',type:'number',required:true,min:1,step:'0.01',placeholder:'e.g. 10,000'},{id:'rate',label:'Interest Rate (%)',type:'number',required:true,min:0,step:'0.01',placeholder:'e.g. 5'},
-        {id:'payType',label:'Payment Cycle',type:'select',options:[{value:'Monthly',label:'Monthly'},{value:'Weekly',label:'Weekly'},{value:'Daily',label:'Daily'}]},
-        {id:'tenure',label:'Number of Payments',type:'number',required:true,min:1,placeholder:'e.g. 12',help:'The due date uses this number and the selected cycle.'},{id:'source',label:'Pay From',type:'select',options:[{value:'cash',label:'Cash Vault'},{value:'online',label:'Online Funds'}]}
-    ],onSubmit:v=>{const amount=Number(v.amount),rate=Number(v.rate)||0,tenure=Number(v.tenure);if(!v.name||!amount||!tenure)return showToast('Complete all required fields.','danger');if(!/^\d{10}$/.test(v.phone||''))return showToast('Enter a valid 10 digit phone number.','danger');if(state.wallet[v.source]<amount)return showToast('Insufficient funds in selected vault.','danger');const interestAmount=amount*rate/100;state.wallet[v.source]-=amount;state.loans.push({id:genId('loan'),name:v.name,phone:v.phone,email:v.email||'',guarantor:v.guarantor||'',amount,rate,interestAmount,totalPayable:amount+interestAmount,outstanding:amount+interestAmount,payType:v.payType,tenure,source:v.source,sanctionDate:new Date().toISOString(),dueDate:calculateDueDate(v.payType,tenure),status:'Active',history:[{date:Date.now(),type:'Loan issued',amount,mode:v.source}]});addLog(`New loan issued to ${v.name}`,'expense',amount);saveState();renderAll();showToast('Loan created.','success');}}));
+    document.getElementById('addLoanBtn').addEventListener('click',()=>{
+        const isAgent = state.user?.role === 'agent';
+        const me = isAgent ? agentState.find(a=>a.id===state.user.agentId) : null;
+        const fields=[
+            {id:'name',label:'Client Name',required:true,placeholder:'e.g. Mukul Sharma'},{id:'phone',label:'Phone Number',required:true,placeholder:'10-digit mobile number'},
+            {id:'email',label:'Email',type:'email',placeholder:'Optional'},{id:'guarantor',label:'Guarantor',placeholder:'Name or phone (optional)'},
+            {id:'amount',label:'Loan Amount (₹)',type:'number',required:true,min:1,step:'0.01',placeholder:'e.g. 10,000'},{id:'rate',label:'Interest Rate (%)',type:'number',required:true,min:0,step:'0.01',placeholder:'e.g. 5'},
+            {id:'payType',label:'Payment Cycle',type:'select',options:[{value:'Monthly',label:'Monthly'},{value:'Weekly',label:'Weekly'},{value:'Daily',label:'Daily'}]},
+            {id:'tenure',label:'Number of Payments',type:'number',required:true,min:1,placeholder:'e.g. 12',help:'The due date uses this number and the selected cycle.'}
+        ];
+        if (isAgent) {
+            fields.push({id:'source',label:'Pay From',type:'select',options:[{value:'agent',label:`My Fund (${fmtINR(me?me.fund:0)})`}]});
+        } else {
+            fields.push({id:'source',label:'Pay From',type:'select',options:[{value:'cash',label:'Cash Vault'},{value:'online',label:'Online Funds'}]});
+        }
+        showFormModal({title:'Create New Loan',icon:'fa-hand-holding-dollar',submitLabel:'Create Loan',wide:true,intro:'Enter the customer and loan details. The due date and total payable amount will be calculated automatically.',fields,onSubmit:v=>{
+            const amount=Number(v.amount),rate=Number(v.rate)||0,tenure=Number(v.tenure);
+            if(!v.name||!amount||!tenure)return showToast('Complete all required fields.','danger');
+            if(!/^\d{10}$/.test(v.phone||''))return showToast('Enter a valid 10 digit phone number.','danger');
+
+            let agentId = null;
+            if (isAgent) {
+                const agent = agentState.find(a=>a.id===state.user.agentId);
+                if (!agent) return showToast('Your agent account could not be found.','danger');
+                if (agent.fund < amount) return showToast('Insufficient balance in your fund.','danger');
+                agent.fund -= amount;
+                agentId = agent.id;
+            } else {
+                if(state.wallet[v.source]<amount)return showToast('Insufficient funds in selected vault.','danger');
+                state.wallet[v.source]-=amount;
+            }
+
+            const interestAmount=amount*rate/100;
+            state.loans.push({id:genId('loan'),name:v.name,phone:v.phone,email:v.email||'',guarantor:v.guarantor||'',amount,rate,interestAmount,totalPayable:amount+interestAmount,outstanding:amount+interestAmount,payType:v.payType,tenure,source:isAgent?'agent':v.source,agentId,sanctionDate:new Date().toISOString(),dueDate:calculateDueDate(v.payType,tenure),status:'Active',history:[{date:Date.now(),type:'Loan issued',amount,mode:isAgent?'agent fund':v.source}]});
+            addLog(`New loan issued to ${v.name}`,'expense',amount);
+            saveState();renderAll();showToast('Loan created.','success');
+        }});
+    });
 }
 function repayLoan(id) {
     const l=state.loans.find(x=>x.id===id);if(!l)return;normaliseLoan(l);
-    showFormModal({title:`Receive Payment — ${l.name}`,icon:'fa-indian-rupee-sign',submitLabel:'Record Payment',fields:[{id:'amount',label:`Amount (Outstanding ${fmtINR(l.outstanding)})`,type:'number',required:true,min:1,step:'0.01'},{id:'mode',label:'Receive Into',type:'select',options:[{value:'cash',label:'Cash Vault'},{value:'online',label:'Online Funds'}]},{id:'note',label:'Note'}],onSubmit:v=>{const a=Number(v.amount);if(!a||a>l.outstanding)return showToast('Payment exceeds outstanding amount.','danger');l.outstanding-=a;l.status=l.outstanding===0?'Paid':'Active';l.history.unshift({date:Date.now(),type:'Repayment',amount:a,mode:v.mode,note:v.note||''});state.wallet[v.mode]+=a;addLog(`Repayment received from ${l.name}`,'income',a);saveState();renderAll();showToast('Payment recorded.','success');}});
+    const fields=[{id:'amount',label:`Amount (Outstanding ${fmtINR(l.outstanding)})`,type:'number',required:true,min:1,step:'0.01'}];
+    if (!l.agentId) fields.push({id:'mode',label:'Receive Into',type:'select',options:[{value:'cash',label:'Cash Vault'},{value:'online',label:'Online Funds'}]});
+    fields.push({id:'note',label:'Note'});
+    showFormModal({title:`Receive Payment — ${l.name}`,icon:'fa-indian-rupee-sign',submitLabel:'Record Payment',fields,onSubmit:v=>{
+        const a=Number(v.amount);if(!a||a>l.outstanding)return showToast('Payment exceeds outstanding amount.','danger');
+        l.outstanding-=a;l.status=l.outstanding===0?'Paid':'Active';
+        if (l.agentId) {
+            const agent = agentState.find(ag=>ag.id===l.agentId);
+            if (agent) agent.fund += a;
+            l.history.unshift({date:Date.now(),type:'Repayment',amount:a,mode:'agent fund',note:v.note||''});
+        } else {
+            state.wallet[v.mode]+=a;
+            l.history.unshift({date:Date.now(),type:'Repayment',amount:a,mode:v.mode,note:v.note||''});
+        }
+        addLog(`Repayment received from ${l.name}`,'income',a);saveState();renderAll();showToast('Payment recorded.','success');
+    }});
 }
 function viewLoan(id) {
     const l=state.loans.find(x=>x.id===id);if(!l)return;normaliseLoan(l);const o=document.createElement('div');o.className='modal-overlay modal-wide';
@@ -407,10 +559,11 @@ function escapeHTML(str) {
 /* ---------------- MASTER RENDER ---------------- */
 function renderAll() {
     renderStatCards();
+    renderLoanAgentFilterOptions();
     renderLoansTable();
     renderLedgerTable();
-    renderClientsTable();
     renderSosTable();
     renderDevConsole();
+    renderAgentManager();
     if (typeof renderAnalyticsCharts === 'function') renderAnalyticsCharts();
 }

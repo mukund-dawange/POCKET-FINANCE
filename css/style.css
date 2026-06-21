@@ -121,6 +121,13 @@ button { font-family: inherit; touch-action: manipulation; }
 .google-g{font-size:18px;font-weight:800;color:#4285f4}
 .access-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:22px}
 .access-card{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:16px;padding:18px;box-shadow:var(--glass-shadow)}
+.agent-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:16px}
+.agent-card{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:16px;padding:16px;box-shadow:var(--glass-shadow)}
+.agent-card h4{margin:0 0 2px}
+.agent-card small{color:var(--text-muted);display:block;margin-bottom:10px}
+.agent-card .agent-fund-amt{font-size:18px;font-weight:800;color:var(--primary);margin-bottom:12px}
+.agent-card-actions{display:flex;gap:6px;flex-wrap:wrap}
+.agent-card-actions button{flex:1;min-width:80px}
 .access-card-head{display:flex;align-items:center;gap:12px}.access-card-head h4{margin-bottom:4px}.access-card-head small{color:var(--text-muted)}
 .role-icon{width:42px;height:42px;border-radius:12px;background:rgba(249,115,22,.12);color:var(--primary);display:flex;align-items:center;justify-content:center}
 .google-config-card{max-width:620px}.activity-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
@@ -225,6 +232,7 @@ button { font-family: inherit; touch-action: manipulation; }
 .finance-card.card-cash::before { background: var(--success); }
 .finance-card.card-online::before { background: var(--warning); }
 .finance-card.card-loaned::before { background: var(--danger); }
+.finance-card.card-pending::before { background: #a855f7; }
 .finance-card h3 { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 600; }
 .finance-card .counter-value { font-size: 28px; font-weight: 800; letter-spacing: -.5px; }
 
