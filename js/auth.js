@@ -62,6 +62,7 @@ function initAuth() {
 
     document.getElementById('logoutBtn').addEventListener('click', () => {
         addAudit('Logout', 'User signed out');
+        stopAutoSync();   // stop background polling on logout
         state.user = null;
         saveState();
         document.getElementById('appShell').classList.add('hidden');
@@ -148,4 +149,5 @@ function enterApp() {
 
     renderAll();
     if(isDeveloper){renderAccessManager();renderAuditLog();}
+    startAutoSync();   // keep all open browsers in sync
 }

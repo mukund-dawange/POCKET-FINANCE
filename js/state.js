@@ -7,10 +7,31 @@
    backend that auth uses (js/api.js), under one key. No browser
    keeps its own private copy anymore, so a fresh browser sees
    the same data as every other device.
+
+   AUTO-SYNC: Every SYNC_INTERVAL_MS the app silently re-fetches
+   the shared state from the backend and re-renders, so all open
+   browsers stay in sync with each other automatically.
    ============================================================ */
 
 const SESSION_KEY = 'pf_session_v1';     // local-only: who is logged in on this device
 const APP_STATE_KEY = 'pf_appState';     // shared backend key: everything else
+
+// ---- Sync config ----
+const SYNC_INTERVAL_MS = 20000;   // poll every 20 seconds
+let   _syncIntervalId  = null;    // handle so we can clear/restart it
+let   _isSaving        = false;   // guard: don't poll while a save is in flight
+
+// ---- Sync indicator helpers ----
+function _setSyncIndicator(status) {
+    // status: 'ok' | 'saving' | 'error' | 'syncing'
+    const el = document.getElementById('syncIndicator');
+    if (!el) return;
+    const icons = { ok: '☁️', saving: '💾', error: '⚠️', syncing: '🔄' };
+    const labels = { ok: 'Synced', saving: 'Saving…', error: 'Sync error', syncing: 'Syncing…' };
+    el.dataset.status = status;
+    el.title = labels[status] || '';
+    el.textContent = (icons[status] || '') + ' ' + (labels[status] || '');
+}
 
 let state = {
     wallet: { cash: 0, online: 0 },
@@ -45,11 +66,17 @@ async function saveState() {
     }
 
     // Everything else: shared data, goes to the Drive backend.
+    _isSaving = true;
+    _setSyncIndicator('saving');
     const { user, ...sharedState } = state;
     try {
         await apiWriteKey(APP_STATE_KEY, { state: sharedState, agentState });
+        _setSyncIndicator('ok');
     } catch (e) {
         console.error('Failed to save shared state:', e);
+        _setSyncIndicator('error');
+    } finally {
+        _isSaving = false;
     }
 }
 
@@ -69,11 +96,47 @@ async function loadState() {
     try {
         const res = await apiReadKey(APP_STATE_KEY);
         if (res && res.value) {
+            // Always preserve who is logged in on THIS device — never overwrite from backend
+            const currentUser = state.user;
             if (res.value.state) state = Object.assign(state, res.value.state);
             if (res.value.agentState) agentState = res.value.agentState;
+            state.user = currentUser;  // restore local session
         }
+        _setSyncIndicator('ok');
     } catch (e) {
         console.error('Failed to load shared state:', e);
+        _setSyncIndicator('error');
+    }
+}
+
+// ---- Background sync: silently re-fetch + re-render on a timer ----
+// Called by enterApp(); stopped on logout.
+function startAutoSync() {
+    stopAutoSync();
+    _syncIntervalId = setInterval(async () => {
+        if (_isSaving || !state.user) return;   // skip poll while saving or logged out
+        _setSyncIndicator('syncing');
+        try {
+            const res = await apiReadKey(APP_STATE_KEY);
+            if (res && res.value) {
+                const currentUser = state.user;
+                if (res.value.state) state = Object.assign(state, res.value.state);
+                if (res.value.agentState) agentState = res.value.agentState;
+                state.user = currentUser;
+                if (typeof renderAll === 'function') renderAll();
+            }
+            _setSyncIndicator('ok');
+        } catch (e) {
+            console.error('Auto-sync failed:', e);
+            _setSyncIndicator('error');
+        }
+    }, SYNC_INTERVAL_MS);
+}
+
+function stopAutoSync() {
+    if (_syncIntervalId !== null) {
+        clearInterval(_syncIntervalId);
+        _syncIntervalId = null;
     }
 }
 
