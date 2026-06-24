@@ -749,3 +749,180 @@ tr:hover td { background: rgba(249,115,22,.03); }
 @media (max-width: 600px) {
     .sync-indicator { display: none; }
 }
+
+/* ============================================================
+   Receipt / Invoice styles (modal view — not print)
+   ============================================================ */
+.rcpt-card {
+    background: var(--card-bg, #fff);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--glass-border, #e5e7eb);
+    margin-top: 4px;
+}
+.rcpt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 22px;
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    color: #fff;
+}
+.rcpt-brand { display: flex; align-items: center; gap: 12px; }
+.rcpt-logo-mark {
+    width: 42px; height: 42px;
+    background: rgba(255,255,255,.2);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+}
+.rcpt-company { font-size: 18px; font-weight: 800; letter-spacing: .4px; }
+.rcpt-company-sub { font-size: 11px; opacity: .85; margin-top: 2px; }
+.rcpt-invoice-meta { text-align: right; }
+.rcpt-invoice-label { font-size: 10px; letter-spacing: 2px; opacity: .75; }
+.rcpt-invoice-no { font-size: 15px; font-weight: 700; margin: 2px 0; }
+.rcpt-invoice-date { font-size: 11px; opacity: .85; }
+.rcpt-rule { height: 3px; background: linear-gradient(90deg, #f97316, #fb923c, transparent); }
+.rcpt-parties {
+    display: flex;
+    justify-content: space-between;
+    padding: 16px 22px 8px;
+    gap: 12px;
+}
+.rcpt-party-label {
+    font-size: 10px; letter-spacing: 1.5px;
+    color: var(--text-muted); font-weight: 600; margin-bottom: 3px;
+}
+.rcpt-party-name { font-size: 14px; font-weight: 700; color: var(--text-main); }
+.rcpt-party-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.rcpt-party-right { text-align: right; }
+.rcpt-summary-box {
+    margin: 8px 22px 0;
+    background: #fff7ed;
+    border: 1.5px solid #fed7aa;
+    border-radius: 10px;
+    padding: 12px 16px;
+}
+.dark .rcpt-summary-box { background: rgba(249,115,22,.08); border-color: rgba(249,115,22,.25); }
+.rcpt-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-main);
+    padding: 3px 0;
+}
+.rcpt-summary-row + .rcpt-summary-row { border-top: 1px dashed #fde8cc; }
+.dark .rcpt-summary-row + .rcpt-summary-row { border-color: rgba(249,115,22,.2); }
+.rcpt-summary-main {
+    font-weight: 700; font-size: 14px;
+    padding-bottom: 8px; margin-bottom: 3px;
+    border-bottom: 2px solid #fed7aa !important;
+}
+.dark .rcpt-summary-main { border-color: rgba(249,115,22,.3) !important; }
+.rcpt-amount-paid { color: #ea580c; font-size: 22px; font-weight: 800; }
+.rcpt-balance-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px 22px;
+}
+.rcpt-balance-item {
+    background: var(--input-bg, #f9fafb);
+    border: 1px solid var(--glass-border, #e5e7eb);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+.rcpt-balance-label { font-size: 10px; color: var(--text-muted); letter-spacing: .4px; margin-bottom: 4px; }
+.rcpt-balance-val { font-size: 14px; font-weight: 700; color: var(--text-main); }
+.rcpt-val-pending { color: var(--danger, #dc2626) !important; }
+.rcpt-val-clear { color: var(--success, #16a34a) !important; }
+.rcpt-paid-badge {
+    background: #dcfce7; color: #15803d;
+    padding: 2px 8px; border-radius: 20px;
+    font-size: 11px; font-weight: 700;
+}
+.dark .rcpt-paid-badge { background: rgba(22,163,74,.15); color: #4ade80; }
+.rcpt-footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 12px 22px 8px;
+}
+.rcpt-sig-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.rcpt-sig-img {
+    max-height: 56px; max-width: 150px;
+    object-fit: contain;
+    border-bottom: 1.5px solid var(--glass-border);
+    padding-bottom: 4px;
+}
+.rcpt-sig-blank .rcpt-sig-line {
+    width: 140px; height: 48px;
+    border-bottom: 1.5px solid var(--text-muted);
+}
+.rcpt-sig-label { font-size: 10px; color: var(--text-muted); letter-spacing: .5px; }
+.rcpt-stamp {
+    border: 2.5px solid;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px; font-weight: 800;
+    letter-spacing: 1.5px;
+    transform: rotate(-8deg);
+    text-align: center;
+    line-height: 1.4;
+}
+.rcpt-stamp-paid { border-color: #16a34a; color: #16a34a; }
+.rcpt-stamp-partial { border-color: #f97316; color: #f97316; }
+.rcpt-legal {
+    background: var(--input-bg, #f9fafb);
+    border-top: 1px solid var(--glass-border);
+    padding: 9px 22px;
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+.rcpt-action-row {
+    display: flex;
+    gap: 10px;
+    padding: 14px 0 0;
+}
+.rcpt-action-row button { flex: 1; }
+
+/* ── Mobile receipt ── */
+@media (max-width: 600px) {
+    .rcpt-balance-grid { grid-template-columns: 1fr; gap: 6px; }
+    .rcpt-parties { flex-direction: column; gap: 8px; }
+    .rcpt-party-right { text-align: left; }
+    .rcpt-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .rcpt-invoice-meta { text-align: left; }
+    .rcpt-action-row { flex-direction: column; }
+}
+
+/* WhatsApp share button */
+.rcpt-btn-whatsapp { color: #25D366 !important; }
+.rcpt-btn-whatsapp i { color: #25D366 !important; }
+
+/* ── Receipt policy note ── */
+.rcpt-policy-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 22px 0;
+    padding: 11px 14px;
+    background: #1a1a1a;
+    border-left: 4px solid #f97316;
+    border-radius: 0 8px 8px 0;
+    color: #f1f1f1;
+    font-size: 12.5px;
+    line-height: 1.6;
+    font-weight: 500;
+}
+.rcpt-policy-note strong {
+    color: #fff;
+    font-weight: 800;
+}
+.rcpt-policy-icon {
+    font-size: 15px;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
