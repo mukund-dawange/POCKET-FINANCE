@@ -14,6 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/agent-portal.css">
 </head>
 <body>
 
@@ -83,10 +84,14 @@
       <div class="sidebar-section-label">Functions</div>
       <button class="tab-trigger admin-only" data-section="wallet"><i class="fa-solid fa-building-columns"></i><span>Wallet Management</span></button>
       <button class="tab-trigger" data-section="loans"><i class="fa-solid fa-hand-holding-dollar"></i><span>Loan Accounts</span></button>
+      <button class="tab-trigger agent-only" data-section="clients"><i class="fa-solid fa-people-arrows"></i><span>My Clients</span></button>
+      <button class="tab-trigger agent-only" data-section="schedule"><i class="fa-solid fa-calendar-days"></i><span>Schedule</span></button>
+      <button class="tab-trigger admin-only" data-section="kyc-approvals"><i class="fa-solid fa-id-card-clip"></i><span>KYC Approvals</span><span class="badge" id="kycApprovalBadge">0</span></button>
       <button class="tab-trigger" data-section="ledger"><i class="fa-solid fa-clock-rotate-left"></i><span>Master Ledger</span></button>
-      <button class="tab-trigger" data-section="sos"><i class="fa-solid fa-tower-broadcast"></i><span>SOS Requests</span><span class="badge" id="sosBadge">0</span></button>
+      <button class="tab-trigger" data-section="sos"><i class="fa-solid fa-ticket"></i><span>Tickets</span><span class="badge" id="sosBadge">0</span></button>
       <button class="tab-trigger agent-only" data-section="myrank"><i class="fa-solid fa-ranking-star"></i><span>My Rank</span></button>
       <button class="tab-trigger admin-only" data-section="levels"><i class="fa-solid fa-trophy"></i><span>Levels &amp; Ranking</span></button>
+      <button class="tab-trigger admin-only" data-section="income"><i class="fa-solid fa-coins"></i><span>Income</span></button>
 
       <div class="sidebar-section-label admin-only">Administration</div>
       <button class="tab-trigger admin-only" data-section="admin"><i class="fa-solid fa-shield-halved"></i><span>Admin Panel</span></button>
@@ -120,7 +125,159 @@
 
       <!-- DASHBOARD -->
       <section class="page-section active" id="page-dashboard">
-        <div class="finance-cards-grid">
+
+        <!-- Agent Portal dashboard panel (agents only) -->
+        <div class="ap-scope agent-only" id="ap-dashboard-panel" style="display:none;">
+          <!-- Fund exhausted warning banner -->
+          <div id="ap-m-fund-warning" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:12px 16px;margin-bottom:14px;color:#b91c1c;font-size:13px;font-weight:600;">
+            <i class="fa-solid fa-circle-exclamation" style="margin-right:6px;"></i>
+            Your Allocated Fund is exhausted. You cannot issue new loans until the admin adds more funds to your account.
+          </div>
+          <div class="metrics metrics-5">
+            <div class="metric-card">
+              <div class="metric-icon-row">
+                <div>
+                  <div class="metric-label">Total Allocated</div>
+                  <div class="metric-val" id="ap-m-allocated">₹0</div>
+                </div>
+                <div class="metric-icon" style="background:var(--success-bg)">
+                  <span class="icon-em" style="color:var(--success)">💰</span>
+                </div>
+              </div>
+              <div class="metric-delta up" id="ap-m-allocated-delta"><span class="icon-em">↑</span>Fund + outstanding loans</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon-row">
+                <div>
+                  <div class="metric-label">Loaned Out</div>
+                  <div class="metric-val" id="ap-m-loaned">₹0</div>
+                </div>
+                <div class="metric-icon" style="background:var(--danger-bg)">
+                  <span class="icon-em" style="color:var(--danger)">🧾</span>
+                </div>
+              </div>
+              <div class="metric-delta" id="ap-m-loaned-delta" style="color:var(--text-secondary)">Across active loans</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon-row">
+                <div>
+                  <div class="metric-label">Available to Issue</div>
+                  <div class="metric-val" id="ap-m-available" style="color:var(--purple)">₹0</div>
+                </div>
+                <div class="metric-icon" style="background:var(--purple-bg)">
+                  <span class="icon-em" style="color:var(--purple)">💼</span>
+                </div>
+              </div>
+              <div class="metric-delta" style="color:var(--text-secondary)">Remaining fund balance</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon-row">
+                <div>
+                  <div class="metric-label">My Progress</div>
+                  <div class="metric-val" id="ap-m-progress">0%</div>
+                </div>
+                <div class="metric-icon" style="background:var(--amber-bg)">
+                  <span class="icon-em" style="color:var(--amber)">🏆</span>
+                </div>
+              </div>
+              <div class="metric-delta" id="ap-m-progress-delta" style="color:var(--text-secondary)">Toward next rank</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon-row">
+                <div>
+                  <div class="metric-label">Open Tickets</div>
+                  <div class="metric-val" id="ap-m-tickets" style="color:var(--info)">0</div>
+                </div>
+                <div class="metric-icon" style="background:var(--info-bg)">
+                  <span class="icon-em" style="color:var(--info)">🎫</span>
+                </div>
+              </div>
+              <div class="metric-delta" style="color:var(--text-secondary)">Awaiting reply</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon-row">
+                <div>
+                  <div class="metric-label">My Income</div>
+                  <div class="metric-val" id="ap-m-income" style="color:#10b981">₹0</div>
+                </div>
+                <div class="metric-icon" style="background:#d1fae5">
+                  <span class="icon-em" style="color:#10b981">💵</span>
+                </div>
+              </div>
+              <div class="metric-delta" id="ap-m-income-delta" style="color:var(--text-secondary)">Earned from rank upgrades</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon-row">
+                <div>
+                  <div class="metric-label">Collection Income</div>
+                  <div class="metric-val" id="ap-m-collection" style="color:#0ea5e9">₹0</div>
+                </div>
+                <div class="metric-icon" style="background:#e0f2fe">
+                  <span class="icon-em" style="color:#0ea5e9">🏦</span>
+                </div>
+              </div>
+              <div class="metric-delta" style="color:var(--text-secondary)">Principal + interest collected</div>
+            </div>
+          </div>
+
+          <!-- My Budget + My Rank card side by side -->
+          <div class="row2">
+            <div class="budget-card" style="flex:1">
+              <div class="card-head" style="margin-bottom:0">
+                <span class="card-title">My Budget</span>
+                <span style="font-size:12px;color:var(--text-secondary)" id="ap-budget-month"></span>
+              </div>
+              <div class="budget-grid">
+                <div class="budget-item">
+                  <div class="budget-item-lbl">Total Allocated</div>
+                  <div class="budget-item-val purple" id="ap-budget-allocated">₹0</div>
+                </div>
+                <div class="budget-item">
+                  <div class="budget-item-lbl">Loaned Out</div>
+                  <div class="budget-item-val red" id="ap-budget-loaned">₹0</div>
+                </div>
+                <div class="budget-item">
+                  <div class="budget-item-lbl">Available to Issue</div>
+                  <div class="budget-item-val green" id="ap-budget-available">₹0</div>
+                </div>
+                <div class="budget-item">
+                  <div class="budget-item-lbl">Interest Collected</div>
+                  <div class="budget-item-val purple" id="ap-budget-interest">₹0</div>
+                </div>
+                <div class="budget-item" style="grid-column:1/-1;border-top:1px dashed var(--border);padding-top:10px;margin-top:4px;">
+                  <div class="budget-item-lbl">🏦 Collection Pool <small style="font-weight:400;color:var(--text-muted)">(returned principal + interest)</small></div>
+                  <div class="budget-item-val" style="color:#0ea5e9" id="ap-budget-collection">₹0</div>
+                </div>
+              </div>
+              <div class="budget-used-bar" style="margin-top:14px">
+                <div class="budget-bar-label">
+                  <span>Fund deployed</span><span id="ap-budget-pct-label">0%</span>
+                </div>
+                <div class="budget-bar-track">
+                  <div class="budget-bar-fill" id="ap-budget-bar-fill" style="width:0%"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" id="ap-rank-card" style="flex:1">
+              <!-- My Rank — rendered by agent-portal.js -->
+            </div>
+          </div>
+
+          <!-- Agent Leaderboard — full width below -->
+          <div class="card" style="margin-top:20px">
+            <div class="card-head">
+              <div>
+                <div class="card-title">Agent Leaderboard</div>
+                <div class="card-sub">Ranked by progress %</div>
+              </div>
+              <span class="live-badge"><span class="live-dot"></span>Live</span>
+            </div>
+            <div class="lb-list" id="ap-lb-list"></div>
+          </div>
+        </div>
+
+        <div class="finance-cards-grid admin-only">
           <div class="finance-card agent-only" style="display:none;">
             <h3>My Fund Balance</h3>
             <div class="counter-value" id="statAgentFund">₹0</div>
@@ -149,9 +306,14 @@
             <h3>Pending Overdue Interest</h3>
             <div class="counter-value" id="statPendingInterest">₹0</div>
           </div>
+          <div class="finance-card admin-only" style="border-top:3px solid #10b981;">
+            <h3>Collection Income</h3>
+            <div class="counter-value" id="statCollectionIncome" style="color:#10b981">₹0</div>
+            <small class="muted-text" style="font-size:11px;">Total principal + interest collected by agents</small>
+          </div>
         </div>
 
-        <div class="charts-grid">
+        <div class="charts-grid admin-only">
           <div class="chart-card admin-only"><h4>Vault Distribution</h4><div class="chart-box"><canvas id="vaultDoughnutChart"></canvas></div></div>
           <div class="chart-card"><h4>Portfolio Health</h4><div class="chart-box"><canvas id="loanStatusPieChart"></canvas></div></div>
           <div class="chart-card wide admin-only"><h4>7-Day Cashflow</h4><div class="chart-box"><canvas id="cashflowLineChart"></canvas></div></div>
@@ -162,74 +324,91 @@
       </section>
 
       <!-- SETTINGS (every role: admin, agent, developer) -->
-      <section class="page-section" id="page-settings">
-        <div class="section-header-row">
-          <div>
-            <h3>Settings</h3>
-            <p class="muted-text">Manage your profile, photo and login security.</p>
+      <!-- MY PROFILE & KYC -->
+      <section class="page-section ap-scope" id="page-settings">
+        <div class="kyc-status-banner agent-only" id="kyc-status-banner">
+          <div class="kyc-status-icon" id="kyc-status-icon">⏳</div>
+          <div style="flex:1">
+            <div class="kyc-status-title" id="kyc-status-title">Account Verification Pending</div>
+            <div class="kyc-status-sub" id="kyc-status-sub">Submit your documents and basic info for Hiring Authority approval. Money will be allocated only after account is approved.</div>
           </div>
+          <span class="kyc-status-pill" id="kyc-status-pill">Pending</span>
         </div>
 
-        <div class="settings-grid">
-          <div class="glass-panel settings-profile-card">
-            <div class="settings-avatar-wrap">
-              <div class="settings-avatar" id="settingsAvatarPreview">?</div>
-              <button type="button" class="settings-avatar-edit-btn" id="changeAvatarBtn" title="Change photo"><i class="fa-solid fa-camera"></i></button>
-            </div>
-            <input type="file" id="avatarFileInput" accept="image/*" class="hidden">
-            <button type="button" class="btn-friendly-secondary compact settings-remove-photo-btn" id="removeAvatarBtn" style="display:none;"><i class="fa-solid fa-trash"></i> Remove Photo</button>
-            <span class="role-chip" id="profileRole">Role</span>
-            <div class="settings-meta-row" id="profileSinceRow" style="display:none;">
-              <i class="fa-regular fa-calendar"></i><span>Member since <strong id="profileSince"></strong></span>
-            </div>
-          </div>
+        <div class="kyc-rejection-box agent-only" id="kyc-rejection-box" style="display:none;">
+          <strong>Submission rejected:</strong> <span id="kyc-rejection-reason"></span>
+        </div>
 
-          <div class="settings-right">
-            <div class="glass-panel">
-              <h3 class="panel-title"><i class="fa-solid fa-id-card"></i> Basic Information</h3>
-              <form id="profileInfoForm">
-                <div class="settings-form-grid">
-                  <div>
-                    <label>Display Name</label>
-                    <input type="text" id="profileDisplayName" placeholder="Your name" required>
-                  </div>
-                  <div>
-                    <label>Login ID</label>
-                    <input type="text" id="profileUsername" disabled>
-                  </div>
-                  <div>
-                    <label>Phone Number</label>
-                    <input type="tel" id="profilePhone" placeholder="Optional">
-                  </div>
-                  <div id="profileEmailRow" style="display:none;">
-                    <label>Linked Google Email</label>
-                    <input type="email" id="profileEmail" disabled>
-                  </div>
+        <div class="kyc-layout agent-only" id="kyc-agent-layout">
+          <!-- LEFT: Basic Information -->
+          <div class="card kyc-card">
+            <div class="card-head" style="margin-bottom:4px">
+              <div>
+                <div class="card-title"><span class="icon-em" style="margin-right:6px">👤</span>Basic Information</div>
+                <div class="card-sub">Your personal &amp; contact details</div>
+              </div>
+            </div>
+
+            <div class="kyc-photo-row">
+              <div class="kyc-photo-avatar" id="kyc-photo-avatar">?</div>
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary)">Profile Photo</div>
+                <div style="font-size:12px;color:var(--text-secondary)">Passport size photo required (JPG/PNG, max 2MB)</div>
+                <button type="button" class="btn-primary" id="kyc-upload-photo-btn" style="margin-top:8px;padding:7px 14px;font-size:12.5px"><span class="icon-em">⬆</span> Upload Photo</button>
+              </div>
+            </div>
+
+            <form id="kycInfoForm">
+              <div class="kyc-form-grid">
+                <div class="kyc-field"><label>Full Name <span class="req">*</span></label><input type="text" id="kyc-f-name" required></div>
+                <div class="kyc-field"><label>Agent ID</label><input type="text" id="kyc-f-agentid" disabled></div>
+                <div class="kyc-field"><label>Date of Birth <span class="req">*</span></label><input type="date" id="kyc-f-dob" required></div>
+                <div class="kyc-field">
+                  <label>Gender <span class="req">*</span></label>
+                  <select id="kyc-f-gender" required>
+                    <option value="">Select gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
-                <label>About / Bio</label>
-                <textarea id="profileBio" rows="3" placeholder="A short note about you (optional)"></textarea>
-                <button type="submit" class="btn-friendly-primary settings-save-btn">Save Changes</button>
-              </form>
-            </div>
+                <div class="kyc-field"><label>Mobile Number <span class="req">*</span></label><input type="tel" id="kyc-f-mobile" placeholder="+91 XXXXX XXXXX" required></div>
+                <div class="kyc-field"><label>Email Address <span class="req">*</span></label><input type="email" id="kyc-f-email" placeholder="agent@example.com" required></div>
+                <div class="kyc-field full"><label>Residential Address <span class="req">*</span></label><textarea id="kyc-f-address" rows="2" placeholder="Full address with PIN code" required></textarea></div>
+                <div class="kyc-field"><label>City <span class="req">*</span></label><input type="text" id="kyc-f-city" placeholder="City" required></div>
+                <div class="kyc-field">
+                  <label>State <span class="req">*</span></label>
+                  <select id="kyc-f-state" required>
+                    <option value="">Select state</option>
+                    <option>Andhra Pradesh</option><option>Arunachal Pradesh</option><option>Assam</option><option>Bihar</option>
+                    <option>Chhattisgarh</option><option>Goa</option><option>Gujarat</option><option>Haryana</option>
+                    <option>Himachal Pradesh</option><option>Jharkhand</option><option>Karnataka</option><option>Kerala</option>
+                    <option>Madhya Pradesh</option><option>Maharashtra</option><option>Manipur</option><option>Meghalaya</option>
+                    <option>Mizoram</option><option>Nagaland</option><option>Odisha</option><option>Punjab</option>
+                    <option>Rajasthan</option><option>Sikkim</option><option>Tamil Nadu</option><option>Telangana</option>
+                    <option>Tripura</option><option>Uttar Pradesh</option><option>Uttarakhand</option><option>West Bengal</option>
+                    <option>Delhi</option><option>Jammu and Kashmir</option><option>Ladakh</option><option>Other</option>
+                  </select>
+                </div>
+                <div class="kyc-field"><label>Bank Account No. <span class="req">*</span></label><input type="text" id="kyc-f-bankacc" placeholder="Account number" required></div>
+                <div class="kyc-field"><label>IFSC Code <span class="req">*</span></label><input type="text" id="kyc-f-ifsc" placeholder="e.g. SBIN0001234" required style="text-transform:uppercase"></div>
+              </div>
+              <button type="submit" class="btn-secondary" id="kyc-save-info-btn" style="margin-top:10px">Save Draft</button>
+            </form>
 
-            <div class="settings-row-2">
-              <div class="glass-panel">
-                <h3 class="panel-title danger"><i class="fa-solid fa-lock"></i> Change Password</h3>
-                <p class="muted-text">You'll use this the next time you sign in.</p>
-                <form id="changePasswordForm">
-                  <label>New Password</label>
-                  <input type="password" id="newPassword" placeholder="Minimum 6 characters" required>
-                  <label>Confirm New Password</label>
-                  <input type="password" id="confirmPassword" placeholder="Re-enter password" required>
-                  <button type="submit" class="btn-friendly-secondary full">Update Password</button>
+            <div class="kyc-row-2" style="margin-top:18px">
+              <div class="card" style="box-shadow:none;border:0.5px solid var(--border)">
+                <div class="card-title" style="font-size:13px"><span class="icon-em" style="margin-right:6px">🔒</span>Change Password</div>
+                <form id="changePasswordForm" style="margin-top:10px">
+                  <div class="kyc-field"><label>New Password</label><input type="password" id="newPassword" placeholder="Minimum 6 characters" required></div>
+                  <div class="kyc-field" style="margin-top:8px"><label>Confirm New Password</label><input type="password" id="confirmPassword" placeholder="Re-enter password" required></div>
+                  <button type="submit" class="btn-secondary" style="width:100%;margin-top:10px">Update Password</button>
                 </form>
               </div>
-
-              <div class="glass-panel">
-                <h3 class="panel-title"><i class="fa-solid fa-palette"></i> Appearance</h3>
-                <p class="muted-text">Switch between light and dark workspace themes.</p>
-                <label class="settings-switch-row">
-                  <span>Dark Mode</span>
+              <div class="card" style="box-shadow:none;border:0.5px solid var(--border)">
+                <div class="card-title" style="font-size:13px"><span class="icon-em" style="margin-right:6px">🎨</span>Appearance</div>
+                <label class="settings-switch-row" style="margin-top:10px">
+                  <span style="font-size:13px;color:var(--text-primary)">Dark Mode</span>
                   <span class="settings-switch">
                     <input type="checkbox" id="settingsThemeSwitch">
                     <span class="settings-switch-slider"></span>
@@ -238,6 +417,135 @@
               </div>
             </div>
           </div>
+
+          <!-- RIGHT: Document Upload -->
+          <div class="card kyc-card">
+            <div class="card-head" style="margin-bottom:2px">
+              <div>
+                <div class="card-title"><span class="icon-em" style="margin-right:6px">📁</span>Document Upload</div>
+                <div class="card-sub">All documents required for KYC verification</div>
+              </div>
+              <span class="kyc-doc-count" id="kyc-doc-count">0 / 6 uploaded</span>
+            </div>
+
+            <div class="kyc-section-label">Identity Documents</div>
+            <div id="kyc-doc-list-identity"></div>
+
+            <div class="kyc-section-label">Qualification Certificate <span style="font-weight:500;color:var(--text-tertiary);text-transform:none">(upload either 10th or 12th)</span></div>
+            <div class="kyc-qual-toggle">
+              <button type="button" class="kyc-qual-tab active-tab" id="kyc-qual-tab-10" data-ap-qual="10th">10th Marksheet</button>
+              <button type="button" class="kyc-qual-tab" id="kyc-qual-tab-12" data-ap-qual="12th">12th Marksheet</button>
+            </div>
+            <div id="kyc-doc-list-qual"></div>
+
+            <div class="kyc-section-label">Payment QR Code</div>
+            <div id="kyc-doc-list-qr"></div>
+          </div>
+        </div>
+
+        <div class="kyc-submit-bar agent-only" id="kyc-submit-bar">
+          <div style="flex:1">
+            <div id="kyc-submit-bar-title" style="font-size:13.5px;font-weight:700;color:var(--text-primary)">Ready to submit?</div>
+            <div id="kyc-submit-bar-sub" style="font-size:12px;color:var(--text-secondary);margin-top:2px">Fill in all required fields and upload all documents, then submit for Hiring Authority review.</div>
+          </div>
+          <button type="button" class="btn-primary" id="kyc-submit-approval-btn" style="white-space:nowrap;flex-shrink:0">
+            <span class="icon-em">📨</span> Submit for Approval
+          </button>
+        </div>
+
+        <!-- Simple profile card for Admin / Developer singleton logins -->
+        <div class="kyc-layout admin-only" id="kyc-admin-layout" style="grid-template-columns:1fr;max-width:560px">
+          <div class="card kyc-card">
+            <div class="card-head" style="margin-bottom:4px">
+              <div>
+                <div class="card-title"><span class="icon-em" style="margin-right:6px">👤</span>My Profile</div>
+                <div class="card-sub">Display name and login security</div>
+              </div>
+            </div>
+
+            <div class="kyc-photo-row">
+              <div class="kyc-photo-avatar" id="settingsAvatarPreview">?</div>
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary)">Profile Photo</div>
+                <button type="button" class="btn-primary" id="changeAvatarBtn" style="margin-top:8px;padding:7px 14px;font-size:12.5px"><span class="icon-em">⬆</span> Change Photo</button>
+                <button type="button" class="btn-secondary" id="removeAvatarBtn" style="display:none;margin-top:8px;margin-left:8px;padding:7px 14px;font-size:12.5px">Remove</button>
+                <input type="file" id="avatarFileInput" accept="image/*" class="hidden">
+              </div>
+            </div>
+
+            <form id="profileInfoForm">
+              <div class="kyc-form-grid">
+                <div class="kyc-field"><label>Display Name <span class="req">*</span></label><input type="text" id="profileDisplayName" required></div>
+                <div class="kyc-field"><label>Login ID</label><input type="text" id="profileUsername" disabled></div>
+                <div class="kyc-field"><label>Phone Number</label><input type="tel" id="profilePhone" placeholder="Optional"></div>
+                <div class="kyc-field" id="profileEmailRow" style="display:none;"><label>Linked Google Email</label><input type="email" id="profileEmail" disabled></div>
+              </div>
+              <label style="font-size:12.5px;font-weight:600;color:var(--text-secondary);margin-top:10px;display:block">About / Bio</label>
+              <textarea id="profileBio" rows="2" placeholder="A short note about you (optional)" style="width:100%;margin-top:6px"></textarea>
+              <button type="submit" class="btn-primary" style="margin-top:10px">Save Changes</button>
+            </form>
+
+            <div class="kyc-row-2" style="margin-top:18px">
+              <div class="card" style="box-shadow:none;border:0.5px solid var(--border)">
+                <div class="card-title" style="font-size:13px"><span class="icon-em" style="margin-right:6px">🔒</span>Change Password</div>
+                <form id="changePasswordFormAdmin" style="margin-top:10px">
+                  <div class="kyc-field"><label>New Password</label><input type="password" id="newPasswordAdmin" placeholder="Minimum 6 characters" required></div>
+                  <div class="kyc-field" style="margin-top:8px"><label>Confirm New Password</label><input type="password" id="confirmPasswordAdmin" placeholder="Re-enter password" required></div>
+                  <button type="submit" class="btn-secondary" style="width:100%;margin-top:10px">Update Password</button>
+                </form>
+              </div>
+              <div class="card" style="box-shadow:none;border:0.5px solid var(--border)">
+                <div class="card-title" style="font-size:13px"><span class="icon-em" style="margin-right:6px">🎨</span>Appearance</div>
+                <label class="settings-switch-row" style="margin-top:10px">
+                  <span style="font-size:13px;color:var(--text-primary)">Dark Mode</span>
+                  <span class="settings-switch">
+                    <input type="checkbox" id="settingsThemeSwitchAdmin">
+                    <span class="settings-switch-slider"></span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- KYC APPROVALS (admin / developer) -->
+      <section class="page-section ap-scope admin-only" id="page-kyc-approvals">
+        <div class="metrics" style="margin-bottom:16px">
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">Pending Review</div><div class="metric-val" id="kyc-m-pending" style="color:var(--warning)">0</div></div>
+              <div class="metric-icon" style="background:var(--warning-bg)"><span class="icon-em" style="color:var(--warning)">⏳</span></div>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">Approved</div><div class="metric-val" id="kyc-m-approved" style="color:var(--success)">0</div></div>
+              <div class="metric-icon" style="background:var(--success-bg)"><span class="icon-em" style="color:var(--success)">✅</span></div>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">Rejected</div><div class="metric-val" id="kyc-m-rejected" style="color:var(--danger)">0</div></div>
+              <div class="metric-icon" style="background:var(--danger-bg)"><span class="icon-em" style="color:var(--danger)">✕</span></div>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">Not Submitted</div><div class="metric-val" id="kyc-m-notsubmitted">0</div></div>
+              <div class="metric-icon" style="background:var(--info-bg)"><span class="icon-em" style="color:var(--info)">📋</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="kyc-approvals-layout">
+          <div><div id="kyc-approvals-list"></div></div>
+          <div><div class="tk-detail-panel" id="kyc-review-panel">
+            <div class="tk-detail-empty">
+              <div class="tk-detail-empty-icon">🪪</div>
+              <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:5px">Select a submission</div>
+              <div style="font-size:12.5px">Click any agent on the left to review their KYC.</div>
+            </div>
+          </div></div>
         </div>
       </section>
 
@@ -307,6 +615,165 @@
         </div>
       </section>
 
+      <!-- MY CLIENTS (agent only — card view over the same loan records) -->
+      <section class="page-section ap-scope" id="page-clients">
+        <div class="client-budget-strip">
+          <div class="cb-pill">
+            <div class="cb-pill-lbl">Allocated Fund</div>
+            <div class="cb-pill-val" id="ap-cb-allocated">₹0</div>
+          </div>
+          <div class="cb-pill">
+            <div class="cb-pill-lbl">Loaned Out</div>
+            <div class="cb-pill-val red" id="ap-cb-loaned">₹0</div>
+          </div>
+          <div class="cb-pill">
+            <div class="cb-pill-lbl">Available</div>
+            <div class="cb-pill-val green" id="ap-cb-available">₹0</div>
+          </div>
+          <div class="cb-pill">
+            <div class="cb-pill-lbl">Total Clients</div>
+            <div class="cb-pill-val purple" id="ap-cb-clientcount">0</div>
+          </div>
+        </div>
+
+        <div class="clients-toolbar">
+          <div class="clients-search">
+            <span class="icon-em" style="color:var(--text-tertiary)">🔍</span>
+            <input type="text" id="ap-client-search-input" placeholder="Search clients by name or phone…" oninput="renderClientsPage()">
+          </div>
+          <button class="btn-primary" id="ap-new-client-btn"><span class="icon-em">➕</span> New Loan</button>
+        </div>
+
+        <div id="ap-client-cards-wrap"></div>
+
+        <div class="clients-empty-state" id="ap-clients-empty-state" style="display:none">
+          <div class="ces-icon">🏢</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px">No clients yet</div>
+          <div style="font-size:12.5px">Create your first loan to register a client against your allocated fund.</div>
+        </div>
+      </section>
+
+      <!-- SCHEDULE (agent only) -->
+      <section class="page-section ap-scope" id="page-schedule">
+        <div class="metrics" style="margin-bottom:16px">
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">Loan Start Dates</div><div class="metric-val" id="ap-sched-m-starts">0</div></div>
+              <div class="metric-icon" style="background:var(--success-bg)"><span class="icon-em" style="color:var(--success)">📗</span></div>
+            </div>
+            <div class="metric-delta" style="color:var(--text-secondary)">This month</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">Due Dates</div><div class="metric-val" id="ap-sched-m-dues">0</div></div>
+              <div class="metric-icon" style="background:var(--danger-bg)"><span class="icon-em" style="color:var(--danger)">📕</span></div>
+            </div>
+            <div class="metric-delta" style="color:var(--text-secondary)">Approaching</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">My Marks</div><div class="metric-val" id="ap-sched-m-agent">0</div></div>
+              <div class="metric-icon" style="background:var(--purple-bg)"><span class="icon-em" style="color:var(--purple)">📌</span></div>
+            </div>
+            <div class="metric-delta" style="color:var(--text-secondary)">Custom events</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">Total Events</div><div class="metric-val" id="ap-sched-m-total">0</div></div>
+              <div class="metric-icon" style="background:var(--info-bg)"><span class="icon-em" style="color:var(--info)">📅</span></div>
+            </div>
+            <div class="metric-delta" style="color:var(--text-secondary)">All calendar</div>
+          </div>
+        </div>
+
+        <div class="sched-layout">
+          <div>
+            <div class="cal-card">
+              <div class="cal-header">
+                <div>
+                  <div class="cal-month-label" id="ap-cal-month-label">June</div>
+                  <div class="cal-year-label" id="ap-cal-year-label">2026</div>
+                </div>
+                <div class="cal-nav-group">
+                  <button class="cal-nav-btn" id="ap-cal-prev">◀</button>
+                  <button class="cal-nav-btn" id="ap-cal-today" style="font-size:11px;font-weight:600;width:auto;padding:0 10px;color:var(--text-primary)">Today</button>
+                  <button class="cal-nav-btn" id="ap-cal-next">▶</button>
+                </div>
+              </div>
+              <div class="cal-grid-wrap">
+                <div class="cal-weekdays">
+                  <div class="cal-weekday">Sun</div><div class="cal-weekday">Mon</div>
+                  <div class="cal-weekday">Tue</div><div class="cal-weekday">Wed</div>
+                  <div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div>
+                  <div class="cal-weekday">Sat</div>
+                </div>
+                <div class="cal-days" id="ap-cal-days-grid"></div>
+              </div>
+              <div class="cal-legend">
+                <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#1D9E75"></div>Loan Start</div>
+                <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#E24B4A"></div>Loan Due</div>
+                <div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--purple)"></div>My Mark</div>
+                <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#378ADD"></div>Today</div>
+              </div>
+            </div>
+
+            <div class="upcoming-card">
+              <div class="card-head" style="margin-bottom:10px">
+                <div class="card-title"><span class="icon-em" style="margin-right:6px">📆</span>Upcoming Events</div>
+                <span style="font-size:11px;color:var(--text-secondary)" id="ap-upcoming-count-label">Next 30 days</span>
+              </div>
+              <div class="filter-chips" id="ap-filter-chips-row">
+                <div class="filter-chip fc-active-all" data-ap-filter="all">
+                  <span class="filter-chip-dot" style="background:var(--purple)"></span>All
+                </div>
+                <div class="filter-chip" data-ap-filter="loan-start">
+                  <span class="filter-chip-dot" style="background:#1D9E75"></span>Loan Start
+                </div>
+                <div class="filter-chip" data-ap-filter="loan-due">
+                  <span class="filter-chip-dot" style="background:#E24B4A"></span>Loan Due
+                </div>
+                <div class="filter-chip" data-ap-filter="agent">
+                  <span class="filter-chip-dot" style="background:var(--purple)"></span>My Marks
+                </div>
+              </div>
+              <div id="ap-cal-upcoming-list">
+                <div style="text-align:center;color:var(--text-tertiary);font-size:12.5px;padding:20px 0">No upcoming events</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sched-right">
+            <div class="sched-selected-card">
+              <div class="sched-sel-header" id="ap-sched-sel-header">Select a date to view events</div>
+              <div id="ap-sched-sel-body">
+                <div class="sched-sel-empty">Click any date on the calendar.</div>
+              </div>
+            </div>
+
+            <div class="sched-add-card">
+              <div class="sched-add-title"><span class="icon-em" style="margin-right:6px">📌</span>Add Custom Mark</div>
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Date <span class="req">*</span></label>
+                <input type="date" class="form-input" id="ap-sched-add-date" style="margin-bottom:8px">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Label <span class="req">*</span></label>
+                <input type="text" class="form-input" id="ap-sched-add-label" placeholder="e.g. Follow-up call with Ramesh">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Note</label>
+                <textarea class="form-input" id="ap-sched-add-note" rows="2" placeholder="Optional notes..."></textarea>
+              </div>
+              <div class="sched-add-row">
+                <button class="btn-primary" style="flex:1" id="ap-sched-add-btn"><span class="icon-em">📌</span> Mark Date</button>
+                <button class="btn-secondary" id="ap-sched-clear-btn">Clear</button>
+              </div>
+              <div id="ap-sched-add-result" style="display:none;margin-top:10px;font-size:12.5px;padding:8px 12px;border-radius:var(--radius-md)"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- MASTER LEDGER -->
       <section class="page-section" id="page-ledger">
         <div class="section-header-row">
@@ -325,30 +792,153 @@
       <section class="page-section" id="page-myrank">
         <div class="section-header-row">
           <div>
-            <h3>My Rank</h3>
-            <p class="muted-text">Track your progress, level and where you stand on the leaderboard.</p>
+            <h3>My XP Progress</h3>
+            <p class="muted-text">Track your rank progress, unlock upgrades and climb the leaderboard.</p>
           </div>
+          <span class="xp-rank-badge-header" id="xp-rank-badge-header"></span>
         </div>
-        <div class="glass-panel" id="myRankCard"></div>
+
+        <!-- XP Progress Card -->
+        <div class="glass-panel xp-main-card" id="myRankCard">
+          <!-- rendered by ranking.js renderAgentRankCard() -->
+        </div>
+
+        <!-- Full Rank Ladder Track -->
+        <div class="glass-panel xp-ladder-card" style="margin-top:18px;" id="xp-ladder-card">
+          <!-- rendered by ranking.js -->
+        </div>
+
+        <!-- Upgrade CTA / Status -->
+        <div class="glass-panel xp-upgrade-card" style="margin-top:18px;" id="xp-upgrade-card">
+          <!-- rendered by ranking.js -->
+        </div>
+
+        <!-- Leaderboard -->
         <div class="glass-panel" style="margin-top:18px;">
           <h3 class="panel-title"><i class="fa-solid fa-list-ol"></i> Leaderboard</h3>
           <div class="leaderboard-list" id="leaderboardList"></div>
         </div>
       </section>
 
-      <!-- SOS -->
-      <section class="page-section" id="page-sos">
-        <div class="section-header-row">
-          <h3>My SOS Requests</h3>
-          <button class="btn-friendly-secondary danger" id="raiseSosBtn"><i class="fa-solid fa-triangle-exclamation"></i> Raise SOS</button>
+      <!-- TICKETS (agent: raise & track own · admin/dev: see & respond to all) -->
+      <section class="page-section ap-scope" id="page-sos">
+        <div class="metrics" style="margin-bottom:16px" id="ap-tk-metrics">
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">Open</div><div class="metric-val" id="ap-tk-m-open" style="color:var(--info)">0</div></div>
+              <div class="metric-icon" style="background:var(--info-bg)"><span class="icon-em" style="color:var(--info)">🎫</span></div>
+            </div>
+            <div class="metric-delta" style="color:var(--text-secondary)">Awaiting response</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">In Progress</div><div class="metric-val" id="ap-tk-m-inprog" style="color:var(--warning)">0</div></div>
+              <div class="metric-icon" style="background:var(--warning-bg)"><span class="icon-em" style="color:var(--warning)">⚙️</span></div>
+            </div>
+            <div class="metric-delta" style="color:var(--text-secondary)">Being reviewed</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">Resolved</div><div class="metric-val" id="ap-tk-m-resolved" style="color:var(--success)">0</div></div>
+              <div class="metric-icon" style="background:var(--success-bg)"><span class="icon-em" style="color:var(--success)">✅</span></div>
+            </div>
+            <div class="metric-delta" style="color:var(--text-secondary)">All time</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-row">
+              <div><div class="metric-label">Total Raised</div><div class="metric-val" id="ap-tk-m-total">0</div></div>
+              <div class="metric-icon" style="background:var(--purple-bg)"><span class="icon-em" style="color:var(--purple)">📋</span></div>
+            </div>
+            <div class="metric-delta" style="color:var(--text-secondary)">Lifetime</div>
+          </div>
         </div>
-        <div class="table-responsive">
-          <table>
-            <thead><tr><th>Raised On</th><th>Reason</th><th>Status</th></tr></thead>
-            <tbody id="sosTableBody"><tr><td colspan="3" class="empty-row">No SOS tokens raised yet.</td></tr></tbody>
-          </table>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+          <div class="filter-chips" style="margin-bottom:0" id="ap-tk-filter-chips">
+            <div class="filter-chip fc-active-all" data-ap-tk-filter="all">All</div>
+            <div class="filter-chip" data-ap-tk-filter="open">
+              <span class="filter-chip-dot" style="background:var(--info)"></span>Open
+            </div>
+            <div class="filter-chip" data-ap-tk-filter="inprogress">
+              <span class="filter-chip-dot" style="background:var(--warning)"></span>In Progress
+            </div>
+            <div class="filter-chip" data-ap-tk-filter="resolved">
+              <span class="filter-chip-dot" style="background:var(--success)"></span>Resolved
+            </div>
+            <div class="filter-chip" data-ap-tk-filter="closed">
+              <span class="filter-chip-dot" style="background:var(--text-tertiary)"></span>Closed
+            </div>
+          </div>
+          <button class="btn-primary" id="ap-tk-raise-btn" style="white-space:nowrap;flex-shrink:0">
+            <span class="icon-em">＋</span> Raise New Ticket
+          </button>
+        </div>
+
+        <div class="tickets-layout">
+          <div>
+            <div id="ap-tk-list-container"></div>
+          </div>
+          <div>
+            <div class="tk-detail-panel" id="ap-tk-detail-panel">
+              <div class="tk-detail-empty">
+                <div class="tk-detail-empty-icon">🎫</div>
+                <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:5px">Select a ticket</div>
+                <div style="font-size:12.5px">Click any ticket on the left to view details and updates.</div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
+
+      <!-- Raise Ticket Modal -->
+      <div class="modal-overlay" id="ap-tk-raise-modal-overlay" style="display:none;">
+        <div class="modal-card ap-scope" style="max-width:540px">
+          <div class="modal-header">
+            <div class="modal-icon"><i class="fa-solid fa-ticket"></i></div>
+            <h3>Raise a Ticket</h3>
+            <button class="modal-close-btn" id="ap-tk-raise-close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="modal-body">
+            <p class="modal-intro">Describe your issue clearly. The Hiring Authority will review it and respond here.</p>
+            <div class="modal-fields-grid">
+              <div class="modal-field full">
+                <label class="modal-field-label">Issue Title *</label>
+                <input type="text" id="ap-tk-f-title" placeholder="Brief summary (e.g. Payment not reflecting)">
+              </div>
+              <div class="modal-field">
+                <label class="modal-field-label">Category *</label>
+                <select id="ap-tk-f-category">
+                  <option value="payment">Payment Issue</option>
+                  <option value="kyc">KYC / Document</option>
+                  <option value="loan">Loan Related</option>
+                  <option value="technical">Technical Problem</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="modal-field">
+                <label class="modal-field-label">Priority</label>
+                <select id="ap-tk-f-priority">
+                  <option value="low">Low — No urgency</option>
+                  <option value="medium" selected>Medium — Affecting work</option>
+                  <option value="high">High — Urgent / Blocking</option>
+                </select>
+              </div>
+              <div class="modal-field full">
+                <label class="modal-field-label">Describe the Issue *</label>
+                <textarea id="ap-tk-f-desc" rows="4" placeholder="Explain what happened, when it started, and what you've tried."></textarea>
+              </div>
+              <div class="modal-field full">
+                <label class="modal-field-label">Reference / Related ID</label>
+                <input type="text" id="ap-tk-f-ref" placeholder="e.g. Loan ID, Client name (optional)">
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-friendly-secondary" id="ap-tk-raise-cancel">Cancel</button>
+            <button type="button" class="btn-friendly-primary" id="ap-tk-raise-submit"><i class="fa-solid fa-paper-plane"></i> Submit to Hiring Authority</button>
+          </div>
+        </div>
+      </div>
 
       <!-- ADMIN PANEL -->
       <section class="page-section" id="page-admin">
@@ -373,23 +963,43 @@
       <section class="page-section" id="page-levels">
         <div class="section-header-row">
           <div>
-            <h3>Agent Level &amp; Ranking System</h3>
-            <p class="muted-text">Define levels, ranks, targets and benefits. Review upgrade requests and check the leaderboard.</p>
+            <h3>Ranking &amp; Upgrades</h3>
+            <p class="muted-text">Review agent upgrade requests and monitor the leaderboard. Ranks are earned automatically through the upgrade system.</p>
           </div>
-          <button class="btn-friendly-primary compact" id="addLevelBtn"><i class="fa-solid fa-plus"></i> New Level</button>
         </div>
 
         <div class="glass-panel">
+          <div class="card-head">
+            <h3 class="panel-title" style="margin-bottom:0"><i class="fa-solid fa-layer-group"></i> Manage Levels</h3>
+            <button class="btn-friendly-primary compact" id="addLevelBtn"><i class="fa-solid fa-plus"></i> Add Level</button>
+          </div>
+          <p class="muted-text">Create custom levels, rank names, progress targets, allocation limits and benefits. Agents climb this ladder automatically as they settle loans.</p>
+          <div id="levelManagerList"></div>
+        </div>
+
+        <div class="glass-panel" style="margin-top:18px;">
           <h3 class="panel-title"><i class="fa-solid fa-inbox"></i> Upgrade Requests</h3>
           <div id="upgradeRequestsList"></div>
         </div>
 
-        <h3 style="margin:24px 0 4px;">Levels</h3>
-        <div class="levels-grid" id="levelsAdminGrid"></div>
-
         <div class="glass-panel" style="margin-top:18px;">
           <h3 class="panel-title"><i class="fa-solid fa-list-ol"></i> Agent Leaderboard</h3>
           <div class="leaderboard-list" id="leaderboardListAdmin"></div>
+        </div>
+      </section>
+
+      <!-- INCOME OVERVIEW -->
+      <section class="page-section" id="page-income">
+        <div class="section-header-row">
+          <div>
+            <h3>Income Overview</h3>
+            <p class="muted-text">Track income generated from agent rank upgrades. 2 XP = ₹1 total pool, split 50% agent / 50% admin &amp; dev.</p>
+          </div>
+        </div>
+        <div class="glass-panel">
+          <h3 class="panel-title"><i class="fa-solid fa-coins"></i> Income Overview</h3>
+          <p class="muted-text" style="margin-bottom:12px;">Income is generated when agents are approved for rank upgrades. 2 XP = ₹1 total pool, split 50% agent / 50% admin &amp; dev.</p>
+          <div id="adminIncomePanel"></div>
         </div>
       </section>
 
@@ -444,8 +1054,10 @@
 <script src="js/sidebar.js"></script>
 <script src="js/wallet.js"></script>
 <script src="js/settings.js"></script>
+<script src="js/kyc.js"></script>
 <script src="js/ranking.js"></script>
 <script src="js/charts.js"></script>
+<script src="js/agent-portal.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

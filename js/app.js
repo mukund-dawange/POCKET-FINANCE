@@ -20,5 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initAdminActions();
     initDevConsoleActions();
     if (typeof initSettings === 'function') initSettings();
+    if (typeof initKyc === 'function') initKyc();
     if (typeof initRanking === 'function') initRanking();
+    if (typeof initAgentPortal === 'function') initAgentPortal();
 });

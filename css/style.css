@@ -42,6 +42,18 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; background: var(--bg-color); color: var(--text-main); transition: background .3s, color .3s; -webkit-text-size-adjust: 100%; overscroll-behavior-y: none; }
+
+/* ===================== SLIM CUSTOM SCROLLBARS ===================== */
+/* Replaces the bulky native OS scrollbar (with up/down arrow buttons) that
+   showed up wherever content scrolls — sidebar nav, main content, modals,
+   tables — with a slim, theme-matched one. */
+* { scrollbar-width: thin; scrollbar-color: var(--glass-border) transparent; }
+*::-webkit-scrollbar { width: 7px; height: 7px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--glass-border-highlight); border-radius: 10px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+*::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+*::-webkit-scrollbar-corner { background: transparent; }
 .hidden { display: none !important; }
 button { font-family: inherit; touch-action: manipulation; }
 
@@ -634,6 +646,66 @@ tr:hover td { background: rgba(249,115,22,.03); }
 .request-row-info small { color: var(--text-muted); font-weight: 600; }
 .request-row-actions { display: flex; gap: 8px; }
 .request-row-actions button { width: auto; padding: 8px 14px; }
+
+/* ===================== MY RANK / XP PROGRESS ===================== */
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.card-head button { width: auto; }
+
+.xp-rank-badge-header { background: rgba(249,115,22,.1); color: var(--primary); border: 1px solid rgba(249,115,22,.25); padding: 4px 14px; border-radius: 99px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+.xp-main-card { padding: 26px; }
+.xp-card-inner { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+
+.xp-circle-col { flex-shrink: 0; }
+.xp-circle { position: relative; width: 130px; height: 130px; --xp-color: var(--primary); }
+.xp-circle-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.xp-circle-bg, .xp-circle-fill { fill: none; stroke-width: 9; }
+.xp-circle-bg { stroke: var(--glass-border); }
+.xp-circle-fill { stroke: var(--xp-color); stroke-linecap: round; transition: stroke-dasharray .5s ease; }
+.xp-circle-content { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.xp-circle-val { font-size: 24px; font-weight: 800; line-height: 1; }
+.xp-circle-sub { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+
+.xp-info-col { flex: 1; min-width: 240px; }
+.xp-rank-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.xp-rank-title { font-size: 16px; font-weight: 800; }
+.xp-rank-sub { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+
+.xp-progress-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--text-muted); margin-bottom: 6px; flex-wrap: wrap; }
+.xp-progress-label-row strong { color: var(--text-main); font-weight: 800; }
+
+.xp-bar-track { position: relative; height: 10px; border-radius: 99px; background: var(--input-bg); border: 1px solid var(--glass-border); overflow: visible; }
+.xp-bar-fill { height: 100%; border-radius: 99px; transition: width .5s ease; }
+.xp-bar-marker { position: absolute; top: -4px; bottom: -4px; }
+.xp-bar-marker-line { width: 2px; height: 100%; background: var(--text-muted); opacity: .6; border-radius: 2px; }
+
+.xp-bar-ticks { position: relative; display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--text-muted); font-weight: 600; min-height: 14px; }
+
+.xp-ladder-card { padding: 22px; overflow-x: auto; }
+.xp-ladder-track { display: flex; align-items: center; min-width: max-content; padding: 8px 2px; }
+.xp-ladder-step { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; width: 86px; }
+.xp-ladder-icon { width: 38px; height: 38px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 14px; flex-shrink: 0; }
+.xp-ladder-step.current .xp-ladder-icon { box-shadow: 0 0 0 4px rgba(249,115,22,.15); }
+.xp-ladder-label { font-size: 10.5px; font-weight: 700; color: var(--text-muted); text-align: center; line-height: 1.25; white-space: nowrap; }
+.xp-ladder-step.current .xp-ladder-label, .xp-ladder-step.done .xp-ladder-label { color: var(--text-main); }
+.xp-ladder-connector { flex: 1; min-width: 18px; height: 2px; background: var(--glass-border); margin: 0 -2px 18px; }
+.xp-ladder-connector.done { background: var(--primary); }
+
+.xp-upgrade-card { padding: 18px 22px; }
+.xp-upgrade-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.xp-upgrade-title { font-size: 14.5px; font-weight: 800; }
+.xp-upgrade-sub { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+.xp-upgrade-inner.ready .xp-upgrade-title { color: var(--success); }
+.xp-upgrade-inner.locked .xp-upgrade-title { color: var(--text-muted); }
+.xp-upgrade-btn { width: auto; flex-shrink: 0; background: var(--primary); color: #fff; border: none; padding: 11px 18px; border-radius: 10px; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: background .2s; }
+.xp-upgrade-btn:hover { background: var(--primary-hover); }
+.xp-countdown { font-weight: 800; font-size: 13px; color: var(--primary); background: var(--input-bg); padding: 6px 12px; border-radius: 10px; border: 1px solid var(--glass-border); white-space: nowrap; }
+
+@media (max-width: 640px) {
+    .xp-card-inner { justify-content: center; text-align: center; }
+    .xp-info-col { min-width: 100%; }
+    .xp-upgrade-inner { justify-content: center; text-align: center; }
+}
 
 .benefit-tag-input-row { display: flex; gap: 8px; margin-top: 8px; }
 .benefit-tag-input-row input { flex: 1; }

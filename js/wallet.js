@@ -17,6 +17,11 @@ function renderStatCards() {
     document.getElementById('statPendingDues').textContent = fmtINR(pendingTotal);
     document.getElementById('statPendingInterest').textContent = fmtINR(pendingInterestTotal);
 
+    // Total collection across all agents (principal + interest collected back)
+    const totalCollected = agentState.reduce((s, a) => s + (Number(a.collectionPool) || 0), 0);
+    const el = document.getElementById('statCollectionIncome');
+    if (el) el.textContent = fmtINR(totalCollected);
+
     if (isAgent) {
         const me = agentState.find(a => a.id === state.user.agentId);
         const activeAgentLoanTotal = scopedLoans.filter(l => l.status === 'Active').reduce((s, l) => s + l.amount, 0);
@@ -179,41 +184,18 @@ function initLedgerActions() {
    Loan Accounts directly, and admin/dev track pending dues per agent
    through the Loan Accounts agent filter + Dashboard analytics instead. */
 
-/* ---------------- SOS ---------------- */
+/* ---------------- TICKETS (formerly SOS) ----------------
+   Rendering and actions now live in agent-portal.js
+   (renderTicketsPage / initTicketsPage), which understands the
+   richer ticket shape and handles both agent + admin views.
+   These two are kept as thin pass-throughs so the existing
+   renderAll()/app.js call sites don't need to change. */
 function renderSosTable() {
-    const body = document.getElementById('sosTableBody');
-    if (!state.sos.length) {
-        body.innerHTML = '<tr><td colspan="3" class="empty-row">No SOS tokens raised yet.</td></tr>';
-    } else {
-        body.innerHTML = state.sos.map(s => `
-            <tr>
-                <td data-label="Raised On">${new Date(s.raisedOn).toLocaleString('en-IN')}</td>
-                <td data-label="Reason">${escapeHTML(s.reason)}</td>
-                <td data-label="Status"><span class="status-pill active">${s.status}</span></td>
-            </tr>
-        `).join('');
-    }
-    updateBadge('sosBadge', state.sos.filter(s => s.status === 'Open').length);
+    if (typeof renderTicketsPage === 'function') renderTicketsPage();
 }
 
 function initSosActions() {
-    document.getElementById('raiseSosBtn').addEventListener('click', () => {
-        showFormModal({
-            title: 'Raise SOS',
-            icon: 'fa-triangle-exclamation',
-            submitLabel: 'Raise SOS',
-            fields: [
-                { id: 'reason', label: 'Reason', required: true, placeholder: 'e.g. Client refusing to repay' }
-            ],
-            onSubmit: (v) => {
-                if (!v.reason) return showToast('Please describe the issue.', 'danger');
-                state.sos.unshift({ id: genId('sos'), raisedOn: Date.now(), reason: v.reason, status: 'Open' });
-                saveState();
-                renderAll();
-                showToast('SOS raised. Admin has been notified.', 'warning');
-            }
-        });
-    });
+    // wiring now happens in initTicketsPage(), called from initAgentPortal()
 }
 
 /* ---------------- ADMIN PANEL ---------------- */
@@ -257,7 +239,9 @@ function showAddAgentModal() {
                 state.wallet[v.source] -= fund;
                 addLog(`Fund allocated to new agent ${v.name}`, 'expense', fund);
             }
-            agentState.push({ id: genId('agent'), name: v.name, username: v.username, password: v.password, fund, createdAt: Date.now() });
+            // Auto-assign Level 1 (No Rank) and set allocatedAmount = fund
+            const firstLevel = typeof sortedLevelDefs === 'function' ? sortedLevelDefs()[0] : null;
+            agentState.push({ id: genId('agent'), name: v.name, username: v.username, password: v.password, fund, createdAt: Date.now(), levelId: firstLevel?.id || '', allocatedAmount: fund, xp: 0 });
             addAudit('Agent created', `Agent "${v.name}" (${v.username}) created with ${fmtINR(fund)} from ${v.source}`);
             saveState();
             renderAll();
@@ -273,10 +257,23 @@ function renderAgentManager() {
         root.innerHTML = '<p class="empty-row">No agents yet. Click "Add New Agent" to create one.</p>';
         return;
     }
+    const kycBadge = (a) => {
+        if (typeof kycEnsureShape === 'function') kycEnsureShape(a);
+        const status = a.kyc?.status || 'not_submitted';
+        const map = {
+            approved: ['#16a34a', 'KYC Approved'],
+            pending: ['#d97706', 'KYC Pending Review'],
+            rejected: ['#dc2626', 'KYC Rejected'],
+            not_submitted: ['#94a3b8', 'KYC Not Submitted']
+        };
+        const [color, label] = map[status];
+        return `<small style="display:block;margin-top:4px;color:${color};font-weight:600;">● ${label}</small>`;
+    };
     root.innerHTML = agentState.map(a => `
         <div class="agent-card">
             <h4>${escapeHTML(a.name)}</h4>
             <small>Login ID: ${escapeHTML(a.username)}${a.disabled ? ' · <span style="color:#ef4444;">Disabled</span>' : ''}</small>
+            ${kycBadge(a)}
             <div class="agent-fund-amt">${fmtINR(a.fund)}</div>
             <div class="agent-card-actions">
                 <button class="btn-friendly-primary compact" data-give="${a.id}"><i class="fa-solid fa-money-bill-transfer"></i> Give Fund</button>
@@ -298,11 +295,16 @@ function renderAgentManager() {
 function giveAgentFund(id) {
     const a = agentState.find(x => x.id === id);
     if (!a) return;
+    if (typeof kycEnsureShape === 'function') kycEnsureShape(a);
+    const kycStatus = a.kyc?.status || 'not_submitted';
+    const kycWarning = kycStatus !== 'approved'
+        ? ` ⚠️ This agent's KYC is ${kycStatus === 'pending' ? 'still pending review' : kycStatus === 'rejected' ? 'rejected' : 'not submitted yet'} — you can still allocate funds, but consider reviewing their KYC Approvals entry first.`
+        : '';
     showFormModal({
         title: `Give Fund — ${a.name}`,
         icon: 'fa-money-bill-transfer',
         submitLabel: 'Give Fund',
-        intro: `Current fund: ${fmtINR(a.fund)}. Choose which vault this comes from.`,
+        intro: `Current fund: ${fmtINR(a.fund)}. Choose which vault this comes from.${kycWarning}`,
         fields: [
             { id: 'amount', label: 'Amount (₹)', type: 'number', required: true, min: 0.01, step: '0.01', placeholder: '0.00' },
             { id: 'source', label: 'Give From', type: 'select', options: [{ value: 'cash', label: `Cash Vault (${fmtINR(state.wallet.cash)})` }, { value: 'online', label: `Online Funds (${fmtINR(state.wallet.online)})` }] }
@@ -572,13 +574,16 @@ function addPendingInterest(id) {
 function repayLoan(id) {
     const l=state.loans.find(x=>x.id===id);if(!l)return;normaliseLoan(l);
     if (l.status==='Paid') return showToast('This loan is already closed.','warning');
+    const pendingCycles = l.interestEntries.filter(e=>!e.paid).length;
     const applyOptions=[];
-    if (l.interestOutstanding>0) applyOptions.push({value:'interest',label:`Pending Interest (${fmtINR(l.interestOutstanding)})`});
+    if (l.interestOutstanding>0) applyOptions.push({value:'interest',label:`Pending Interest (${fmtINR(l.interestOutstanding)})${pendingCycles>1?' ['+pendingCycles+' cycles]':''}`});
     applyOptions.push({value:'principal',label:`Principal (${fmtINR(l.principalOutstanding)})`});
-    const fields=[{id:'applyTo',label:'Apply Payment To',type:'select',options:applyOptions},{id:'amount',label:'Amount (₹)',type:'number',required:true,min:0.01,step:'0.01'}];
+    const defaultAmount = l.interestOutstanding > 0 ? l.interestOutstanding : l.principalOutstanding;
+    const cycleNote = pendingCycles > 1 ? ` · ⚠️ ${pendingCycles} months pending — full amount pre-filled for full XP` : '';
+    const fields=[{id:'applyTo',label:'Apply Payment To',type:'select',options:applyOptions},{id:'amount',label:'Amount (₹)',type:'number',required:true,min:0.01,step:'0.01',value:defaultAmount}];
     if (!l.agentId) fields.push({id:'mode',label:'Receive Into',type:'select',options:[{value:'cash',label:'Cash Vault'},{value:'online',label:'Online Funds'}]});
     fields.push({id:'note',label:'Note'});
-    showFormModal({title:`Receive Payment — ${l.name}`,icon:'fa-indian-rupee-sign',submitLabel:'Record Payment',intro:`Pending interest: ${fmtINR(l.interestOutstanding)} · Principal outstanding: ${fmtINR(l.principalOutstanding)}`,fields,onSubmit:v=>{
+    showFormModal({title:`Receive Payment — ${l.name}`,icon:'fa-indian-rupee-sign',submitLabel:'Record Payment',intro:`Pending interest: ${fmtINR(l.interestOutstanding)} · Principal outstanding: ${fmtINR(l.principalOutstanding)}${cycleNote}`,fields,onSubmit:v=>{
         const a=Number(v.amount);const applyTo=v.applyTo||(l.interestOutstanding>0?'interest':'principal');
         const cap=applyTo==='interest'?l.interestOutstanding:l.principalOutstanding;
         if(!a||a<=0)return showToast('Enter a valid amount.','danger');
@@ -587,13 +592,23 @@ function repayLoan(id) {
             l.interestOutstanding=round2(l.interestOutstanding-a);
             l.interestPaidTotal=round2((l.interestPaidTotal||0)+a);
             let remain=a;
+            let entriesNewlySettled=0;
             for (const entry of l.interestEntries) {
                 if (entry.paid || remain<=0) continue;
                 const owed=round2(entry.amount-(entry.paidAmount||0));
                 const pay=Math.min(remain,owed);
                 entry.paidAmount=round2((entry.paidAmount||0)+pay);
                 remain=round2(remain-pay);
-                if (entry.paidAmount>=entry.amount-0.01) entry.paid=true;
+                if (entry.paidAmount>=entry.amount-0.01 && !entry.paid) {
+                    entry.paid=true;
+                    entriesNewlySettled++;
+                }
+            }
+            // XP is only awarded once interest is FULLY/successfully collected —
+            // missed/overdue/partial interest never generates XP. XP earned per
+            // fully-settled interest cycle equals the loan's interest rate %.
+            if (entriesNewlySettled > 0 && l.agentId && typeof awardAgentXP === 'function') {
+                awardAgentXP(l.agentId, (Number(l.rate)||0) * entriesNewlySettled, l.name);
             }
         } else {
             l.principalOutstanding=round2(l.principalOutstanding-a);
@@ -602,7 +617,10 @@ function repayLoan(id) {
         const histType=applyTo==='interest'?'Interest Payment':'Principal Payment';
         if (l.agentId) {
             const agent=agentState.find(ag=>ag.id===l.agentId);
-            if (agent) agent.fund+=a;
+            // Collected money goes to a separate pool — it must NOT be added back to
+            // agent.fund. The fund only decreases when loans are issued and is replenished
+            // only when admin/dev manually allocates more via "Give Fund".
+            if (agent) agent.collectionPool=round2((agent.collectionPool||0)+a);
             l.history.unshift({date:Date.now(),type:histType,amount:a,mode:'agent fund',note:v.note||''});
         } else {
             state.wallet[v.mode]+=a;
@@ -701,4 +719,10 @@ function renderAll() {
     renderAgentManager();
     if (typeof renderAnalyticsCharts === 'function') renderAnalyticsCharts();
     if (typeof renderMyRankPage === 'function') renderMyRankPage();
+    if (typeof renderAgentDashboardPanel === 'function') renderAgentDashboardPanel();
+    if (typeof kycSyncBadgeAndMetrics === 'function') kycSyncBadgeAndMetrics();
+    if (document.getElementById('page-settings')?.classList.contains('active') && typeof refreshKycPageLight === 'function') refreshKycPageLight();
+    if (document.getElementById('page-kyc-approvals')?.classList.contains('active') && typeof renderKycApprovalsPage === 'function') renderKycApprovalsPage();
+    if (document.getElementById('page-clients')?.classList.contains('active') && typeof renderClientsPage === 'function') renderClientsPage();
+    if (document.getElementById('page-schedule')?.classList.contains('active') && typeof renderSchedulePage === 'function') renderSchedulePage();
 }

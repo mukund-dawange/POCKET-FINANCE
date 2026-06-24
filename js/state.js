@@ -20,6 +20,9 @@ const APP_STATE_KEY = 'pf_appState';     // shared backend key: everything else
 const SYNC_INTERVAL_MS = 20000;   // poll every 20 seconds
 let   _syncIntervalId  = null;    // handle so we can clear/restart it
 let   _isSaving        = false;   // guard: don't poll while a save is in flight
+let   _lastSaveTime    = 0;       // timestamp of last completed save
+const SYNC_COOLDOWN_MS = 8000;    // block syncs for 8s after a save completes (backend propagation delay)
+let   _pendingSaveTimer = null;   // debounce handle for rapid consecutive saves
 
 // ---- Sync indicator helpers ----
 function _setSyncIndicator(status) {
@@ -39,7 +42,9 @@ let state = {
     loanTrash: [],
     clients: [],   // { id, name, phone, outstanding }
     logs: [],      // { id, timestampMs, description, typeClass: 'income'|'expense', impactStr }
-    sos: [],       // { id, raisedOn, reason, status }
+    sos: [],       // Tickets: { id, raisedOn, reason, title, category, priority, status, agentId, agentName, timeline:[{type,msg,time,from}] }
+                   // status: 'Open' | 'In Progress' | 'Resolved' | 'Closed' (legacy entries default to 'Open')
+    agentMarks: [], // Custom schedule marks: { id, agentId, date, label, note }
     levelDefs: [], // { id, name, rankName, targetPct, allocationLimit, benefits: [string,...], order }
     user: null     // { username, role: 'admin'|'agent' } — local session only, never synced
 };
@@ -57,7 +62,7 @@ function addAudit(action,details='',user=state.user){
     localStorage.setItem(AUDIT_KEY,JSON.stringify(logs.slice(0,500)));
 }
 
-async function saveState() {
+async function _doSave() {
     // Session: who's logged in on THIS device — stays local on purpose.
     try {
         localStorage.setItem(SESSION_KEY, JSON.stringify({ user: state.user }));
@@ -71,6 +76,7 @@ async function saveState() {
     const { user, ...sharedState } = state;
     try {
         await apiWriteKey(APP_STATE_KEY, { state: sharedState, agentState });
+        _lastSaveTime = Date.now();  // mark when save completed so sync cooldown can apply
         _setSyncIndicator('ok');
     } catch (e) {
         console.error('Failed to save shared state:', e);
@@ -78,6 +84,23 @@ async function saveState() {
     } finally {
         _isSaving = false;
     }
+}
+
+// saveState is debounced: rapid consecutive calls (e.g. 6 interest entries in a row)
+// are batched into a single write 300ms after the last call, preventing partial-state
+// saves and reducing race conditions with the auto-sync poller.
+function saveState() {
+    if (_pendingSaveTimer) clearTimeout(_pendingSaveTimer);
+    _pendingSaveTimer = setTimeout(async () => {
+        _pendingSaveTimer = null;
+        await _doSave();
+    }, 300);
+    // Return a promise that resolves when the debounced save actually completes
+    return new Promise(resolve => {
+        const check = setInterval(() => {
+            if (!_pendingSaveTimer && !_isSaving) { clearInterval(check); resolve(); }
+        }, 50);
+    });
 }
 
 async function loadState() {
@@ -114,7 +137,9 @@ async function loadState() {
 function startAutoSync() {
     stopAutoSync();
     _syncIntervalId = setInterval(async () => {
-        if (_isSaving || !state.user) return;   // skip poll while saving or logged out
+        // Skip poll if: save is in flight, not logged in, or still within cooldown window after last save
+        if (_isSaving || !state.user) return;
+        if (Date.now() - _lastSaveTime < SYNC_COOLDOWN_MS) return;  // backend hasn't settled yet
         _setSyncIndicator('syncing');
         try {
             const res = await apiReadKey(APP_STATE_KEY);
@@ -141,7 +166,7 @@ function stopAutoSync() {
 }
 
 async function resetState() {
-    state = { wallet: { cash: 0, online: 0 }, loans: [], loanTrash: [], clients: [], logs: [], sos: [], levelDefs: [], user: state.user };
+    state = { wallet: { cash: 0, online: 0 }, loans: [], loanTrash: [], clients: [], logs: [], sos: [], agentMarks: [], levelDefs: [], user: state.user };
     agentState = [];
     await saveState();
 }

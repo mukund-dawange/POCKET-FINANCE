@@ -55,8 +55,10 @@ function showFormModal({ title, icon = 'fa-pen', fields = [], submitLabel = 'Sav
         <label class="modal-field-label" for="modalField_${f.id}">${f.label}${f.required ? ' *' : ''}</label>
         ${f.type === 'select'
             ? `<select id="modalField_${f.id}" ${f.required ? 'required' : ''}>
-                 ${(f.options || []).map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
+                 ${(f.options || []).map(o => `<option value="${o.value}" ${String(o.value) === String(f.value) ? 'selected' : ''}>${o.label}</option>`).join('')}
                </select>`
+            : f.type === 'textarea'
+            ? `<textarea id="modalField_${f.id}" placeholder="${f.placeholder || ''}" rows="${f.rows || 4}" ${f.required ? 'required' : ''}>${f.value || ''}</textarea>`
             : `<input type="${f.type || 'text'}" id="modalField_${f.id}" value="${f.value || ''}" placeholder="${f.placeholder || ''}" ${f.required ? 'required' : ''} ${f.step ? `step="${f.step}"` : ''} ${f.min !== undefined ? `min="${f.min}"` : ''}>`
         }
         ${f.help ? `<small class="modal-field-help">${f.help}</small>` : ''}

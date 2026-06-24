@@ -138,11 +138,15 @@ function enterApp() {
         localStorage.setItem('pf_lastSection', 'dashboard');
         switchSection('dashboard');
     }
-    if (!isAdmin && (savedSection === 'wallet' || savedSection === 'admin' || savedSection === 'levels')) {
+    if (!isAdmin && (savedSection === 'wallet' || savedSection === 'admin' || savedSection === 'levels' || savedSection === 'kyc-approvals')) {
         localStorage.setItem('pf_lastSection', 'dashboard');
         switchSection('dashboard');
     }
     if (!isAgent && savedSection === 'myrank') {
+        localStorage.setItem('pf_lastSection', 'dashboard');
+        switchSection('dashboard');
+    }
+    if (!isAgent && (savedSection === 'clients' || savedSection === 'schedule')) {
         localStorage.setItem('pf_lastSection', 'dashboard');
         switchSection('dashboard');
     }

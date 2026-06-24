@@ -39,12 +39,9 @@ async function saveProfiles() {
     }
 }
 
-// The single editable object that holds "my" profile fields, wherever it lives.
+// The single editable object that holds "my" profile fields (admin/developer — agents use kyc.js).
 function getMyProfileSource() {
-    if (!state.user) return null;
-    if (state.user.role === 'agent') {
-        return agentState.find(a => a.id === state.user.agentId) || null;
-    }
+    if (!state.user || state.user.role === 'agent') return null;
     if (isSingletonRole(state.user.role)) {
         if (!profiles[state.user.role]) profiles[state.user.role] = {};
         return profiles[state.user.role];
@@ -53,16 +50,14 @@ function getMyProfileSource() {
 }
 
 async function persistMyProfile() {
-    if (state.user.role === 'agent') {
-        await saveState(); // agent fields live on agentState, part of the shared app state
-    } else if (isSingletonRole(state.user.role)) {
+    if (isSingletonRole(state.user.role)) {
         await saveProfiles();
     }
 }
 
 function myDisplayName(src) {
     if (!src) return state.user?.username || '';
-    return state.user.role === 'agent' ? (src.name || '') : (src.displayName || '');
+    return src.displayName || '';
 }
 
 function initials(name) {
@@ -86,10 +81,9 @@ function refreshTopbarAvatar() {
     el.classList.toggle('has-image', !!src?.avatar);
 }
 
-/* ---------------- SETTINGS PAGE RENDER ---------------- */
+/* ---------------- SETTINGS PAGE RENDER (admin/developer only — agents use My Profile & KYC) ---------------- */
 function renderSettingsPage() {
-    if (!state.user) return;
-    const isAgent = state.user.role === 'agent';
+    if (!state.user || state.user.role === 'agent') return;
     const src = getMyProfileSource() || {};
     const displayName = myDisplayName(src);
 
@@ -110,26 +104,13 @@ function renderSettingsPage() {
     const usernameInput = document.getElementById('profileUsername');
     if (usernameInput) usernameInput.value = state.user.username || '';
 
-    const roleEl = document.getElementById('profileRole');
-    if (roleEl) roleEl.textContent = state.user.role ? state.user.role[0].toUpperCase() + state.user.role.slice(1) : '';
-
     const emailRow = document.getElementById('profileEmailRow');
     if (emailRow) {
         emailRow.style.display = state.user.email ? '' : 'none';
         if (state.user.email) document.getElementById('profileEmail').value = state.user.email;
     }
 
-    const sinceRow = document.getElementById('profileSinceRow');
-    if (sinceRow) {
-        if (isAgent && src.createdAt) {
-            sinceRow.style.display = '';
-            document.getElementById('profileSince').textContent = new Date(src.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
-        } else {
-            sinceRow.style.display = 'none';
-        }
-    }
-
-    const themeSwitch = document.getElementById('settingsThemeSwitch');
+    const themeSwitch = document.getElementById('settingsThemeSwitchAdmin');
     if (themeSwitch) themeSwitch.checked = document.documentElement.getAttribute('data-theme') === 'dark';
 }
 
@@ -222,7 +203,7 @@ function initSettings() {
 
             const src = getMyProfileSource();
             if (!src) return;
-            if (state.user.role === 'agent') src.name = name; else src.displayName = name;
+            src.displayName = name;
             src.phone = phone;
             src.bio = bio;
             src.updatedAt = Date.now();
@@ -234,57 +215,46 @@ function initSettings() {
             btn.disabled = false; btn.textContent = original;
 
             refreshTopbarAvatar();
-            renderAgentManager(); // agent name may show elsewhere in the admin panel — keep it in sync
             addAudit('Profile updated', 'Updated profile information');
             showToast('Profile saved.', 'success');
         });
     }
 
-    const passForm = document.getElementById('changePasswordForm');
+    const passForm = document.getElementById('changePasswordFormAdmin');
     if (passForm) {
         passForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const pass = document.getElementById('newPassword').value;
-            const confirmPass = document.getElementById('confirmPassword').value;
+            const pass = document.getElementById('newPasswordAdmin').value;
+            const confirmPass = document.getElementById('confirmPasswordAdmin').value;
             if (!pass || pass.length < 6) return showToast('Password must be at least 6 characters.', 'danger');
             if (pass !== confirmPass) return showToast('Passwords do not match.', 'danger');
+            if (!isSingletonRole(state.user?.role)) return;
 
             const btn = passForm.querySelector('button[type="submit"]');
             const original = btn.textContent;
             btn.disabled = true; btn.textContent = 'Updating...';
 
-            if (state.user.role === 'agent') {
-                const a = agentState.find(x => x.id === state.user.agentId);
-                if (a) {
-                    a.password = pass;
-                    await saveState();
-                    addAudit('Password changed', 'Agent changed their own password');
-                    showToast('Password updated.', 'success');
-                    passForm.reset();
-                }
-            } else if (isSingletonRole(state.user.role)) {
-                const list = await apiListAccounts();
-                const account = list && list.success ? list.accounts.find(a => a.role === state.user.role) : null;
-                const result = await apiUpdateAccount({
-                    role: state.user.role,
-                    username: account?.username || state.user.username,
-                    password: pass,
-                    googleEmail: account?.googleEmail || ''
-                });
-                if (!result || !result.success) {
-                    showToast((result && result.message) || 'Could not update password.', 'danger');
-                } else {
-                    addAudit('Password changed', `${state.user.role} changed their own password`);
-                    showToast('Password updated. Use it next time you sign in.', 'success');
-                    passForm.reset();
-                }
+            const list = await apiListAccounts();
+            const account = list && list.success ? list.accounts.find(a => a.role === state.user.role) : null;
+            const result = await apiUpdateAccount({
+                role: state.user.role,
+                username: account?.username || state.user.username,
+                password: pass,
+                googleEmail: account?.googleEmail || ''
+            });
+            if (!result || !result.success) {
+                showToast((result && result.message) || 'Could not update password.', 'danger');
+            } else {
+                addAudit('Password changed', `${state.user.role} changed their own password`);
+                showToast('Password updated. Use it next time you sign in.', 'success');
+                passForm.reset();
             }
 
             btn.disabled = false; btn.textContent = original;
         });
     }
 
-    const themeSwitch = document.getElementById('settingsThemeSwitch');
+    const themeSwitch = document.getElementById('settingsThemeSwitchAdmin');
     if (themeSwitch) {
         themeSwitch.addEventListener('change', () => {
             applyTheme(themeSwitch.checked ? 'dark' : 'light');
