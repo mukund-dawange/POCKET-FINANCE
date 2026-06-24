@@ -63,12 +63,9 @@ function addAudit(action,details='',user=state.user){
 }
 
 async function _doSave() {
-    // Session: who's logged in on THIS device — stays local on purpose.
-    try {
-        localStorage.setItem(SESSION_KEY, JSON.stringify({ user: state.user }));
-    } catch (e) {
-        console.error('Failed to save session:', e);
-    }
+    // NOTE: We no longer save state.user to localStorage.
+    // Users must log in manually every visit — no auto-login.
+    // Credentials can be saved separately via the "Remember Me" checkbox.
 
     // Everything else: shared data, goes to the Drive backend.
     _isSaving = true;
@@ -104,16 +101,8 @@ function saveState() {
 }
 
 async function loadState() {
-    // Restore this device's own login session
-    try {
-        const raw = localStorage.getItem(SESSION_KEY);
-        if (raw) {
-            const parsed = JSON.parse(raw);
-            if (parsed.user) state.user = parsed.user;
-        }
-    } catch (e) {
-        console.error('Failed to load session:', e);
-    }
+    // NOTE: We do NOT restore state.user here.
+    // Users must log in every visit — auto-login is intentionally disabled.
 
     // Pull the shared financial data from the backend
     try {

@@ -51,6 +51,9 @@ function switchSection(sectionKey) {
         setTimeout(renderAnalyticsCharts, 50);
     }
 
+    // Sync bottom navigation active state
+    syncBottomNav(sectionKey);
+
     // Close mobile sidebar after navigating
     closeMobileSidebar();
 
@@ -65,6 +68,75 @@ function switchSection(sectionKey) {
     if(sectionKey==='sos' && typeof renderTicketsPage==='function') renderTicketsPage();
     if(sectionKey==='kyc-approvals' && typeof renderKycApprovalsPage==='function') renderKycApprovalsPage();
     if(sectionKey==='income' && typeof renderAdminIncomePanel==='function') renderAdminIncomePanel();
+}
+
+/* ---- Bottom Navigation (mobile) ---------------------------------- */
+
+const BOTTOM_NAV_TABS = {
+    admin: [
+        { section: 'dashboard', icon: 'fa-house',            label: 'Dashboard' },
+        { section: 'loans',     icon: 'fa-hand-holding-dollar', label: 'Loans' },
+        { section: 'wallet',    icon: 'fa-building-columns', label: 'Wallet' },
+        { section: 'ledger',    icon: 'fa-clock-rotate-left',label: 'Ledger' },
+        { section: null,        icon: 'fa-bars',             label: 'More', id: 'bnMore' },
+    ],
+    agent: [
+        { section: 'dashboard', icon: 'fa-house',            label: 'Home' },
+        { section: 'clients',   icon: 'fa-people-arrows',    label: 'Clients' },
+        { section: 'schedule',  icon: 'fa-calendar-days',    label: 'Schedule' },
+        { section: 'sos',       icon: 'fa-ticket',           label: 'Tickets', badgeId: 'bn-sos-badge' },
+        { section: null,        icon: 'fa-bars',             label: 'More', id: 'bnMore' },
+    ],
+    developer: [
+        { section: 'dashboard',   icon: 'fa-house',          label: 'Dashboard' },
+        { section: 'loans',       icon: 'fa-hand-holding-dollar', label: 'Loans' },
+        { section: 'devconsole',  icon: 'fa-terminal',       label: 'Dev' },
+        { section: 'activity',    icon: 'fa-satellite-dish', label: 'Activity' },
+        { section: null,          icon: 'fa-bars',           label: 'More', id: 'bnMore' },
+    ],
+};
+
+function buildBottomNav(role) {
+    const wrap = document.getElementById('bottomNavInner');
+    if (!wrap) return;
+    const tabs = BOTTOM_NAV_TABS[role] || BOTTOM_NAV_TABS.agent;
+    wrap.innerHTML = '';
+    tabs.forEach(tab => {
+        const btn = document.createElement('button');
+        btn.className = 'bottom-nav-btn' + (tab.id ? ' bottom-nav-more' : '');
+        if (tab.id) btn.id = tab.id;
+        if (tab.section) btn.dataset.bnSection = tab.section;
+
+        let badgeHtml = '';
+        if (tab.badgeId) {
+            badgeHtml = `<span class="nav-badge" id="${tab.badgeId}">0</span>`;
+        }
+        btn.innerHTML = `<i class="fa-solid ${tab.icon}"></i>${badgeHtml}<span>${tab.label}</span>`;
+
+        if (tab.section) {
+            btn.addEventListener('click', () => switchSection(tab.section));
+        } else {
+            // "More" opens the sidebar
+            btn.addEventListener('click', () => {
+                document.getElementById('sidebar').classList.toggle('mobile-open');
+                document.getElementById('sidebarBackdrop')?.classList.toggle('show');
+            });
+        }
+        wrap.appendChild(btn);
+    });
+}
+
+function syncBottomNav(sectionKey) {
+    document.querySelectorAll('.bottom-nav-btn[data-bn-section]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.bnSection === sectionKey);
+    });
+}
+
+function updateBottomNavBadge(badgeId, count) {
+    const el = document.getElementById(badgeId);
+    if (!el) return;
+    el.textContent = count > 99 ? '99+' : count;
+    el.classList.toggle('show', count > 0);
 }
 
 function initSidebar() {

@@ -1,0 +1,672 @@
+/* ================================================================
+   POCKET FINANCE — MOBILE.CSS
+   Mobile-first enhancements on top of style.css + agent-portal.css
+   Targets ≤ 768px with specific overrides at smaller breakpoints.
+   ================================================================ */
+
+/* ----------------------------------------------------------------
+   1. BOTTOM NAVIGATION BAR
+   ---------------------------------------------------------------- */
+.bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--glass-bg);
+    border-top: 1px solid var(--glass-border);
+    z-index: 90;
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.08);
+}
+.bottom-nav-inner {
+    display: flex;
+    align-items: stretch;
+    height: 60px;
+}
+.bottom-nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color .2s;
+    padding: 6px 4px;
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
+}
+.bottom-nav-btn i {
+    font-size: 18px;
+    margin-bottom: 1px;
+}
+.bottom-nav-btn.active {
+    color: var(--primary);
+}
+.bottom-nav-btn.active::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 20%; right: 20%;
+    height: 2px;
+    background: var(--primary);
+    border-radius: 0 0 4px 4px;
+}
+.bottom-nav-btn .nav-badge {
+    position: absolute;
+    top: 6px; right: calc(50% - 18px);
+    background: var(--danger);
+    color: #fff;
+    font-size: 9px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 10px;
+    font-weight: 700;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--bg-color);
+}
+.bottom-nav-btn .nav-badge.show { display: flex; }
+
+/* "More" overflow button opens sidebar */
+.bottom-nav-more { color: var(--text-muted); }
+
+@media (max-width: 768px) {
+    .bottom-nav { display: block; }
+
+    /* Push content up so bottom nav doesn't cover it */
+    .content-scroll {
+        padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+    }
+    .toast-stack {
+        bottom: calc(72px + env(safe-area-inset-bottom));
+    }
+}
+
+/* ----------------------------------------------------------------
+   2. GLOBAL MOBILE LAYOUT
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    /* Slightly reduce content padding on mid-range mobile */
+    .content-scroll {
+        padding: 14px 12px;
+    }
+
+    /* Section headings */
+    .section-header-row h3 { font-size: 17px; }
+
+    /* Glass panels */
+    .glass-panel { padding: 16px; border-radius: 14px; }
+
+    /* Cards */
+    .card { border-radius: 14px; }
+}
+
+/* ----------------------------------------------------------------
+   3. LOGIN SCREEN - Better mobile polish
+   ---------------------------------------------------------------- */
+@media (max-width: 480px) {
+    .login-card { border-radius: 20px; padding: 22px 18px; }
+    .welcome-title { font-size: 24px; }
+    .friendly-input-group input { padding: 14px 42px; font-size: 16px; }
+    .btn-friendly-primary, .btn-friendly-secondary { font-size: 15px; min-height: 50px; }
+    .google-login-btn { font-size: 14px; min-height: 50px; }
+}
+
+/* ----------------------------------------------------------------
+   4. TOPBAR - Better mobile layout
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .topbar { padding: 0 14px; gap: 10px; }
+    .topbar h2 { font-size: 16px; }
+    .sync-indicator { display: none; }
+}
+
+/* ----------------------------------------------------------------
+   5. AGENT PORTAL DASHBOARD METRICS
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    /* Agent metrics: 2-col but with smaller padding so they fit */
+    .ap-scope .metrics,
+    .ap-scope .metrics.metrics-5 {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+    .ap-scope .metric-card {
+        padding: 12px;
+        border-radius: 12px;
+    }
+    .ap-scope .metric-val { font-size: 18px !important; }
+    .ap-scope .metric-label { font-size: 11px; }
+    .ap-scope .metric-icon { width: 36px; height: 36px; font-size: 16px; }
+    .ap-scope .metric-delta { font-size: 10.5px; }
+
+    /* Budget grid inside agent dashboard */
+    .ap-scope .budget-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .ap-scope .budget-item { padding: 10px; }
+    .ap-scope .budget-item-val { font-size: 16px; }
+
+    /* row2: budget + rank side by side → stack */
+    .ap-scope .row2 { flex-direction: column !important; gap: 12px; }
+
+    /* Leaderboard rows on mobile */
+    .ap-scope .lb-row { padding: 8px 10px; gap: 8px; }
+    .ap-scope .lb-name { font-size: 12.5px; }
+    .ap-scope .lb-xp-val { font-size: 12px; }
+}
+
+@media (max-width: 400px) {
+    /* Very small phones: single column metrics */
+    .ap-scope .metrics,
+    .ap-scope .metrics.metrics-5 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ----------------------------------------------------------------
+   6. ADMIN DASHBOARD CARDS
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    .finance-cards-grid { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+    .finance-card { padding: 14px; border-radius: 14px; }
+    .finance-card h3 { font-size: 11px; }
+    .finance-card .counter-value { font-size: 20px; }
+}
+@media (max-width: 360px) {
+    .finance-cards-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ----------------------------------------------------------------
+   7. CHARTS GRID
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .charts-grid { grid-template-columns: 1fr; gap: 12px; }
+    .chart-card { padding: 14px; }
+    .chart-box { height: 200px; }
+}
+
+/* ----------------------------------------------------------------
+   8. CLIENT CARDS (My Clients page - agent)
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .client-budget-strip {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+    .cb-pill {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 12px;
+        text-align: center;
+    }
+    .cb-pill-lbl { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+    .cb-pill-val { font-size: 18px; font-weight: 800; margin-top: 2px; }
+
+    .clients-toolbar {
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+    .clients-search { width: 100%; }
+    .clients-toolbar .btn-primary { width: 100%; justify-content: center; min-height: 46px; }
+}
+
+/* ----------------------------------------------------------------
+   9. SCHEDULE / CALENDAR - Mobile optimized
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    /* The sched-layout stacks at 1100px already; on mobile give extra care */
+    .ap-scope .sched-layout { gap: 12px; }
+
+    /* Calendar day cells: smaller height so full month fits */
+    .ap-scope .cal-day { min-height: 40px; padding: 3px 2px 2px; border-radius: 8px; }
+    .ap-scope .cal-day-num {
+        width: 22px; height: 22px; font-size: 11px;
+    }
+    .ap-scope .cal-dot { width: 4px; height: 4px; }
+    .ap-scope .cal-dots { max-width: 28px; gap: 1px; }
+    .ap-scope .cal-weekday { font-size: 9.5px; }
+
+    /* Calendar header */
+    .ap-scope .cal-header { padding: 14px 14px 10px; }
+    .ap-scope .cal-month-label { font-size: 14px; }
+    .ap-scope .cal-grid-wrap { padding: 10px 10px 14px; }
+    .ap-scope .cal-legend { padding: 8px 12px 10px; gap: 10px; flex-wrap: wrap; }
+    .ap-scope .cal-legend-item { font-size: 10px; }
+
+    /* Schedule right panel (selected day + add mark) */
+    .ap-scope .sched-right { gap: 10px; }
+    .ap-scope .sched-selected-card,
+    .ap-scope .sched-add-card { border-radius: 12px; }
+
+    /* Upcoming events list */
+    .ap-scope .upcoming-card { border-radius: 12px; margin-top: 10px; }
+
+    /* Filter chips: horizontal scroll */
+    .ap-scope #ap-filter-chips-row {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+        gap: 6px;
+    }
+    .ap-scope .filter-chip { white-space: nowrap; flex-shrink: 0; }
+}
+
+@media (max-width: 480px) {
+    /* On very small screens, show abbreviated day names */
+    .ap-scope .cal-weekday:nth-child(1)::after { content: "Su"; }
+    .ap-scope .cal-weekday:nth-child(2)::after { content: "Mo"; }
+    .ap-scope .cal-weekday:nth-child(3)::after { content: "Tu"; }
+    .ap-scope .cal-weekday:nth-child(4)::after { content: "We"; }
+    .ap-scope .cal-weekday:nth-child(5)::after { content: "Th"; }
+    .ap-scope .cal-weekday:nth-child(6)::after { content: "Fr"; }
+    .ap-scope .cal-weekday:nth-child(7)::after { content: "Sa"; }
+    .ap-scope .cal-weekday { font-size: 0; }
+    .ap-scope .cal-weekday::after { font-size: 9px; }
+}
+
+/* ----------------------------------------------------------------
+   10. TICKETS PAGE - Better mobile layout
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    /* Ticket filter chips: scroll horizontally */
+    #ap-tk-filter-chips {
+        flex-wrap: nowrap !important;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+    }
+    #ap-tk-filter-chips .filter-chip { white-space: nowrap; flex-shrink: 0; }
+
+    /* On mobile: raise ticket button full width */
+    #ap-tk-raise-btn { width: 100%; justify-content: center; min-height: 46px; }
+
+    /* Ticket metrics */
+    #ap-tk-metrics .metrics { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+
+    /* Detail panel: hide on mobile until a ticket is selected (handled by JS class) */
+    .ap-scope .tickets-layout { gap: 12px; }
+    .ap-scope .tk-detail-panel { border-radius: 12px; }
+    .ap-scope .tk-detail-panel:not(.has-content) { display: none; }
+}
+
+/* ----------------------------------------------------------------
+   11. KYC / SETTINGS - Better mobile forms
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .kyc-status-banner {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+        padding: 14px;
+    }
+    .kyc-status-icon { font-size: 28px; }
+    .kyc-submit-bar {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+        padding: 14px;
+    }
+    .kyc-submit-bar .btn-primary { width: 100%; min-height: 46px; }
+
+    /* KYC layout stacks */
+    .kyc-layout { grid-template-columns: 1fr !important; gap: 12px; }
+    .kyc-card { padding: 16px; }
+    .kyc-form-grid { grid-template-columns: 1fr !important; }
+    .kyc-row-2 { grid-template-columns: 1fr !important; gap: 12px; }
+
+    /* Profile photo row */
+    .kyc-photo-row { flex-direction: column; align-items: center; text-align: center; gap: 12px; }
+
+    /* KYC approvals layout */
+    .kyc-approvals-layout { grid-template-columns: 1fr !important; gap: 12px; }
+    #kyc-review-panel.tk-detail-panel:not(.has-content) { display: none; }
+
+    /* qual toggle tabs */
+    .kyc-qual-toggle { flex-wrap: nowrap; overflow-x: auto; }
+    .kyc-qual-tab { white-space: nowrap; }
+}
+
+/* ----------------------------------------------------------------
+   12. LOAN ACCOUNTS
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .loan-toolbar { flex-direction: column; gap: 8px; }
+    .loan-toolbar > * { width: 100%; }
+    .loan-search { min-width: 0; }
+    .loan-search input { font-size: 16px; } /* prevent iOS zoom */
+    .loan-toolbar .compact { width: 100%; justify-content: center; }
+    #loanAgentFilter { width: 100%; font-size: 16px; }
+}
+
+/* ----------------------------------------------------------------
+   13. WALLET MANAGEMENT
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .panel-grid { grid-template-columns: 1fr; gap: 12px; }
+}
+
+/* ----------------------------------------------------------------
+   14. ADMIN PANEL
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .access-grid { grid-template-columns: 1fr !important; gap: 12px; }
+    .activity-summary { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+    .agent-list { grid-template-columns: 1fr !important; }
+}
+
+/* ----------------------------------------------------------------
+   15. MODALS - Polish bottom sheet behavior
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    .modal-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+    .modal-card,
+    .modal-form-wide .modal-card,
+    .modal-wide .modal-card {
+        max-width: none;
+        width: 100%;
+        border-radius: 20px 20px 0 0;
+        max-height: 92dvh;
+    }
+    /* Drag handle visual */
+    .modal-card::before {
+        content: '';
+        display: block;
+        width: 36px; height: 4px;
+        border-radius: 2px;
+        background: var(--glass-border);
+        margin: 10px auto 0;
+        flex-shrink: 0;
+    }
+    .modal-header { padding: 12px 16px 14px; }
+    .modal-body { padding: 14px 16px; }
+    .modal-footer {
+        padding: 12px 16px;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom));
+        flex-direction: column-reverse;
+        gap: 8px;
+    }
+    .modal-footer button { width: 100%; min-height: 48px; }
+    .modal-form-wide .modal-fields-grid { grid-template-columns: 1fr; }
+
+    /* ap-scope modals */
+    .ap-scope .modal-overlay { align-items: flex-end; padding: 0; }
+    .ap-scope .modal-card-wrap {
+        width: 100%; max-width: none !important;
+        border-radius: 20px 20px 0 0;
+        max-height: 92dvh;
+    }
+}
+
+/* ----------------------------------------------------------------
+   16. FILTER CHIPS - Horizontal scroll everywhere
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .filter-chips {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+        gap: 6px;
+        /* hide scrollbar */
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    .filter-chips::-webkit-scrollbar { display: none; }
+    .filter-chip { white-space: nowrap; flex-shrink: 0; }
+}
+
+/* ----------------------------------------------------------------
+   17. TABLE CARDS (mobile stacked cards) — reinforce
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    .table-responsive tr {
+        padding: 6px 14px;
+        border-radius: 14px;
+    }
+    .table-responsive td { padding: 10px 0; font-size: 13px; }
+    /* Loan action buttons */
+    .loan-action-group { flex-wrap: wrap; gap: 6px; }
+    .loan-action-group .row-action-btn {
+        background: var(--input-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+}
+
+/* ----------------------------------------------------------------
+   18. TOAST NOTIFICATIONS - Full width on mobile
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    .toast-stack {
+        left: 12px; right: 12px; bottom: calc(72px + env(safe-area-inset-bottom));
+        align-items: stretch;
+    }
+    .toast { min-width: 0; width: 100%; }
+}
+
+/* ----------------------------------------------------------------
+   19. MY RANK PAGE
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    .xp-main-card { padding: 16px; }
+    .xp-card-inner { gap: 16px; flex-direction: column; align-items: center; }
+    .xp-circle { width: 110px; height: 110px; }
+    .xp-circle-val { font-size: 20px; }
+    .xp-info-col { min-width: 100%; text-align: center; }
+    .xp-progress-label-row { justify-content: center; gap: 8px; }
+    .rank-stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .upgrade-cta-row { flex-direction: column; align-items: stretch; }
+    .upgrade-cta-row .xp-upgrade-btn { width: 100%; justify-content: center; }
+    .xp-rank-badge-header { font-size: 11px; }
+
+    /* Rank ladder: horizontal scroll */
+    .xp-ladder-card { padding: 14px; overflow-x: auto; }
+    .xp-upgrade-card { padding: 14px 16px; }
+    .xp-upgrade-inner { flex-direction: column; gap: 10px; text-align: center; }
+    .xp-upgrade-btn { width: 100%; justify-content: center; }
+}
+
+/* ----------------------------------------------------------------
+   20. LEVELS & RANKING (admin)
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .levels-grid { grid-template-columns: 1fr; }
+    .request-row { flex-direction: column; align-items: flex-start; }
+    .request-row-actions { width: 100%; }
+    .request-row-actions button { flex: 1; }
+}
+
+/* ----------------------------------------------------------------
+   21. CLIENT CARD EXPAND / LOAN DETAIL (agent portal)
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    /* Client budget strip as 2x2 grid */
+    .ap-scope .client-budget-strip {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    /* Loan hero section */
+    .loan-hero { flex-direction: column; gap: 10px; }
+    .loan-hero strong { font-size: 22px; }
+    .loan-profile-actions { flex-direction: column; }
+    .loan-profile-actions button { width: 100%; }
+}
+
+/* ----------------------------------------------------------------
+   22. BUTTONS - Larger tap targets throughout
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    .btn-primary, .btn-secondary,
+    .ap-scope .btn-primary, .ap-scope .btn-secondary {
+        min-height: 44px;
+        font-size: 14px;
+    }
+
+    /* Row action buttons in tables: bigger touch area */
+    .row-action-btn { min-width: 36px; min-height: 36px; padding: 8px; }
+
+    /* Section header actions */
+    .section-header-row .btn-friendly-primary,
+    .section-header-row .btn-friendly-secondary {
+        min-height: 46px;
+        justify-content: center;
+    }
+}
+
+/* ----------------------------------------------------------------
+   23. INCOME OVERVIEW
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    .income-summary-row { flex-direction: column; gap: 10px; }
+    .income-summary-box { min-width: 0; }
+    .income-summary-val { font-size: 22px; }
+}
+
+/* ----------------------------------------------------------------
+   24. DANGER ZONE
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    .danger-zone { grid-template-columns: 1fr; text-align: center; }
+    .danger-zone-icon { margin: 0 auto; }
+}
+
+/* ----------------------------------------------------------------
+   25. ACCESS MANAGER / DEV PAGES
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    .access-grid { grid-template-columns: 1fr !important; }
+    .google-config-card { max-width: 100%; }
+    .activity-summary { grid-template-columns: 1fr !important; }
+}
+
+/* ----------------------------------------------------------------
+   26. SCROLLBAR TWEAKS for mobile (hide everywhere on touch)
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    * { scrollbar-width: none; -ms-overflow-style: none; }
+    *::-webkit-scrollbar { display: none; }
+
+    /* Re-enable for content areas that need it */
+    .content-scroll,
+    .sidebar-scroll,
+    .modal-body,
+    .loan-statement,
+    .ap-scope .nav { scrollbar-width: thin; }
+    .content-scroll::-webkit-scrollbar,
+    .sidebar-scroll::-webkit-scrollbar,
+    .modal-body::-webkit-scrollbar { display: block; width: 4px; }
+}
+
+/* ----------------------------------------------------------------
+   27. MISC IMPROVEMENTS
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    /* Card head: allow wrapping */
+    .card-head { gap: 8px; }
+    .card-head button { white-space: nowrap; }
+
+    /* Metric cards inside tickets / schedule */
+    .ap-scope .metrics { grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Section label spacing */
+    .sidebar-section-label { margin: 12px 8px 6px; }
+
+    /* Better spacing for stats in client portal */
+    .ap-scope .budget-bar-track { height: 8px; }
+
+    /* KYC section labels */
+    .kyc-section-label { font-size: 10px; }
+
+    /* Live badge */
+    .live-badge {
+        font-size: 10px;
+        padding: 3px 8px;
+        border-radius: 20px;
+        background: rgba(16,185,129,.1);
+        color: var(--success);
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+    }
+
+    /* Approval pipeline: wrap on small screens */
+    .ap-scope .approval-pipeline { flex-wrap: wrap; }
+    .ap-scope .pipeline-step { min-width: 30%; }
+}
+
+/* ----------------------------------------------------------------
+   28. DARK MODE adjustments for bottom nav
+   ---------------------------------------------------------------- */
+[data-theme="dark"] .bottom-nav {
+    background: var(--glass-bg);
+    border-top-color: var(--glass-border);
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.3);
+}
+[data-theme="dark"] .bottom-nav-btn.active::before {
+    background: var(--primary);
+}
+
+/* ----------------------------------------------------------------
+   29. PULL-TO-REFRESH FEEL — overscroll behavior
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    .content-scroll { overscroll-behavior-y: contain; }
+}
+
+/* ----------------------------------------------------------------
+   30. SCHEDULE METRICS CARDS ON MOBILE
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    /* Make schedule metrics 2-col */
+    #page-schedule .metrics { grid-template-columns: 1fr 1fr; }
+}
+
+/* ----------------------------------------------------------------
+   31. INPUT FONT SIZE — prevent iOS auto-zoom (< 16px triggers zoom)
+   ---------------------------------------------------------------- */
+@media (max-width: 768px) {
+    input, select, textarea,
+    .ap-scope .form-input,
+    #ap-sched-add-date,
+    #ap-sched-add-label,
+    #ap-sched-add-note,
+    #loanSearch,
+    #ap-client-search-input {
+        font-size: 16px !important;
+    }
+}
+
+/* ----------------------------------------------------------------
+   32. AGENT CLIENT CARDS — better mobile layout
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+    /* The client card wrap already renders dynamic HTML; ensure wrapping works */
+    #ap-client-cards-wrap > * {
+        border-radius: 14px !important;
+    }
+    /* Repayment action group inside client cards */
+    .ap-scope .rp-action-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .ap-scope .rp-action-row button { width: 100%; }
+}

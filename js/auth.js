@@ -2,7 +2,13 @@
    auth.js — Login / logout
    Credentials are checked against the shared Apps Script + Drive
    backend (js/api.js) — never stored locally.
+
+   AUTO-LOGIN IS DISABLED: users must sign in on every visit.
+   "Remember Me" only prefills the username/password fields —
+   it never skips the login screen.
    ============================================================ */
+
+const REMEMBER_ME_KEY = 'pf_remember_me';
 
 async function checkCredentials(username, password) {
     // Agents are created locally by the admin and live in the shared
@@ -25,7 +31,23 @@ function initAuth() {
     const form = document.getElementById('loginForm');
     const togglePass = document.getElementById('togglePass');
     const passInput = document.getElementById('loginPass');
+    const userInput = document.getElementById('loginUser');
+    const rememberCheckbox = document.getElementById('rememberMe');
     const submitBtn = form.querySelector('button[type="submit"]');
+
+    // Prefill saved credentials if "Remember Me" was checked previously.
+    // This only populates the fields — the user still has to click Sign In.
+    try {
+        const saved = JSON.parse(localStorage.getItem(REMEMBER_ME_KEY) || 'null');
+        if (saved && saved.username) {
+            userInput.value = saved.username;
+            passInput.value = saved.password || '';
+            rememberCheckbox.checked = true;
+        }
+    } catch (e) { /* ignore */ }
+
+    // Also clear any stale session that old versions may have written
+    localStorage.removeItem('pf_session_v1');
 
     togglePass.addEventListener('click', () => {
         const isPass = passInput.type === 'password';
@@ -36,8 +58,8 @@ function initAuth() {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const username = document.getElementById('loginUser').value.trim();
-        const password = document.getElementById('loginPass').value;
+        const username = userInput.value.trim();
+        const password = passInput.value;
 
         const originalLabel = submitBtn.textContent;
         submitBtn.disabled = true;
@@ -54,6 +76,13 @@ function initAuth() {
             return;
         }
 
+        // Save or clear remembered credentials based on checkbox
+        if (rememberCheckbox.checked) {
+            localStorage.setItem(REMEMBER_ME_KEY, JSON.stringify({ username, password }));
+        } else {
+            localStorage.removeItem(REMEMBER_ME_KEY);
+        }
+
         state.user = res.user;
         addAudit('Login', 'Password login successful', res.user);
         saveState();
@@ -62,19 +91,28 @@ function initAuth() {
 
     document.getElementById('logoutBtn').addEventListener('click', () => {
         addAudit('Logout', 'User signed out');
-        stopAutoSync();   // stop background polling on logout
+        stopAutoSync();
         state.user = null;
-        saveState();
         document.getElementById('appShell').classList.add('hidden');
         document.getElementById('loginScreen').classList.remove('hidden');
         document.getElementById('loginForm').reset();
+
+        // Re-apply remembered credentials after form reset so they're still prefilled
+        try {
+            const saved = JSON.parse(localStorage.getItem(REMEMBER_ME_KEY) || 'null');
+            if (saved && saved.username) {
+                document.getElementById('loginUser').value = saved.username;
+                document.getElementById('loginPass').value = saved.password || '';
+                document.getElementById('rememberMe').checked = true;
+            }
+        } catch (e) { /* ignore */ }
     });
+
     document.getElementById('googleLoginBtn').addEventListener('click', startGoogleLogin);
 
-    // Auto-login if a session already exists
-    if (state.user) {
-        enterApp();
-    }
+    // ── NO AUTO-LOGIN ──
+    // We never call enterApp() here, even if state.user was somehow set.
+    // Every page load always starts at the login screen.
 }
 
 function startGoogleLogin() {
@@ -119,7 +157,7 @@ function enterApp() {
         else avatar.textContent = (state.user.username || '?')[0].toUpperCase();
     }
 
-    // Show/hide admin-only nav items based on role
+    // Show/hide role-specific nav items
     const isDeveloper = state.user.role === 'developer';
     const isAdmin = state.user.role === 'admin' || isDeveloper;
     const isAgent = state.user.role === 'agent';
@@ -153,5 +191,9 @@ function enterApp() {
 
     renderAll();
     if(isDeveloper){renderAccessManager();renderAuditLog();}
-    startAutoSync();   // keep all open browsers in sync
+
+    // Build mobile bottom navigation for the logged-in role
+    if (typeof buildBottomNav === 'function') buildBottomNav(state.user.role);
+
+    startAutoSync();
 }

@@ -27,6 +27,10 @@ function updateBadge(elId, count) {
     if (!el) return;
     el.textContent = count;
     el.classList.toggle('show', count > 0);
+    // Mirror to bottom nav badge if applicable
+    if (elId === 'sosBadge') {
+        if (typeof updateBottomNavBadge === 'function') updateBottomNavBadge('bn-sos-badge', count);
+    }
 }
 
 /* ---------------- MODAL FORM ----------------

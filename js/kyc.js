@@ -350,6 +350,7 @@ function renderKycApprovalsPage() {
 function renderKycReviewPanel(a) {
     const panel = document.getElementById('kyc-review-panel');
     if (!panel) return;
+    panel.classList.add('has-content'); // show on mobile
     kycEnsureShape(a);
     const k = a.kyc;
 

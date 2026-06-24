@@ -750,6 +750,7 @@ function renderTicketsPage() {
 function apRenderTicketDetail(t) {
     const panel = document.getElementById('ap-tk-detail-panel');
     if (!panel) return;
+    panel.classList.add('has-content'); // show on mobile
     const isAdmin = ['admin', 'developer'].includes(state.user?.role);
 
     const tlHtml = t.timeline.map(item => {
