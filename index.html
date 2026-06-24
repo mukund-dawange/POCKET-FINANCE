@@ -1054,6 +1054,44 @@
     </div>
   </nav>
 
+  <!-- DOCUMENT VIEWER MODAL -->
+  <div id="docViewerOverlay" class="dv-overlay" style="display:none;" role="dialog" aria-modal="true" aria-label="Document Viewer">
+    <div class="dv-backdrop" id="dvBackdrop"></div>
+    <div class="dv-shell">
+      <!-- Header -->
+      <div class="dv-header">
+        <div class="dv-header-left">
+          <div class="dv-agent-avatar" id="dvAgentAvatar"></div>
+          <div>
+            <div class="dv-agent-name" id="dvAgentName">Agent Name</div>
+            <div class="dv-doc-title" id="dvDocTitle">Document</div>
+          </div>
+        </div>
+        <div class="dv-header-actions">
+          <button class="dv-btn" id="dvDownloadBtn" title="Download"><i class="fa-solid fa-download"></i></button>
+          <button class="dv-btn" id="dvZoomInBtn" title="Zoom in"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+          <button class="dv-btn" id="dvZoomOutBtn" title="Zoom out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+          <button class="dv-btn dv-btn-close" id="dvCloseBtn" title="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+      <!-- Main viewer area -->
+      <div class="dv-viewport" id="dvViewport">
+        <div class="dv-content-wrap" id="dvContentWrap">
+          <!-- image or pdf embed injected here -->
+        </div>
+      </div>
+      <!-- Footer: prev / counter / next + doc thumbnails -->
+      <div class="dv-footer">
+        <div class="dv-nav-row">
+          <button class="dv-nav-btn" id="dvPrevBtn"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+          <span class="dv-counter" id="dvCounter">1 / 6</span>
+          <button class="dv-nav-btn" id="dvNextBtn">Next <i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+        <div class="dv-thumbs" id="dvThumbs"></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script src="js/state.js"></script>

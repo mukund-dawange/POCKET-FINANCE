@@ -367,8 +367,15 @@ function renderKycReviewPanel(a) {
     const docRow = (def) => {
         const doc = a.kycDocs && a.kycDocs[def.key];
         const isPdf = doc && doc.startsWith('data:application/pdf');
-        return `<div class="kyc-review-doc-item" ${doc && !isPdf ? `data-ap-doc-zoom="${def.key}"` : ''}>
-            ${doc ? (isPdf ? `<div class="kyc-rdi-missing">📄</div>` : `<img src="${doc}" alt="">`) : `<div class="kyc-rdi-missing">${def.icon}</div>`}
+        const hasdoc = !!doc;
+        return `<div class="kyc-review-doc-item${!hasdoc ? ' dv-missing' : ''}"
+            data-dv-key="${def.key}" data-dv-agent="${a.id}"
+            title="${hasdoc ? 'View ' + def.title : def.title + ' — not uploaded'}">
+            ${doc
+                ? (isPdf
+                    ? `<div class="kyc-rdi-missing" style="font-size:28px">📄</div>`
+                    : `<img src="${doc}" alt="">`)
+                : `<div class="kyc-rdi-missing">${def.icon}</div>`}
             <div class="kyc-rdi-label">${escapeHTML(def.title)}</div>
         </div>`;
     };
@@ -424,11 +431,11 @@ function renderKycReviewPanel(a) {
 
     panel.querySelector(`[data-ap-kyc-approve]`)?.addEventListener('click', () => kycDecide(a.id, 'approved'));
     panel.querySelector(`[data-ap-kyc-reject]`)?.addEventListener('click', () => kycDecide(a.id, 'rejected'));
-    panel.querySelectorAll('[data-ap-doc-zoom]').forEach(el => {
+    // Document viewer: click any doc thumbnail to open the full-screen viewer
+    panel.querySelectorAll('[data-dv-key]').forEach(el => {
+        if (el.classList.contains('dv-missing')) return; // no doc uploaded — skip
         el.addEventListener('click', () => {
-            const key = el.dataset.apDocZoom;
-            const src = a.kycDocs && a.kycDocs[key];
-            if (src) window.open(src, '_blank');
+            dvOpen(a, el.dataset.dvKey);
         });
     });
 }
@@ -592,4 +599,211 @@ function kycUpdateSubmitBar() {
         title.textContent = 'Almost there';
         sub.textContent = 'Still missing: ' + parts.join(' and ') + '.';
     }
+}
+
+/* ============================================================
+   DOCUMENT VIEWER  — full-screen modal for admin/dev review
+   ============================================================ */
+
+let _dvAgent = null;       // agent whose docs are being viewed
+let _dvDocs  = [];         // array of { key, title, icon, src } for ALL docs
+let _dvIdx   = 0;          // currently viewed doc index
+let _dvZoom  = 1.0;        // current zoom level
+const DV_ZOOM_STEP = 0.25;
+const DV_ZOOM_MAX  = 4.0;
+const DV_ZOOM_MIN  = 0.5;
+
+function dvBuildDocList(agent) {
+    kycEnsureShape(agent);
+    const k = agent.kyc || {};
+    const qualGroup = k.qualType === '12th' ? 'qual12' : 'qual10';
+    const defs = [...KYC_DOC_DEFS.filter(d => d.group === 'identity' || d.group === 'qr'),
+                   KYC_DOC_DEFS.find(d => d.group === qualGroup)].filter(Boolean);
+    return defs.map(def => ({
+        key:   def.key,
+        title: def.title,
+        icon:  def.icon,
+        src:   (agent.kycDocs && agent.kycDocs[def.key]) || null
+    }));
+}
+
+function dvOpen(agent, startKey) {
+    _dvAgent = agent;
+    _dvDocs  = dvBuildDocList(agent);
+    _dvZoom  = 1.0;
+    _dvIdx   = Math.max(0, _dvDocs.findIndex(d => d.key === startKey));
+
+    const overlay = document.getElementById('docViewerOverlay');
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    // Populate static parts
+    dvSetAgentHeader(agent);
+    dvRenderThumbs();
+    dvRenderDoc(_dvIdx);
+
+    overlay.focus();
+}
+
+function dvClose() {
+    const overlay = document.getElementById('docViewerOverlay');
+    overlay.style.display = 'none';
+    document.body.style.overflow = '';
+    _dvAgent = null;
+}
+
+function dvSetAgentHeader(agent) {
+    const avatarEl = document.getElementById('dvAgentAvatar');
+    const nameEl   = document.getElementById('dvAgentName');
+    if (!avatarEl || !nameEl) return;
+    const photo = agent.kycDocs?.photo;
+    if (photo) {
+        avatarEl.innerHTML = `<img src="${photo}" alt="">`;
+    } else {
+        avatarEl.textContent = initials(agent.kyc?.name || agent.name);
+        avatarEl.style.background = '';
+    }
+    nameEl.textContent = agent.kyc?.name || agent.name || agent.username;
+}
+
+function dvRenderThumbs() {
+    const wrap = document.getElementById('dvThumbs');
+    if (!wrap) return;
+    wrap.innerHTML = _dvDocs.map((d, i) => {
+        if (d.src && !d.src.startsWith('data:application/pdf')) {
+            return `<div class="dv-thumb${i === _dvIdx ? ' active' : ''}" data-dv-thumb="${i}" title="${escapeHTML(d.title)}">
+                <img src="${d.src}" alt="${escapeHTML(d.title)}">
+                <div class="dv-thumb-label">${escapeHTML(d.title.split(' ')[0])}</div>
+            </div>`;
+        } else if (d.src) {
+            // PDF
+            return `<div class="dv-thumb${i === _dvIdx ? ' active' : ''}" data-dv-thumb="${i}" title="${escapeHTML(d.title)}">
+                📄<div class="dv-thumb-label">${escapeHTML(d.title.split(' ')[0])}</div>
+            </div>`;
+        } else {
+            // Missing
+            return `<div class="dv-thumb dv-thumb-missing" data-dv-thumb="${i}" title="${escapeHTML(d.title)} — not uploaded">
+                ${d.icon}<div class="dv-thumb-label">${escapeHTML(d.title.split(' ')[0])}</div>
+            </div>`;
+        }
+    }).join('');
+
+    wrap.querySelectorAll('[data-dv-thumb]').forEach(el => {
+        el.addEventListener('click', () => dvRenderDoc(+el.dataset.dvThumb));
+    });
+}
+
+function dvRenderDoc(idx) {
+    _dvIdx  = idx;
+    _dvZoom = 1.0;
+    const d = _dvDocs[idx];
+    if (!d) return;
+
+    // Update title
+    const titleEl = document.getElementById('dvDocTitle');
+    if (titleEl) titleEl.textContent = d.title;
+
+    // Update counter
+    const counter = document.getElementById('dvCounter');
+    if (counter) counter.textContent = `${idx + 1} / ${_dvDocs.length}`;
+
+    // Highlight active thumb
+    document.querySelectorAll('.dv-thumb').forEach((el, i) => el.classList.toggle('active', i === idx));
+
+    // Scroll active thumb into view
+    const activeThumb = document.querySelector('.dv-thumb.active');
+    activeThumb?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+
+    // Update nav buttons
+    document.getElementById('dvPrevBtn').disabled = idx === 0;
+    document.getElementById('dvNextBtn').disabled = idx === _dvDocs.length - 1;
+
+    // Render content
+    const wrap = document.getElementById('dvContentWrap');
+    if (!wrap) return;
+    dvApplyZoom();
+
+    if (!d.src) {
+        wrap.innerHTML = `<div class="dv-placeholder">
+            <div class="dv-placeholder-icon">${d.icon}</div>
+            <p style="color:#64748b;font-size:13px;font-weight:600">${escapeHTML(d.title)}</p>
+            <p>This document has not been uploaded yet.</p>
+        </div>`;
+        // Download button disabled for missing
+        const dlBtn = document.getElementById('dvDownloadBtn');
+        if (dlBtn) { dlBtn.disabled = true; dlBtn.style.opacity = '.4'; }
+        return;
+    }
+
+    // Enable download
+    const dlBtn = document.getElementById('dvDownloadBtn');
+    if (dlBtn) { dlBtn.disabled = false; dlBtn.style.opacity = ''; }
+
+    if (d.src.startsWith('data:application/pdf')) {
+        wrap.innerHTML = `<iframe src="${d.src}" title="${escapeHTML(d.title)}"></iframe>`;
+    } else {
+        wrap.innerHTML = `<img src="${d.src}" alt="${escapeHTML(d.title)}" draggable="false">`;
+    }
+}
+
+function dvApplyZoom() {
+    const wrap = document.getElementById('dvContentWrap');
+    if (wrap) wrap.style.transform = `scale(${_dvZoom})`;
+}
+
+function dvZoomIn()  { _dvZoom = Math.min(DV_ZOOM_MAX, _dvZoom + DV_ZOOM_STEP); dvApplyZoom(); }
+function dvZoomOut() { _dvZoom = Math.max(DV_ZOOM_MIN, _dvZoom - DV_ZOOM_STEP); dvApplyZoom(); }
+
+function dvDownload() {
+    const d = _dvDocs[_dvIdx];
+    if (!d || !d.src) return;
+    const ext   = d.src.startsWith('data:application/pdf') ? 'pdf'
+                : d.src.startsWith('data:image/png')       ? 'png' : 'jpg';
+    const name  = `${(_dvAgent?.kyc?.name || _dvAgent?.name || 'agent').replace(/\s+/g,'_')}_${d.key}.${ext}`;
+    const link  = document.createElement('a');
+    link.href   = d.src;
+    link.download = name;
+    link.click();
+}
+
+function initDocViewer() {
+    document.getElementById('dvCloseBtn')?.addEventListener('click', dvClose);
+    document.getElementById('dvBackdrop')?.addEventListener('click', dvClose);
+    document.getElementById('dvPrevBtn')?.addEventListener('click', () => { if (_dvIdx > 0) dvRenderDoc(_dvIdx - 1); });
+    document.getElementById('dvNextBtn')?.addEventListener('click', () => { if (_dvIdx < _dvDocs.length - 1) dvRenderDoc(_dvIdx + 1); });
+    document.getElementById('dvZoomInBtn')?.addEventListener('click', dvZoomIn);
+    document.getElementById('dvZoomOutBtn')?.addEventListener('click', dvZoomOut);
+    document.getElementById('dvDownloadBtn')?.addEventListener('click', dvDownload);
+
+    // Keyboard nav
+    document.addEventListener('keydown', (e) => {
+        const overlay = document.getElementById('docViewerOverlay');
+        if (!overlay || overlay.style.display === 'none') return;
+        if (e.key === 'Escape')       dvClose();
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown')  { if (_dvIdx < _dvDocs.length - 1) dvRenderDoc(_dvIdx + 1); }
+        if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')    { if (_dvIdx > 0) dvRenderDoc(_dvIdx - 1); }
+        if (e.key === '+' || e.key === '=') dvZoomIn();
+        if (e.key === '-')            dvZoomOut();
+        if (e.key === '0')            { _dvZoom = 1; dvApplyZoom(); }
+    });
+
+    // Pinch-to-zoom on touch devices
+    let _ptStart = null;
+    const viewport = document.getElementById('dvViewport');
+    viewport?.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            _ptStart = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                                   e.touches[0].clientY - e.touches[1].clientY);
+        }
+    }, { passive: true });
+    viewport?.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2 && _ptStart) {
+            const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                                     e.touches[0].clientY - e.touches[1].clientY);
+            const ratio = dist / _ptStart;
+            _dvZoom = Math.min(DV_ZOOM_MAX, Math.max(DV_ZOOM_MIN, _dvZoom * ratio));
+            dvApplyZoom();
+            _ptStart = dist;
+        }
+    }, { passive: true });
 }

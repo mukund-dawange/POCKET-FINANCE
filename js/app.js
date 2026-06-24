@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initDevConsoleActions();
     if (typeof initSettings === 'function') initSettings();
     if (typeof initKyc === 'function') initKyc();
+    if (typeof initDocViewer === 'function') initDocViewer();
     if (typeof initRanking === 'function') initRanking();
     if (typeof initAgentPortal === 'function') initAgentPortal();
 });
