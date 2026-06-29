@@ -107,23 +107,78 @@ function showFormModal({ title, icon = 'fa-pen', fields = [], submitLabel = 'Sav
 }
 
 /* ---------------- THEME ---------------- */
+const DARK_THEMES = ['dark', 'dark-gold', 'dark-blue', 'dark-green'];
+
 function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('pf_theme', theme);
+
+    // Update sidebar toggle button label
     const btn = document.getElementById('themeToggleBtn');
     if (btn) {
-        btn.innerHTML = theme === 'dark'
+        const isDark = DARK_THEMES.includes(theme);
+        btn.innerHTML = isDark
             ? '<i class="fa-solid fa-sun"></i><span>Light Mode</span>'
             : '<i class="fa-solid fa-moon"></i><span>Dark Mode</span>';
     }
+
+    // Update legacy dark-mode toggles (backwards compat)
+    const switches = ['settingsThemeSwitch', 'settingsThemeSwitchAdmin'];
+    switches.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.checked = DARK_THEMES.includes(theme);
+    });
+
+    // Update theme picker swatches (highlight active)
+    document.querySelectorAll('.theme-swatch[data-theme-pick]').forEach(sw => {
+        sw.classList.toggle('active', sw.dataset.themePick === theme);
+    });
 }
 
 function initTheme() {
-    const saved = localStorage.getItem('pf_theme') || 'light';
+    const saved = localStorage.getItem('pf_theme') || 'dark-gold';
     applyTheme(saved);
+    initThemePicker();
+    initFontSizeControl();
 }
 
 function toggleTheme() {
-    const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-    applyTheme(current === 'dark' ? 'light' : 'dark');
+    const current = document.documentElement.getAttribute('data-theme');
+    const isDark = DARK_THEMES.includes(current);
+    applyTheme(isDark ? 'light' : 'dark-gold');
+}
+
+function initThemePicker() {
+    document.querySelectorAll('.theme-swatch[data-theme-pick]').forEach(sw => {
+        sw.addEventListener('click', () => applyTheme(sw.dataset.themePick));
+    });
+}
+
+/* ---------------- FONT SIZE CONTROL ---------------- */
+const FONT_SIZES = [13, 14, 15, 16, 17, 18];
+let currentFontIdx = 3; // default 16px
+
+function initFontSizeControl() {
+    const saved = parseInt(localStorage.getItem('pf_font_size') || '3');
+    currentFontIdx = Math.max(0, Math.min(saved, FONT_SIZES.length - 1));
+    applyFontSize();
+
+    ['fontDecBtn', 'fontDecBtnAdmin'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('click', () => { currentFontIdx = Math.max(0, currentFontIdx - 1); applyFontSize(); });
+    });
+    ['fontIncBtn', 'fontIncBtnAdmin'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('click', () => { currentFontIdx = Math.min(FONT_SIZES.length - 1, currentFontIdx + 1); applyFontSize(); });
+    });
+}
+
+function applyFontSize() {
+    const size = FONT_SIZES[currentFontIdx];
+    document.documentElement.style.fontSize = size + 'px';
+    localStorage.setItem('pf_font_size', currentFontIdx);
+    ['fontSizeDisplay', 'fontSizeDisplayAdmin'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = size;
+    });
 }

@@ -9,58 +9,106 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Pocket Finance</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/agent-portal.css">
 <link rel="stylesheet" href="css/mobile.css">
+<link rel="stylesheet" href="css/theme.css">
 </head>
 <body>
 
 <!-- ============ LOGIN SCREEN ============ -->
 <div id="loginScreen" class="login-screen">
+
+  <!-- LEFT: Premium showcase panel -->
   <div class="login-showcase">
-    <div class="showcase-brand"><i class="fa-solid fa-wallet"></i> Pocket Finance</div>
-    <div class="showcase-art"><div class="art-chart"><i class="fa-solid fa-arrow-trend-up"></i></div><div class="art-wallet"><i class="fa-solid fa-wallet"></i></div><div class="art-coin coin-one">₹</div><div class="art-coin coin-two">₹</div></div>
-    <h2>Take control of every rupee.</h2>
-    <p>Wallets, loans, clients and repayments—all in one secure workspace.</p>
-  </div>
-  <div class="login-panel">
-  <div class="login-card">
-    <div class="login-logo">
-      <i class="fa-solid fa-wallet"></i>
+    <div class="showcase-brand">
+      <div class="showcase-brand-icon"><i class="fa-solid fa-wallet"></i></div>
+      Pocket Finance
     </div>
-    <h1 class="welcome-title">Welcome Back :)</h1>
-    <p class="welcome-subtitle">Sign in with your assigned ID and password</p>
 
-    <form id="loginForm">
-      <div class="friendly-input-group">
-        <input type="text" id="loginUser" placeholder="Username" autocomplete="username" required>
-        <i class="fa-regular fa-user friendly-input-icon"></i>
+    <div class="showcase-art">
+      <div class="showcase-card-mockup">
+        <!-- Main card -->
+        <div class="showcase-main-card">
+          <div class="showcase-card-chip"></div>
+          <div class="showcase-card-number">4782  9301  5847  2190</div>
+          <div class="showcase-card-footer">
+            <div>
+              <div class="showcase-card-holder">Card Holder</div>
+              <strong class="showcase-card-holder">Pocket Finance</strong>
+            </div>
+            <div class="showcase-card-expiry">
+              <div class="showcase-card-holder">Expires</div>
+              <strong>08/28</strong>
+            </div>
+          </div>
+        </div>
+        <!-- Floating chips -->
+        <div class="showcase-chip showcase-chip-top">
+          <span style="font-size:10px;opacity:0.75">Active Users</span>
+          <span>1.24M+</span>
+        </div>
+        <div class="showcase-chip showcase-chip-bottom">
+          <span style="font-size:10px;opacity:0.75">Transactions Today</span>
+          <span>₹ 48.6L</span>
+        </div>
       </div>
-      <div class="friendly-input-group">
-        <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password" required>
-        <i class="fa-solid fa-lock friendly-input-icon"></i>
-        <i class="fa-regular fa-eye friendly-input-eye" id="togglePass"></i>
-      </div>
+    </div>
 
-      <div class="login-options">
-        <label class="remember-me">
-          <input type="checkbox" id="rememberMe"> Remember me
-        </label>
-        <a href="#" class="forgot-pass">Forgot password?</a>
+    <div>
+      <h2 class="showcase-headline">Fast &amp; Secure<br>Finance Platform</h2>
+      <p class="showcase-sub">Wallets, loans, clients and repayments — all in one secure workspace built for field agents.</p>
+      <div class="showcase-stats">
+        <div class="showcase-stat"><strong>₹12Cr+</strong><span>Managed</span></div>
+        <div class="showcase-stat"><strong>98.6%</strong><span>Uptime</span></div>
+        <div class="showcase-stat"><strong>4.9★</strong><span>Rating</span></div>
       </div>
-
-      <div class="login-btn-row">
-        <button type="submit" class="btn-friendly-primary">Sign In</button>
-      </div>
-    </form>
-    <div class="login-divider"><span>or continue with</span></div>
-    <button type="button" class="google-login-btn" id="googleLoginBtn"><span class="google-g">G</span> Sign in with Google</button>
-    <p class="login-hint">Demo: <b>admin/admin</b> · <b>agent/agent</b> · Developer: <b>dev/dev123</b></p>
+    </div>
   </div>
+
+  <!-- RIGHT: Login form panel -->
+  <div class="login-panel">
+    <div class="login-blob blob-1"></div>
+    <div class="login-blob blob-2"></div>
+    <div class="login-blob blob-3"></div>
+
+    <div class="login-card">
+      <div class="login-logo">
+        <i class="fa-solid fa-wallet"></i>
+      </div>
+      <h1 class="welcome-title">Welcome Back</h1>
+      <p class="welcome-subtitle">Sign in with your assigned ID and password</p>
+
+      <form id="loginForm">
+        <div class="friendly-input-group">
+          <input type="text" id="loginUser" placeholder="Username" autocomplete="username" required>
+          <i class="fa-regular fa-user friendly-input-icon"></i>
+        </div>
+        <div class="friendly-input-group">
+          <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password" required>
+          <i class="fa-solid fa-lock friendly-input-icon"></i>
+          <i class="fa-regular fa-eye friendly-input-eye" id="togglePass"></i>
+        </div>
+
+        <div class="login-options">
+          <label class="remember-me">
+            <input type="checkbox" id="rememberMe"> Remember me
+          </label>
+          <a href="#" class="forgot-pass">Forgot password?</a>
+        </div>
+
+        <div class="login-btn-row">
+          <button type="submit" class="btn-friendly-primary">Sign In</button>
+        </div>
+      </form>
+      <div class="login-divider"><span>or continue with</span></div>
+      <button type="button" class="google-login-btn" id="googleLoginBtn"><span class="google-g">G</span> Sign in with Google</button>
+      <p class="login-hint">Demo: <b>admin/admin</b> · <b>agent/agent</b> · Developer: <b>dev/dev123</b></p>
+    </div>
   </div>
 </div>
 
@@ -417,13 +465,64 @@
               </div>
               <div class="card" style="box-shadow:none;border:0.5px solid var(--border)">
                 <div class="card-title" style="font-size:13px"><span class="icon-em" style="margin-right:6px">🎨</span>Appearance</div>
-                <label class="settings-switch-row" style="margin-top:10px">
-                  <span style="font-size:13px;color:var(--text-primary)">Dark Mode</span>
-                  <span class="settings-switch">
-                    <input type="checkbox" id="settingsThemeSwitch">
-                    <span class="settings-switch-slider"></span>
-                  </span>
-                </label>
+                <div class="theme-picker-section">
+                  <div class="theme-picker-label">Choose Theme</div>
+                  <div class="theme-picker-grid">
+                    <div class="theme-swatch swatch-dark-gold" data-theme-pick="dark-gold">
+                      <div class="theme-swatch-preview">
+                        <div class="theme-swatch-check"><i class="fa-solid fa-check"></i></div>
+                      </div>
+                      <div class="theme-swatch-info">
+                        <div class="theme-swatch-name">Dark Gold</div>
+                        <div class="theme-swatch-desc">Premium dark theme</div>
+                      </div>
+                    </div>
+                    <div class="theme-swatch swatch-dark" data-theme-pick="dark">
+                      <div class="theme-swatch-preview">
+                        <div class="theme-swatch-check"><i class="fa-solid fa-check"></i></div>
+                      </div>
+                      <div class="theme-swatch-info">
+                        <div class="theme-swatch-name">Dark Orange</div>
+                        <div class="theme-swatch-desc">Classic dark mode</div>
+                      </div>
+                    </div>
+                    <div class="theme-swatch swatch-dark-blue" data-theme-pick="dark-blue">
+                      <div class="theme-swatch-preview">
+                        <div class="theme-swatch-check"><i class="fa-solid fa-check"></i></div>
+                      </div>
+                      <div class="theme-swatch-info">
+                        <div class="theme-swatch-name">Dark Blue</div>
+                        <div class="theme-swatch-desc">Ocean depth</div>
+                      </div>
+                    </div>
+                    <div class="theme-swatch swatch-dark-green" data-theme-pick="dark-green">
+                      <div class="theme-swatch-preview">
+                        <div class="theme-swatch-check"><i class="fa-solid fa-check"></i></div>
+                      </div>
+                      <div class="theme-swatch-info">
+                        <div class="theme-swatch-name">Dark Green</div>
+                        <div class="theme-swatch-desc">Nature & finance</div>
+                      </div>
+                    </div>
+                    <div class="theme-swatch swatch-light" data-theme-pick="light">
+                      <div class="theme-swatch-preview">
+                        <div class="theme-swatch-check"><i class="fa-solid fa-check"></i></div>
+                      </div>
+                      <div class="theme-swatch-info">
+                        <div class="theme-swatch-name">Light</div>
+                        <div class="theme-swatch-desc">Bright & clean</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="font-size-row">
+                    <div class="font-size-label">Font Size <small>Adjust text scale</small></div>
+                    <div class="font-size-controls">
+                      <button class="font-size-btn" id="fontDecBtn">A−</button>
+                      <div class="font-size-display" id="fontSizeDisplay">16</div>
+                      <button class="font-size-btn" id="fontIncBtn">A+</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -506,13 +605,64 @@
               </div>
               <div class="card" style="box-shadow:none;border:0.5px solid var(--border)">
                 <div class="card-title" style="font-size:13px"><span class="icon-em" style="margin-right:6px">🎨</span>Appearance</div>
-                <label class="settings-switch-row" style="margin-top:10px">
-                  <span style="font-size:13px;color:var(--text-primary)">Dark Mode</span>
-                  <span class="settings-switch">
-                    <input type="checkbox" id="settingsThemeSwitchAdmin">
-                    <span class="settings-switch-slider"></span>
-                  </span>
-                </label>
+                <div class="theme-picker-section">
+                  <div class="theme-picker-label">Choose Theme</div>
+                  <div class="theme-picker-grid">
+                    <div class="theme-swatch swatch-dark-gold" data-theme-pick="dark-gold">
+                      <div class="theme-swatch-preview">
+                        <div class="theme-swatch-check"><i class="fa-solid fa-check"></i></div>
+                      </div>
+                      <div class="theme-swatch-info">
+                        <div class="theme-swatch-name">Dark Gold</div>
+                        <div class="theme-swatch-desc">Premium dark theme</div>
+                      </div>
+                    </div>
+                    <div class="theme-swatch swatch-dark" data-theme-pick="dark">
+                      <div class="theme-swatch-preview">
+                        <div class="theme-swatch-check"><i class="fa-solid fa-check"></i></div>
+                      </div>
+                      <div class="theme-swatch-info">
+                        <div class="theme-swatch-name">Dark Orange</div>
+                        <div class="theme-swatch-desc">Classic dark mode</div>
+                      </div>
+                    </div>
+                    <div class="theme-swatch swatch-dark-blue" data-theme-pick="dark-blue">
+                      <div class="theme-swatch-preview">
+                        <div class="theme-swatch-check"><i class="fa-solid fa-check"></i></div>
+                      </div>
+                      <div class="theme-swatch-info">
+                        <div class="theme-swatch-name">Dark Blue</div>
+                        <div class="theme-swatch-desc">Ocean depth</div>
+                      </div>
+                    </div>
+                    <div class="theme-swatch swatch-dark-green" data-theme-pick="dark-green">
+                      <div class="theme-swatch-preview">
+                        <div class="theme-swatch-check"><i class="fa-solid fa-check"></i></div>
+                      </div>
+                      <div class="theme-swatch-info">
+                        <div class="theme-swatch-name">Dark Green</div>
+                        <div class="theme-swatch-desc">Nature & finance</div>
+                      </div>
+                    </div>
+                    <div class="theme-swatch swatch-light" data-theme-pick="light">
+                      <div class="theme-swatch-preview">
+                        <div class="theme-swatch-check"><i class="fa-solid fa-check"></i></div>
+                      </div>
+                      <div class="theme-swatch-info">
+                        <div class="theme-swatch-name">Light</div>
+                        <div class="theme-swatch-desc">Bright & clean</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="font-size-row">
+                    <div class="font-size-label">Font Size <small>Adjust text scale</small></div>
+                    <div class="font-size-controls">
+                      <button class="font-size-btn" id="fontDecBtnAdmin">A−</button>
+                      <div class="font-size-display" id="fontSizeDisplayAdmin">16</div>
+                      <button class="font-size-btn" id="fontIncBtnAdmin">A+</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
