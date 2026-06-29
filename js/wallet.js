@@ -42,6 +42,7 @@ function initWalletForms() {
 
         state.wallet[target] += amt;
         addLog(`Deposit into ${target === 'cash' ? 'Cash' : 'Online'} Balance`, 'income', amt);
+        autoAddToPersonalLedger(`Deposit into ${target === 'cash' ? 'Cash' : 'Online'} Balance`, 'income', amt);
         saveState();
         renderAll();
         showToast(`Deposited ${fmtINR(amt)} successfully.`, 'success');
@@ -57,6 +58,7 @@ function initWalletForms() {
 
         state.wallet[source] -= amt;
         addLog(`Withdrawal from ${source === 'cash' ? 'Cash' : 'Online'} Balance`, 'expense', amt);
+        autoAddToPersonalLedger(`Withdrawal from ${source === 'cash' ? 'Cash' : 'Online'} Balance`, 'expense', amt);
         saveState();
         renderAll();
         showToast(`Withdrew ${fmtINR(amt)} successfully.`, 'success');
@@ -122,6 +124,7 @@ function initLoanActions() {
 
                 state.loans.push({ id: genId('loan'), name: v.name, amount, status: 'Active', dueDate: v.dueDate || '', history: [] });
                 addLog(`New loan issued to ${v.name}`, 'expense', amount);
+                autoAddToPersonalLedger(`New loan issued to ${v.name}`, 'expense', amount);
                 saveState();
                 renderAll();
                 showToast('Loan created.', 'success');
@@ -135,6 +138,7 @@ function markLoanPaid(id) {
     if (!loan) return;
     loan.status = 'Paid';
     addLog(`Loan repaid by ${loan.name}`, 'income', loan.amount);
+    autoAddToPersonalLedger(`Loan repaid by ${loan.name}`, 'income', loan.amount);
     saveState();
     renderAll();
     showToast(`${loan.name}'s loan marked as paid.`, 'success');
@@ -150,32 +154,222 @@ function deleteLoan(id) {
 
 /* ---------------- MASTER LEDGER ---------------- */
 function renderLedgerTable() {
-    const body = document.getElementById('ledgerTableBody');
-    if (!state.logs.length) {
-        body.innerHTML = '<tr><td colspan="4" class="empty-row">No transactions logged yet.</td></tr>';
+    const body   = document.getElementById('ledgerTableBody');
+    const thead  = document.querySelector('#page-ledger table thead tr');
+    const role   = state.user?.role;
+    const isAgent = role === 'agent';
+    const myAgentId = state.user?.agentId || null;
+
+    // Filter: agents see only their own entries (agentId matches or was set by them)
+    // Admin/Dev see everything
+    let logs = state.logs;
+    if (isAgent) {
+        logs = logs.filter(l => l.agentId === myAgentId);
+    }
+
+    // Add/remove "Agent" column for admin/dev
+    if (thead) {
+        const hasAgentCol = !!thead.querySelector('.ledger-agent-col');
+        if (!isAgent && !hasAgentCol) {
+            const th = document.createElement('th');
+            th.className = 'ledger-agent-col';
+            th.textContent = 'Agent';
+            thead.insertBefore(th, thead.children[1]); // after Date
+        } else if (isAgent && hasAgentCol) {
+            thead.querySelector('.ledger-agent-col').remove();
+        }
+    }
+
+    if (!logs.length) {
+        const cols = isAgent ? 4 : 5;
+        body.innerHTML = `<tr><td colspan="${cols}" class="empty-row">No transactions logged yet.</td></tr>`;
         return;
     }
-    body.innerHTML = state.logs.slice(0, 100).map(log => `
+
+    body.innerHTML = logs.slice(0, 100).map(log => {
+        // Resolve agent name for admin/dev column
+        let agentCell = '';
+        if (!isAgent) {
+            const agentName = log.agentId
+                ? (agentState.find(a => a.id === log.agentId)?.name || 'Agent')
+                : '<span style="color:var(--text-tertiary);font-size:11px">Admin / Direct</span>';
+            agentCell = `<td data-label="Agent">${typeof agentName === 'string' && agentName.startsWith('<') ? agentName : escapeHTML(agentName)}</td>`;
+        }
+        return `
         <tr>
             <td data-label="Date">${new Date(log.timestampMs).toLocaleString('en-IN')}</td>
+            ${agentCell}
             <td data-label="Description">${escapeHTML(log.description)}</td>
             <td data-label="Type"><span class="status-pill ${log.typeClass === 'income' ? 'paid' : 'active'}">${log.typeClass}</span></td>
             <td data-label="Impact">${log.impactStr}</td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 function initLedgerActions() {
-    document.getElementById('exportLedgerBtn').addEventListener('click', () => {
-        if (!state.logs.length) return showToast('No data to export.', 'warning');
-        const header = 'Date,Description,Type,Impact\n';
-        const rows = state.logs.map(l => `"${new Date(l.timestampMs).toLocaleString('en-IN')}","${l.description}","${l.typeClass}","${l.impactStr}"`).join('\n');
+    document.getElementById('exportLedgerBtn')?.addEventListener('click', () => {
+        const role = state.user?.role;
+        const isAgent = role === 'agent';
+        let logs = state.logs;
+        if (isAgent) logs = logs.filter(l => l.agentId === state.user?.agentId);
+        if (!logs.length) return showToast('No data to export.', 'warning');
+        const header = isAgent ? 'Date,Description,Type,Impact\n' : 'Date,Agent,Description,Type,Impact\n';
+        const rows = logs.map(l => {
+            const agentName = !isAgent ? (l.agentId ? (agentState.find(a => a.id === l.agentId)?.name || 'Agent') : 'Admin/Direct') : null;
+            const base = `"${new Date(l.timestampMs).toLocaleString('en-IN')}","${l.description}","${l.typeClass}","${l.impactStr}"`;
+            return isAgent ? base : `"${new Date(l.timestampMs).toLocaleString('en-IN')}","${agentName}","${l.description}","${l.typeClass}","${l.impactStr}"`;
+        }).join('\n');
         const blob = new Blob([header + rows], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url; a.download = 'pocket_finance_ledger.csv'; a.click();
         URL.revokeObjectURL(url);
         showToast('Ledger exported.', 'success');
+    });
+}
+
+/* ============================================================
+   AUTO PERSONAL LEDGER — helper
+   Called automatically whenever admin/dev performs any income
+   or expense action (deposit, withdrawal, loan issued/repaid,
+   fund given to agent, payment received, etc.).
+   Skips entries where amount is 0 (e.g. internal transfers).
+   Admin never needs to make a manual entry for these events.
+   ============================================================ */
+
+function autoAddToPersonalLedger(description, type, amount, note = '') {
+    // Only auto-log for admin / developer roles
+    const role = state.user?.role;
+    if (!['admin', 'developer'].includes(role)) return;
+    // Skip zero-amount actions (e.g. internal cash↔online transfers, pending interest markers)
+    if (!amount || amount <= 0) return;
+
+    state.adminLogs = state.adminLogs || [];
+    state.adminLogs.unshift({
+        id: genId('alog'),
+        date: new Date().toISOString().slice(0, 10),
+        description: description,
+        type: type,           // 'income' | 'expense'
+        amount: amount,
+        note: note || '🤖 Auto-recorded'
+    });
+    // No separate saveState() here — the caller already does it
+}
+
+/* ============================================================
+   ADMIN PERSONAL LEDGER
+   A private income/expense notebook for the admin.
+   Stored in state.adminLogs — separate from the shared master
+   ledger so it never appears to agents.
+   ============================================================ */
+
+function renderAdminLedgerPage() {
+    const role = state.user?.role;
+    if (!['admin', 'developer'].includes(role)) return;
+
+    const logs = (state.adminLogs || []);
+
+    // Running balance
+    let balance = 0;
+    logs.forEach(l => { balance += l.type === 'income' ? Number(l.amount) : -Number(l.amount); });
+    const balEl = document.getElementById('adminLedgerBalance');
+    if (balEl) {
+        balEl.textContent = (balance >= 0 ? '+' : '') + '\u20b9' + Math.abs(balance).toLocaleString('en-IN');
+        balEl.style.color = balance >= 0 ? 'var(--success, #1d9e75)' : 'var(--danger, #e24b4a)';
+    }
+
+    // Summary counts
+    const incTotal = logs.filter(l => l.type === 'income').reduce((s, l) => s + Number(l.amount), 0);
+    const expTotal = logs.filter(l => l.type === 'expense').reduce((s, l) => s + Number(l.amount), 0);
+    const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setEl('adminLedgerIncTotal', '\u20b9' + incTotal.toLocaleString('en-IN'));
+    setEl('adminLedgerExpTotal', '\u20b9' + expTotal.toLocaleString('en-IN'));
+    setEl('adminLedgerCount', logs.length);
+
+    const body = document.getElementById('adminLedgerTableBody');
+    if (!body) return;
+    if (!logs.length) {
+        body.innerHTML = '<tr><td colspan="5" class="empty-row">No personal records yet. Add your first entry above.</td></tr>';
+        return;
+    }
+    body.innerHTML = logs.slice(0, 200).map(l => `
+        <tr>
+            <td data-label="Date">${escapeHTML(l.date)}</td>
+            <td data-label="Description">
+                <div style="font-weight:600">${escapeHTML(l.description)}</div>
+                ${l.note ? `<div style="font-size:11.5px;color:${l.note === '🤖 Auto-recorded' ? 'var(--primary,#6c63ff)' : 'var(--text-tertiary)'}">` + escapeHTML(l.note) + '</div>' : ''}
+            </td>
+            <td data-label="Type"><span class="status-pill ${l.type === 'income' ? 'paid' : 'active'}">${l.type}</span></td>
+            <td data-label="Amount" style="font-weight:700;color:${l.type === 'income' ? 'var(--success,#1d9e75)' : 'var(--danger,#e24b4a)'}">
+                ${l.type === 'income' ? '+' : '-'}\u20b9${Number(l.amount).toLocaleString('en-IN')}
+            </td>
+            <td data-label="Remove" style="text-align:center">
+                <button class="row-action-btn" data-admin-log-del="${l.id}" title="Delete entry" style="color:var(--danger,#e24b4a)">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </td>
+        </tr>`).join('');
+
+    body.querySelectorAll('[data-admin-log-del]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (!confirm('Delete this personal record?')) return;
+            state.adminLogs = (state.adminLogs || []).filter(l => l.id !== btn.dataset.adminLogDel);
+            saveState();
+            renderAdminLedgerPage();
+            showToast('Record deleted.', 'warning');
+        });
+    });
+}
+
+function initAdminLedgerActions() {
+    const addBtn = document.getElementById('adminLedgerAddBtn');
+    const expBtn = document.getElementById('adminLedgerExportBtn');
+    if (!addBtn) return;
+    // Pre-fill date with today
+    const dateInput = document.getElementById('adminLedgerDate');
+    if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
+
+    addBtn.addEventListener('click', () => {
+        const desc  = document.getElementById('adminLedgerDesc')?.value.trim();
+        const type  = document.getElementById('adminLedgerType')?.value;
+        const amt   = parseFloat(document.getElementById('adminLedgerAmt')?.value);
+        const date  = document.getElementById('adminLedgerDate')?.value;
+        const note  = document.getElementById('adminLedgerNote')?.value.trim();
+
+        if (!desc)           return showToast('Please enter a description.', 'danger');
+        if (!amt || amt <= 0) return showToast('Please enter a valid amount.', 'danger');
+        if (!date)           return showToast('Please select a date.', 'danger');
+
+        state.adminLogs = state.adminLogs || [];
+        state.adminLogs.unshift({
+            id: genId('alog'),
+            date, description: desc, type, amount: amt, note: note || ''
+        });
+        // Clear form
+        document.getElementById('adminLedgerDesc').value = '';
+        document.getElementById('adminLedgerAmt').value  = '';
+        document.getElementById('adminLedgerNote').value = '';
+        document.getElementById('adminLedgerDate').value = new Date().toISOString().slice(0,10);
+
+        addAudit('Admin personal ledger', `${type} entry: ${desc}`);
+        saveState();
+        renderAdminLedgerPage();
+        showToast('Record added.', 'success');
+    });
+
+    expBtn?.addEventListener('click', () => {
+        const logs = state.adminLogs || [];
+        if (!logs.length) return showToast('No records to export.', 'warning');
+        const header = 'Date,Description,Type,Amount,Note\n';
+        const rows = logs.map(l =>
+            `"${l.date}","${l.description}","${l.type}","${l.amount}","${l.note || ''}"`
+        ).join('\n');
+        const blob = new Blob([header + rows], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'admin_personal_ledger.csv'; a.click();
+        URL.revokeObjectURL(url);
+        showToast('Exported.', 'success');
     });
 }
 
@@ -238,6 +432,7 @@ function showAddAgentModal() {
             if (fund > 0) {
                 state.wallet[v.source] -= fund;
                 addLog(`Fund allocated to new agent ${v.name}`, 'expense', fund);
+                autoAddToPersonalLedger(`Fund allocated to new agent ${v.name}`, 'expense', fund);
             }
             // Auto-assign Level 1 (No Rank) and set allocatedAmount = fund
             const firstLevel = typeof sortedLevelDefs === 'function' ? sortedLevelDefs()[0] : null;
@@ -316,6 +511,7 @@ function giveAgentFund(id) {
             state.wallet[v.source] -= amt;
             a.fund += amt;
             addLog(`Fund given to agent ${a.name}`, 'expense', amt);
+            autoAddToPersonalLedger(`Fund given to agent ${a.name}`, 'expense', amt);
             addAudit('Agent fund given', `${fmtINR(amt)} given to agent "${a.name}" from ${v.source}`);
             saveState();
             renderAll();
@@ -380,8 +576,331 @@ function renderDevConsole() {
     out.textContent = JSON.stringify({ state, agentState }, null, 2);
 }
 
+/* Populate the agent-wipe dropdown with current agents */
+function devWipePopulateAgents() {
+    const sel = document.getElementById('devWipeAgentSelect');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— Choose an agent —</option>' +
+        agentState.map(a => `<option value="${a.id}">${escapeHTML(a.name)} (${escapeHTML(a.username || '')})</option>`).join('');
+    if (agentState.some(a => a.id === current)) sel.value = current;
+    // Hide preview whenever agents reload
+    document.getElementById('devWipePreviewCard').style.display = 'none';
+    document.getElementById('devWipeDeleteRow').style.display = 'none';
+}
+
+/* Show a summary of the selected agent's data without deleting */
+function devWipePreviewAgent() {
+    const agentId = document.getElementById('devWipeAgentSelect').value;
+    const agent = agentState.find(a => a.id === agentId);
+    if (!agent) return showToast('Please choose an agent first.', 'danger');
+
+    const loans   = state.loans.filter(l => l.agentId === agentId).length;
+    const tickets = state.sos.filter(t => t.agentId === agentId).length;
+    const marks   = (state.agentMarks || []).filter(m => m.agentId === agentId).length;
+    const fund    = Number(agent.fund) || 0;
+
+    document.getElementById('devWipeAgentNameLabel').textContent = agent.name;
+    document.getElementById('devWipeLoanCount').textContent    = loans;
+    document.getElementById('devWipeTicketCount').textContent  = tickets;
+    document.getElementById('devWipeMarkCount').textContent    = marks;
+    document.getElementById('devWipeFundLabel').textContent    = fmtINR(fund);
+
+    document.getElementById('devWipePreviewCard').style.display = '';
+    document.getElementById('devWipeDeleteRow').style.display   = '';
+}
+
+/* Delete all data tied to the selected agent, keep the account */
+function devWipeAgentData() {
+    if (state.user?.role !== 'developer') return showToast('Developer access required.', 'danger');
+
+    const agentId = document.getElementById('devWipeAgentSelect').value;
+    const agent   = agentState.find(a => a.id === agentId);
+    if (!agent) return showToast('Please choose an agent first.', 'danger');
+
+    const loanCount   = state.loans.filter(l => l.agentId === agentId).length;
+    const ticketCount = state.sos.filter(t => t.agentId === agentId).length;
+    const markCount   = (state.agentMarks || []).filter(m => m.agentId === agentId).length;
+
+    showFormModal({
+        title: `Wipe Data — ${agent.name}`,
+        icon: 'fa-user-xmark',
+        submitLabel: 'Yes, Delete This Agent\'s Data',
+        intro: `This will permanently delete:\n• ${loanCount} loan record${loanCount !== 1 ? 's' : ''}\n• ${ticketCount} support ticket${ticketCount !== 1 ? 's' : ''}\n• ${markCount} schedule mark${markCount !== 1 ? 's' : ''}\n• Fund balance reset to ₹0\n\nThe agent account will NOT be deleted. Type the agent's name to confirm.`,
+        fields: [{ id: 'confirm', label: 'Type agent name to confirm', required: true, placeholder: agent.name }],
+        onSubmit: (v) => {
+            if (v.confirm.trim().toLowerCase() !== agent.name.trim().toLowerCase()) {
+                return showToast('Name did not match — deletion cancelled.', 'danger');
+            }
+
+            // Remove loans
+            state.loans = state.loans.filter(l => l.agentId !== agentId);
+
+            // Remove from trash too
+            if (state.loanTrash) state.loanTrash = state.loanTrash.filter(l => l.agentId !== agentId);
+
+            // Remove tickets
+            state.sos = state.sos.filter(t => t.agentId !== agentId);
+
+            // Remove schedule marks
+            state.agentMarks = (state.agentMarks || []).filter(m => m.agentId !== agentId);
+
+            // Reset agent financial fields — keep id, name, username, password, levelId, rank info
+            agent.fund              = 0;
+            agent.allocatedAmount   = 0;
+            agent.collectionPool    = 0;
+            agent.incomeEarned      = 0;
+            agent.xp                = 0;
+            agent.incomeHistory     = [];
+            agent.redeemHistory     = [];
+            agent.upgradeRequest    = null;
+
+            addAudit('Agent data wiped', `Developer wiped all data for agent "${agent.name}" (${agentId})`);
+            saveState();
+            renderAll();
+
+            // Reset the preview panel
+            document.getElementById('devWipePreviewCard').style.display = 'none';
+            document.getElementById('devWipeDeleteRow').style.display   = 'none';
+            document.getElementById('devWipeAgentSelect').value         = '';
+
+            showToast(`All data for "${agent.name}" has been deleted. Account kept.`, 'warning');
+        }
+    });
+}
+
+/* ============================================================
+   SELECTIVE DATA DELETE — Dev Console
+   Lets the developer pick an agent, browse their individual
+   loans / tickets / schedule marks as a checklist, and delete
+   only the ticked items. Completely separate from the bulk wipe.
+   ============================================================ */
+
+let _devSelTab      = 'loans';   // active tab: 'loans' | 'tickets' | 'marks'
+let _devSelAgentId  = null;      // agent currently loaded in the browser
+let _devSelChecked  = new Set(); // IDs of ticked records
+
+/* Populate the agent dropdown in the Selective Delete panel */
+function devSelPopulateAgents() {
+    const sel = document.getElementById('devSelAgentSelect');
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— Choose an agent —</option>' +
+        agentState.map(a =>
+            `<option value="${a.id}">${escapeHTML(a.name)} (${escapeHTML(a.username || '')})</option>`
+        ).join('');
+    if (agentState.some(a => a.id === prev)) sel.value = prev;
+}
+
+/* Load records for chosen agent and open the browser */
+function devSelLoadRecords() {
+    const agentId = document.getElementById('devSelAgentSelect').value;
+    if (!agentId) return showToast('Please choose an agent first.', 'danger');
+    _devSelAgentId = agentId;
+    _devSelChecked.clear();
+    _devSelTab = 'loans';
+    devSelHighlightTab('loans');
+    document.getElementById('devSelBrowser').style.display = '';
+    devSelRenderList();
+}
+
+/* Switch active tab */
+function devSelHighlightTab(tab) {
+    _devSelTab = tab;
+    _devSelChecked.clear();           // clear selection on tab switch
+    ['loans','tickets','marks'].forEach(t => {
+        const btn = document.getElementById(`devSelTab${t.charAt(0).toUpperCase()+t.slice(1)}`);
+        if (btn) btn.className = `filter-chip${t === tab ? ' fc-active-all' : ''}`;
+    });
+    devSelRenderList();
+}
+
+/* Build the record rows for the current tab */
+function devSelRenderList() {
+    const list   = document.getElementById('devSelRecordList');
+    const cntLbl = document.getElementById('devSelCountLabel');
+    const delBtn = document.getElementById('devSelDeleteBtn');
+    if (!list || !_devSelAgentId) return;
+
+    const records = devSelGetRecords();
+    devSelUpdateBadges();
+
+    if (!records.length) {
+        list.innerHTML = `<div style="text-align:center;color:var(--text-tertiary);font-size:13px;padding:28px 0">
+            <div style="font-size:28px;margin-bottom:8px">📭</div>No ${_devSelTab} found for this agent.</div>`;
+        devSelSyncToolbar();
+        return;
+    }
+
+    list.innerHTML = records.map(r => {
+        const checked = _devSelChecked.has(r.id);
+        return `<label class="dev-sel-row${checked ? ' dev-sel-row-checked' : ''}" data-dev-sel-id="${r.id}"
+                    style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:var(--radius-md);
+                           border:1px solid ${checked ? 'var(--danger,#e24b4a)' : 'var(--border)'};
+                           background:${checked ? 'color-mix(in srgb,var(--danger,#e24b4a) 8%,transparent)' : 'var(--bg-secondary)'};
+                           cursor:pointer;transition:border-color .15s,background .15s">
+                  <input type="checkbox" class="dev-sel-chk" data-dev-sel-id="${r.id}"
+                         style="margin-top:2px;accent-color:var(--danger,#e24b4a);flex-shrink:0"
+                         ${checked ? 'checked' : ''}>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.primary}</div>
+                    <div style="font-size:11.5px;color:var(--text-tertiary);margin-top:2px">${r.secondary}</div>
+                  </div>
+                  <span style="font-size:11px;font-weight:600;white-space:nowrap;padding:3px 8px;border-radius:999px;
+                               background:var(--bg-tertiary,#f3f4f6);color:var(--text-secondary)">${r.badge}</span>
+                </label>`;
+    }).join('');
+
+    // Checkbox toggle
+    list.querySelectorAll('.dev-sel-chk').forEach(chk => {
+        chk.addEventListener('change', () => {
+            const id = chk.dataset.devSelId;
+            if (chk.checked) _devSelChecked.add(id); else _devSelChecked.delete(id);
+            devSelRenderList();          // re-render to update row highlight
+        });
+    });
+
+    devSelSyncToolbar();
+}
+
+/* Returns an array of { id, primary, secondary, badge } for current tab */
+function devSelGetRecords() {
+    if (!_devSelAgentId) return [];
+    if (_devSelTab === 'loans') {
+        return state.loans
+            .filter(l => l.agentId === _devSelAgentId)
+            .map(l => ({
+                id:        l.id,
+                primary:   `${l.name || 'Unnamed'} — ${fmtINR(l.amount)}`,
+                secondary: `Due: ${l.dueDate || '—'} · Issued: ${l.sanctionDate ? l.sanctionDate.slice(0,10) : '—'}`,
+                badge:     l.status || 'Active'
+            }));
+    }
+    if (_devSelTab === 'tickets') {
+        return state.sos
+            .filter(t => t.agentId === _devSelAgentId)
+            .map(t => ({
+                id:        t.id,
+                primary:   t.title || t.reason || 'Untitled',
+                secondary: `Raised: ${t.raisedOn ? new Date(t.raisedOn).toLocaleDateString('en-IN') : '—'} · ${t.category || 'other'}`,
+                badge:     t.status || 'Open'
+            }));
+    }
+    if (_devSelTab === 'marks') {
+        return (state.agentMarks || [])
+            .filter(m => m.agentId === _devSelAgentId)
+            .map(m => ({
+                id:        m.id,
+                primary:   m.label || 'Unnamed mark',
+                secondary: `Date: ${m.date || '—'}${m.note ? ' · ' + m.note : ''}`,
+                badge:     m.date || '—'
+            }));
+    }
+    return [];
+}
+
+/* Update tab count badges */
+function devSelUpdateBadges() {
+    if (!_devSelAgentId) return;
+    const lc = state.loans.filter(l => l.agentId === _devSelAgentId).length;
+    const tc = state.sos.filter(t => t.agentId === _devSelAgentId).length;
+    const mc = (state.agentMarks || []).filter(m => m.agentId === _devSelAgentId).length;
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('devSelLoansBadge',   lc);
+    set('devSelTicketsBadge', tc);
+    set('devSelMarksBadge',   mc);
+}
+
+/* Sync toolbar: count label + Delete button visibility */
+function devSelSyncToolbar() {
+    const n      = _devSelChecked.size;
+    const cntLbl = document.getElementById('devSelCountLabel');
+    const delBtn = document.getElementById('devSelDeleteBtn');
+    if (cntLbl) cntLbl.textContent = n > 0 ? `${n} item${n !== 1 ? 's' : ''} selected` : '0 selected';
+    if (delBtn) delBtn.style.display = n > 0 ? '' : 'none';
+}
+
+/* Select all / deselect all for current tab */
+function devSelSelectAll() {
+    devSelGetRecords().forEach(r => _devSelChecked.add(r.id));
+    devSelRenderList();
+}
+function devSelDeselectAll() {
+    _devSelChecked.clear();
+    devSelRenderList();
+}
+
+/* Confirm and delete only the ticked records */
+function devSelDeleteSelected() {
+    if (state.user?.role !== 'developer') return showToast('Developer access required.', 'danger');
+    const n = _devSelChecked.size;
+    if (!n) return showToast('No items selected.', 'danger');
+
+    const agent = agentState.find(a => a.id === _devSelAgentId);
+    const tabLabel = { loans: 'loan', tickets: 'ticket', marks: 'schedule mark' }[_devSelTab];
+
+    if (!confirm(`Permanently delete ${n} selected ${tabLabel}${n !== 1 ? 's' : ''} for "${agent?.name || 'agent'}"?\n\nThis cannot be undone.`)) return;
+
+    const ids = new Set(_devSelChecked);
+
+    if (_devSelTab === 'loans') {
+        const removed = state.loans.filter(l => ids.has(l.id));
+        state.loans = state.loans.filter(l => !ids.has(l.id));
+        if (state.loanTrash) state.loanTrash = state.loanTrash.filter(l => !ids.has(l.id));
+        addAudit('Selective data delete', `Developer deleted ${removed.length} loan(s) for agent "${agent?.name}"`);
+    } else if (_devSelTab === 'tickets') {
+        const removed = state.sos.filter(t => ids.has(t.id));
+        state.sos = state.sos.filter(t => !ids.has(t.id));
+        addAudit('Selective data delete', `Developer deleted ${removed.length} ticket(s) for agent "${agent?.name}"`);
+    } else if (_devSelTab === 'marks') {
+        const removed = (state.agentMarks || []).filter(m => ids.has(m.id));
+        state.agentMarks = (state.agentMarks || []).filter(m => !ids.has(m.id));
+        addAudit('Selective data delete', `Developer deleted ${removed.length} schedule mark(s) for agent "${agent?.name}"`);
+    }
+
+    _devSelChecked.clear();
+    saveState();
+    renderAll();                // refreshes loans table, sos table, etc.
+    devSelRenderList();         // refresh the checklist panel
+    showToast(`${n} ${tabLabel}${n !== 1 ? 's' : ''} deleted.`, 'warning');
+}
+
+/* Called by renderAll() to keep the panel in sync after any state change */
+function devSelRefreshIfOpen() {
+    if (document.getElementById('devSelBrowser')?.style.display === 'none') return;
+    devSelUpdateBadges();
+    devSelRenderList();
+}
+
 function initDevConsoleActions() {
     document.getElementById('refreshStateBtn').addEventListener('click', renderDevConsole);
+
+    // Agent wipe panel
+    devWipePopulateAgents();
+    document.getElementById('devWipeAgentSelect')?.addEventListener('change', () => {
+        // Hide stale preview when agent selection changes
+        document.getElementById('devWipePreviewCard').style.display = 'none';
+        document.getElementById('devWipeDeleteRow').style.display   = 'none';
+    });
+    document.getElementById('devWipePreviewBtn')?.addEventListener('click', devWipePreviewAgent);
+    document.getElementById('devWipeAgentDataBtn')?.addEventListener('click', devWipeAgentData);
+
+    // Selective Data Delete panel
+    devSelPopulateAgents();
+    document.getElementById('devSelLoadBtn')?.addEventListener('click', devSelLoadRecords);
+    document.getElementById('devSelAgentSelect')?.addEventListener('change', () => {
+        // Reset browser when a different agent is picked
+        _devSelAgentId = null;
+        _devSelChecked.clear();
+        document.getElementById('devSelBrowser').style.display = 'none';
+    });
+    // Tab buttons
+    document.querySelectorAll('[data-dev-sel-tab]').forEach(btn => {
+        btn.addEventListener('click', () => devSelHighlightTab(btn.dataset.devSelTab));
+    });
+    document.getElementById('devSelSelectAll')?.addEventListener('click', devSelSelectAll);
+    document.getElementById('devSelDeselectAll')?.addEventListener('click', devSelDeselectAll);
+    document.getElementById('devSelDeleteBtn')?.addEventListener('click', devSelDeleteSelected);
     document.getElementById('saveGoogleClientBtn').addEventListener('click',()=>{
         if(state.user?.role!=='developer') return;
         const id=document.getElementById('googleClientId').value.trim();
@@ -554,6 +1073,7 @@ function initLoanActions() {
             const now=new Date(v.loanDate).toISOString();
             state.loans.push({id:genId('loan'),name:v.name,phone:v.phone,email:v.email||'',guarantor:v.guarantor||'',amount,rate,cycleInterest:interestAmount,interestAmount,totalPayable:amount+interestAmount,principalOutstanding:amount,interestOutstanding:0,interestPaidTotal:0,principalPaidTotal:0,interestEntries:[],outstanding:amount,payType:v.payType,tenure,source:isAgent?'agent':v.source,agentId,sanctionDate:now,nextInterestDate:now,dueDate:calculateDueDate(v.payType,tenure,now),status:'Active',history:[{date:Date.now(),type:'Loan issued',amount,mode:isAgent?'agent fund':v.source}]});
             addLog(`New loan issued to ${v.name}`,'expense',amount);
+            autoAddToPersonalLedger(`New loan issued to ${v.name}`,'expense',amount);
             saveState();renderAll();showToast('Loan created.','success');
         }});
     });
@@ -593,6 +1113,7 @@ function repayLoan(id) {
             l.interestPaidTotal=round2((l.interestPaidTotal||0)+a);
             let remain=a;
             let entriesNewlySettled=0;
+            let xpFromSettledEntries=0;
             for (const entry of l.interestEntries) {
                 if (entry.paid || remain<=0) continue;
                 const owed=round2(entry.amount-(entry.paidAmount||0));
@@ -602,13 +1123,15 @@ function repayLoan(id) {
                 if (entry.paidAmount>=entry.amount-0.01 && !entry.paid) {
                     entry.paid=true;
                     entriesNewlySettled++;
+                    xpFromSettledEntries=round2(xpFromSettledEntries+(entry.amount||0));
                 }
             }
             // XP is only awarded once interest is FULLY/successfully collected —
             // missed/overdue/partial interest never generates XP. XP earned per
-            // fully-settled interest cycle equals the loan's interest rate %.
+            // fully-settled interest cycle equals the actual ₹ interest amount collected
+            // (e.g. ₹500 interest collected → +500 XP).
             if (entriesNewlySettled > 0 && l.agentId && typeof awardAgentXP === 'function') {
-                awardAgentXP(l.agentId, (Number(l.rate)||0) * entriesNewlySettled, l.name);
+                awardAgentXP(l.agentId, xpFromSettledEntries, l.name);
             }
         } else {
             l.principalOutstanding=round2(l.principalOutstanding-a);
@@ -630,7 +1153,7 @@ function repayLoan(id) {
         }
         if (l.principalOutstanding<=0 && l.interestOutstanding<=0) l.status='Paid';
         normaliseLoan(l);
-        addLog(`${histType} received from ${l.name}`,'income',a);saveState();renderAll();
+        addLog(`${histType} received from ${l.name}`,'income',a);autoAddToPersonalLedger(`${histType} received from ${l.name}`,'income',a);saveState();renderAll();
         // Show receipt toast — offers to open the printable invoice
         if (typeof offerReceipt === 'function') {
             const payMode = l.agentId ? 'agent fund' : (v.mode || '—');
@@ -725,6 +1248,9 @@ function renderAll() {
     renderLedgerTable();
     renderSosTable();
     renderDevConsole();
+    if (typeof devWipePopulateAgents === 'function') devWipePopulateAgents();
+    if (typeof devSelPopulateAgents  === 'function') devSelPopulateAgents();
+    if (typeof devSelRefreshIfOpen   === 'function') devSelRefreshIfOpen();
     renderAgentManager();
     if (typeof renderAnalyticsCharts === 'function') renderAnalyticsCharts();
     if (typeof renderMyRankPage === 'function') renderMyRankPage();
@@ -733,6 +1259,7 @@ function renderAll() {
     if (document.getElementById('page-settings')?.classList.contains('active') && typeof refreshKycPageLight === 'function') refreshKycPageLight();
     if (document.getElementById('page-kyc-approvals')?.classList.contains('active') && typeof renderKycApprovalsPage === 'function') renderKycApprovalsPage();
     if (document.getElementById('page-clients')?.classList.contains('active') && typeof renderClientsPage === 'function') renderClientsPage();
+    if (document.getElementById('page-adminledger')?.classList.contains('active') && typeof renderAdminLedgerPage === 'function') renderAdminLedgerPage();
     if (document.getElementById('page-schedule')?.classList.contains('active') && typeof renderSchedulePage === 'function') renderSchedulePage();
     if (typeof updateNotifBadge === 'function') updateNotifBadge();
     if (typeof updateXPWithdrawalBadge === 'function') updateXPWithdrawalBadge();

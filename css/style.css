@@ -755,6 +755,37 @@ tr:hover td { background: rgba(249,115,22,.03); }
 .xp-redeem-history-row span { color: var(--text-muted); }
 .xp-redeem-history-row strong { color: var(--text-main); }
 
+/* ---- Withdrawal Payment Method UI ---- */
+.withdrawal-method-section { border-top: 1px solid var(--glass-border); padding-top: 14px; display: grid; gap: 12px; }
+.withdrawal-method-title { font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.withdrawal-method-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.withdrawal-method-tab { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 4px; border-radius: 10px; border: 1.5px solid var(--glass-border); background: var(--input-bg); cursor: pointer; font-size: 11px; font-weight: 700; color: var(--text-muted); transition: all 0.18s; }
+.withdrawal-method-tab i { font-size: 18px; }
+.withdrawal-method-tab .upi-pill { background: #fff; border-radius: 4px; padding: 1px 5px; font-size: 9px; font-weight: 900; color: #16a34a; letter-spacing: 0.3px; border: 1px solid #bbf7d0; }
+.withdrawal-method-tab.active { border-color: var(--success); background: rgba(16,185,129,.1); color: var(--success); }
+.withdrawal-method-tab:hover:not(.active) { border-color: var(--glass-border-strong, var(--glass-border)); background: var(--hover-bg, var(--input-bg)); }
+.withdrawal-account-row { display: flex; align-items: center; justify-content: space-between; background: var(--input-bg); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px 14px; cursor: pointer; gap: 10px; }
+.withdrawal-account-row:hover { border-color: var(--success); }
+.withdrawal-account-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.withdrawal-account-badge { background: rgba(16,185,129,.12); color: var(--success); border-radius: 5px; padding: 2px 7px; font-size: 10px; font-weight: 800; border: 1px solid rgba(16,185,129,.25); white-space: nowrap; }
+.withdrawal-account-name { font-size: 13px; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.withdrawal-account-sub { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.withdrawal-preset-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.withdrawal-preset-btn { padding: 8px 0; border-radius: 8px; border: 1px solid rgba(16,185,129,.3); background: rgba(16,185,129,.06); cursor: pointer; font-size: 12px; font-weight: 700; color: var(--success); transition: all 0.15s; }
+.withdrawal-preset-btn:hover, .withdrawal-preset-btn.active { background: var(--success); color: #fff; border-color: var(--success); }
+.withdrawal-amount-input-wrap { display: flex; align-items: center; border: 1.5px solid var(--glass-border); border-radius: 10px; padding: 0 14px; background: var(--input-bg); gap: 8px; transition: border-color 0.15s; }
+.withdrawal-amount-input-wrap:focus-within { border-color: var(--success); }
+.withdrawal-amount-input-wrap .rupee-sym { font-size: 17px; font-weight: 700; color: var(--success); }
+.withdrawal-amount-input-wrap input { flex: 1; border: none; background: transparent; font-size: 14px; font-weight: 600; color: var(--text-main); padding: 11px 0; outline: none; }
+.withdrawal-amount-input-wrap input::placeholder { color: var(--text-muted); font-weight: 400; }
+.withdrawal-meta-rows { display: flex; flex-direction: column; gap: 4px; }
+.withdrawal-meta-row { display: flex; justify-content: space-between; font-size: 12px; }
+.withdrawal-meta-row span { color: var(--text-muted); }
+.withdrawal-meta-row strong { color: var(--success); }
+.withdrawal-submit-btn { width: 100%; padding: 13px; border-radius: 12px; border: none; background: #9ca3af; color: #fff; font-size: 15px; font-weight: 700; cursor: not-allowed; transition: background 0.2s; }
+.withdrawal-submit-btn.enabled { background: var(--success); cursor: pointer; }
+.withdrawal-submit-btn.enabled:hover { opacity: 0.9; }
+
 @media (max-width: 640px) {
     .xp-card-inner { justify-content: center; text-align: center; }
     .xp-info-col { min-width: 100%; }

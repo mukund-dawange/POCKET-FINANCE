@@ -12,6 +12,7 @@ const SECTION_TITLES = {
     wallet: 'Wallet Management',
     loans: 'Loan Accounts',
     clients: 'My Clients',
+    agentwallet: 'My Wallet',
     schedule: 'Schedule',
     ledger: 'Master Ledger',
     sos: 'Tickets',
@@ -19,6 +20,7 @@ const SECTION_TITLES = {
     levels: 'Levels & Ranking',
     income: 'Income Overview',
     'kyc-approvals': 'KYC Approvals',
+    adminledger: 'Personal Ledger',
     admin: 'Admin Panel',
     devconsole: 'Dev Console',
     access: 'Access Manager',
@@ -33,9 +35,9 @@ function closeMobileSidebar() {
 
 function switchSection(sectionKey) {
     if (['access','activity','danger','devconsole'].includes(sectionKey) && state.user?.role !== 'developer') sectionKey='dashboard';
-    if (['wallet','admin','levels','income','kyc-approvals'].includes(sectionKey) && !['admin','developer'].includes(state.user?.role)) sectionKey='dashboard';
+    if (['wallet','admin','levels','income','kyc-approvals','adminledger'].includes(sectionKey) && !['admin','developer'].includes(state.user?.role)) sectionKey='dashboard';
     if (sectionKey==='myrank' && state.user?.role !== 'agent') sectionKey='dashboard';
-    if (['clients','schedule'].includes(sectionKey) && state.user?.role !== 'agent') sectionKey='dashboard';
+    if (['clients','schedule','agentwallet'].includes(sectionKey) && state.user?.role !== 'agent') sectionKey='dashboard';
     document.querySelectorAll('.tab-trigger[data-section]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.section === sectionKey);
     });
@@ -64,10 +66,12 @@ function switchSection(sectionKey) {
     if(sectionKey==='settings' && typeof renderKycPage==='function') renderKycPage();
     if((sectionKey==='myrank' || sectionKey==='levels') && typeof renderMyRankPage==='function') renderMyRankPage();
     if(sectionKey==='clients' && typeof renderClientsPage==='function') renderClientsPage();
+    if(sectionKey==='agentwallet' && typeof renderAgentWalletPage==='function') renderAgentWalletPage();
     if(sectionKey==='schedule' && typeof renderSchedulePage==='function') renderSchedulePage();
     if(sectionKey==='sos' && typeof renderTicketsPage==='function') renderTicketsPage();
     if(sectionKey==='kyc-approvals' && typeof renderKycApprovalsPage==='function') renderKycApprovalsPage();
     if(sectionKey==='income' && typeof renderAdminIncomePanel==='function') renderAdminIncomePanel();
+    if(sectionKey==='adminledger' && typeof renderAdminLedgerPage==='function') renderAdminLedgerPage();
 }
 
 /* ---- Bottom Navigation (mobile) ---------------------------------- */

@@ -36,6 +36,12 @@
      Example: Allocated Fund ₹1000 → Target Amount ₹700 → XP Target 700.
      Agents must reach their XP Target (100% by default, configurable per
      level via targetPct) to qualify for rank progression / upgrade requests.
+
+   XP RESET ON UPGRADE:
+     When admin approves an upgrade request, the agent's XP resets to 0.
+     Admin then allocates the new fund for the new level.
+     New XP Target = 70% of that newly allocated amount.
+     Each level's XP journey starts fresh — old XP does not carry over.
    ============================================================ */
 
 const RANK_VERIFY_HOURS = 24;          // verification countdown length
@@ -133,8 +139,9 @@ function getAgentSettledAmount(agentId) {
 /* ---------------- XP SYSTEM ----------------
    XP is awarded ONLY when interest is successfully (fully) collected —
    missed/overdue/partial interest never generates XP.
-   XP earned per fully-settled interest cycle = that loan's interest rate %
-   (e.g. ₹1000 loan @ 10%/month → +10 XP each month it's paid in full).
+   XP earned per fully-settled interest cycle = the actual ₹ interest amount
+   collected (e.g. ₹1000 loan @ 10%/month → +100 XP each month it's paid in
+   full, because ₹100 interest was collected).
    Awarded automatically from repayLoan() the moment an interest entry
    flips to paid=true. See awardAgentXP() below. */
 
@@ -161,161 +168,8 @@ function getAgentRedeemPreview(agent) {
     };
 }
 
-function redeemAgentXP(agentId) {
-    const a = agentState.find(x => x.id === agentId);
-    if (!a) return;
-
-    // Block if there is already a pending/cooldown redeem request
-    if (a.xpRedeemRequest && a.xpRedeemRequest.status !== 'paid') {
-        return showToast('You already have a pending XP withdrawal request.', 'warning');
-    }
-
-    const preview = getAgentRedeemPreview(a);
-    if (preview.xp < XP_REDEEM_MINIMUM || preview.redeemableXP <= 0) {
-        return showToast(`Earn at least ${XP_REDEEM_MINIMUM.toLocaleString('en-IN')} XP before redeeming.`, 'warning');
-    }
-
-    if (!confirm(`Request withdrawal of ${preview.redeemableXP.toLocaleString('en-IN')} XP for ${fmtINR(preview.money)}?\n\nA 48-hour processing period will begin. Admin will be notified and will mark payment once sent.`)) return;
-
-    // Deduct XP immediately and create a pending request
-    a.xp = preview.remainingXP;
-    a.xpRedeemRequest = {
-        id: genId('xpr'),
-        requestedAt: Date.now(),
-        payBefore: Date.now() + XP_COOLDOWN_HOURS * 60 * 60 * 1000,
-        xpRedeemed: preview.redeemableXP,
-        money: preview.money,
-        xpBefore: preview.xp + preview.redeemableXP, // original xp
-        xpAfter: preview.remainingXP,
-        status: 'pending'   // 'pending' | 'paid'
-    };
-
-    // Push into global xpRedeemRequests list on state so admin/dev can see all
-    state.xpRedeemRequests = state.xpRedeemRequests || [];
-    state.xpRedeemRequests.unshift({
-        id: a.xpRedeemRequest.id,
-        agentId: a.id,
-        agentName: a.name,
-        requestedAt: a.xpRedeemRequest.requestedAt,
-        payBefore: a.xpRedeemRequest.payBefore,
-        xpRedeemed: preview.redeemableXP,
-        money: preview.money,
-        status: 'pending'
-    });
-
-    addAudit('XP withdrawal requested', `${a.name} requested withdrawal of ${preview.redeemableXP} XP for ${fmtINR(preview.money)} — pending admin payment`);
-    addNotification(
-        '💸 XP Withdrawal Request',
-        `${a.name} requested a payout of ${fmtINR(preview.money)}. Please send the payment and mark it as done.`,
-        ['admin', 'developer'],
-        '💸'
-    );
-    saveState();
-    renderMyRankPage();
-    renderXPWithdrawalRequestsPanel();
-    updateXPWithdrawalBadge();
-    if (typeof renderAgentDashboardPanel === 'function') renderAgentDashboardPanel();
-    showToast(`Withdrawal request submitted! Admin will process ${fmtINR(preview.money)} within 48 hours.`, 'success');
-}
-
-// Admin/Dev: mark an XP withdrawal as paid
-function markXPRedeemPaid(requestId) {
-    const req = (state.xpRedeemRequests || []).find(r => r.id === requestId);
-    if (!req || req.status === 'paid') return;
-    if (!confirm(`Mark payment of ${fmtINR(req.money)} to ${req.agentName} as DONE?`)) return;
-
-    req.status = 'paid';
-    req.paidAt = Date.now();
-
-    // Also update the agent's own record and history
-    const a = agentState.find(x => x.id === req.agentId);
-    if (a) {
-        if (a.xpRedeemRequest && a.xpRedeemRequest.id === requestId) {
-            a.xpRedeemRequest.status = 'paid';
-            a.xpRedeemRequest.paidAt = Date.now();
-        }
-        a.incomeEarned = round2((Number(a.incomeEarned) || 0) + req.money);
-        a.redeemedIncome = round2((Number(a.redeemedIncome) || 0) + req.money);
-        a.redeemHistory = a.redeemHistory || [];
-        a.redeemHistory.unshift({
-            date: Date.now(),
-            xpBefore: req.xpBefore || (req.xpRedeemed + (req.xpAfter || 0)),
-            xpRedeemed: req.xpRedeemed,
-            money: req.money,
-            xpAfter: req.xpAfter || 0,
-            paidByAdmin: true
-        });
-    }
-
-    addAudit('XP withdrawal paid', `Payment of ${fmtINR(req.money)} marked as done for ${req.agentName}`);
-    addNotification(
-        '✅ Payment Received!',
-        `Your XP withdrawal of ${fmtINR(req.money)} has been sent. Check your account!`,
-        [`agent:${req.agentId}`],
-        '✅'
-    );
-    saveState();
-    renderXPWithdrawalRequestsPanel();
-    renderMyRankPage();
-    updateXPWithdrawalBadge();
-    showToast(`Payment to ${req.agentName} marked as done ✅`, 'success');
-}
-
-function updateXPWithdrawalBadge() {
-    const pending = (state.xpRedeemRequests || []).filter(r => r.status === 'pending').length;
-    const badge = document.getElementById('xpWithdrawalBadge');
-    const sidebarBadge = document.getElementById('xpSidebarBadge');
-    [badge, sidebarBadge].forEach(el => {
-        if (!el) return;
-        el.textContent = pending;
-        el.style.display = pending > 0 ? '' : 'none';
-    });
-}
-
-function renderXPWithdrawalRequestsPanel() {
-    const root = document.getElementById('xpWithdrawalRequestsList');
-    if (!root) return;
-
-    const requests = (state.xpRedeemRequests || []).slice().sort((a, b) => {
-        // pending first, then by date desc
-        if (a.status === 'pending' && b.status !== 'pending') return -1;
-        if (b.status === 'pending' && a.status !== 'pending') return 1;
-        return b.requestedAt - a.requestedAt;
-    });
-
-    if (!requests.length) {
-        root.innerHTML = '<p class="empty-row">No XP withdrawal requests yet.</p>';
-        return;
-    }
-
-    const isAdminOrDev = ['admin', 'developer'].includes(state.user?.role);
-
-    root.innerHTML = requests.slice(0, 30).map(req => {
-        const isPending = req.status === 'pending';
-        const timeLeft = req.payBefore - Date.now();
-        const isOverdue = timeLeft < 0;
-        const timeLabel = isPending
-            ? (isOverdue
-                ? `<span style="color:var(--danger);font-weight:700;">⚠️ Overdue by ${formatCountdown(Math.abs(timeLeft))}</span>`
-                : `<span style="color:var(--warning);">⏱ Pay within ${formatCountdown(timeLeft)}</span>`)
-            : `<span style="color:var(--success);">✅ Paid ${new Date(req.paidAt || req.requestedAt).toLocaleDateString('en-IN')}</span>`;
-
-        return `
-        <div class="request-row xp-withdraw-row" style="border-left:3px solid ${isPending ? (isOverdue ? 'var(--danger)' : 'var(--warning)') : 'var(--success)'};">
-            <div class="request-row-info">
-                <strong>${escapeHTML(req.agentName)}</strong>
-                <span style="margin-left:8px;font-size:12px;background:${isPending ? 'var(--warning-bg,#fef3c7)' : 'var(--success-bg)'};color:${isPending ? '#92400e' : 'var(--success)'};padding:2px 8px;border-radius:20px;font-weight:600;">${isPending ? 'Pending' : 'Paid'}</span>
-                <small style="display:block;margin-top:4px;">${req.xpRedeemed.toLocaleString('en-IN')} XP → <strong>${fmtINR(req.money)}</strong> · Requested ${new Date(req.requestedAt).toLocaleString('en-IN')}</small>
-                <small>${timeLabel}</small>
-            </div>
-            <div class="request-row-actions">
-                ${isAdminOrDev && isPending ? `<button class="btn-friendly-primary compact" data-pay-xp="${req.id}"><i class="fa-solid fa-check"></i> Mark Payment Done</button>` : ''}
-            </div>
-        </div>`;
-    }).join('');
-
-    root.querySelectorAll('[data-pay-xp]').forEach(b => b.onclick = () => markXPRedeemPaid(b.dataset.payXp));
-}
+// ─── XP Withdrawal functions moved to withdrawal.js ──────────────────────────
+// redeemAgentXP(), markXPRedeemPaid(), updateXPWithdrawalBadge(), renderXPWithdrawalRequestsPanel()
 
 // Target Amount = 70% of Allocated Fund. XP Target = Target Amount.
 function getAgentTargetAmount(agent) {
@@ -504,8 +358,12 @@ function showSetAllocationModal(agentId, creditFund = false) {
                 // This allocation IS the agent's usable lending balance now —
                 // credit it directly, not just the rank-progress target.
                 a.fund = amt;
-                addAudit('Fund allocated', `${fmtINR(amt)} allocated to "${a.name}" as their lending fund for the new level`);
-                showToast(`${fmtINR(amt)} allocated to ${a.name}. They can now issue loans.`, 'success');
+                // XP resets to 0 so the new XP target (70% of this new amount)
+                // starts from scratch — agent earns XP toward the new allocation.
+                a.xp = 0;
+                const newXpTarget = round2(amt * 0.7);
+                addAudit('Fund allocated', `${fmtINR(amt)} allocated to "${a.name}" as their lending fund for the new level · XP reset to 0 · New XP target: ${Math.round(newXpTarget)} XP (70% of ${fmtINR(amt)})`);
+                showToast(`${fmtINR(amt)} allocated to ${a.name}. New XP target: ${Math.round(newXpTarget).toLocaleString('en-IN')} XP. They can now issue loans.`, 'success');
             } else {
                 addAudit('Allocation set', `Allocated amount for "${a.name}" set to ${fmtINR(amt)}`);
                 showToast('Allocated amount updated.', 'success');
@@ -672,8 +530,11 @@ function approveUpgradeRequest(agentId) {
     // manually allocate a fresh amount for this level (no auto-allocation).
     a.fund = 0;
     a.allocatedAmount = 0;
+    // XP resets to 0 on upgrade — the new XP target will be calculated from
+    // the fresh allocation the admin sets next (70% of the new allocated amount).
+    a.xp = 0;
     a.upgradeRequest = null;
-    addAudit('Upgrade approved', `${a.name} upgraded to "${newLevel.name}" (${newLevel.rankName}) · Agent earned ₹${agentShare}, Admin pool +₹${adminShare}`);
+    addAudit('Upgrade approved', `${a.name} upgraded to "${newLevel.name}" (${newLevel.rankName}) · Agent earned ₹${agentShare}, Admin pool +₹${adminShare} · XP reset to 0 for new level`);
     saveState();
     renderUpgradeRequestsPanel();
     renderAgentManager();
@@ -749,7 +610,6 @@ function renderMyRankPage() {
 
     if (isAgent) {
         renderAgentRankCard();
-        renderAgentRedeemCard();
     }
     renderLeaderboard(document.getElementById('leaderboardList'));
 
@@ -777,8 +637,6 @@ function renderAgentRankCard() {
         card.innerHTML = '<p class="empty-row">Your agent record could not be found.</p>';
         if (ladderCard) ladderCard.innerHTML = '';
         if (upgradeCard) upgradeCard.innerHTML = '';
-        const redeemCard = document.getElementById('xp-redeem-card');
-        if (redeemCard) redeemCard.innerHTML = '';
         return;
     }
 
@@ -924,16 +782,7 @@ function renderAgentRankCard() {
     }
 }
 
-function renderAgentRedeemCard() {
-    const card = document.getElementById('xp-redeem-card');
-    if (!card || state.user?.role !== 'agent') return;
-
-    const a = agentState.find(x => x.id === state.user.agentId);
-    if (!a) {
-        card.innerHTML = '';
-        return;
-    }
-
+function buildXPWithdrawalInnerHTML(a) {
     const preview = getAgentRedeemPreview(a);
     const history = (a.redeemHistory || []).slice(0, 4);
 
@@ -963,43 +812,68 @@ function renderAgentRedeemCard() {
     }
 
     const canRedeem = !pendingReq && preview.xp >= XP_REDEEM_MINIMUM && preview.redeemableXP > 0;
-    const statusText = pendingReq ? 'Pending' : (canRedeem ? 'Ready' : `${preview.neededXP.toLocaleString('en-IN')} XP needed`);
-    const statusClass = pendingReq ? 'pending' : (canRedeem ? 'ready' : 'locked');
 
-    card.innerHTML = `
-        <div class="xp-redeem-inner ${canRedeem ? 'ready' : 'locked'}">
+    return `
+        <div class="xp-redeem-inner">
             <div class="xp-redeem-head">
                 <div>
-                    <h3 class="panel-title"><i class="fa-solid fa-money-bill-transfer"></i> XP Withdrawal</h3>
-                    <p class="muted-text">Earn ${XP_REDEEM_MINIMUM.toLocaleString('en-IN')} XP, then redeem half of your XP balance as money. Admin will process payment within 48 hours.</p>
+                    <h3 class="panel-title"><i class="fa-solid fa-wallet"></i> My Wallet</h3>
+                    <p class="muted-text">Select your payment method and enter the amount to withdraw.</p>
                 </div>
-                <span class="xp-redeem-status ${statusClass}">${statusText}</span>
             </div>
 
             ${statusBanner}
 
-            <div class="xp-redeem-grid">
-                <div class="xp-redeem-stat">
-                    <small>Current XP</small>
-                    <strong>${Math.round(preview.xp).toLocaleString('en-IN')}</strong>
+            <!-- ── Withdrawal Payment Method UI ── -->
+            <div class="withdrawal-method-section" id="withdrawalMethodSection">
+                <div class="withdrawal-method-title">Payment Method</div>
+                <div class="withdrawal-method-tabs" id="withdrawalMethodTabs">
+                    <button class="withdrawal-method-tab" data-method="bank" onclick="selectWithdrawalMethod('bank')">
+                        <i class="fa-solid fa-credit-card"></i>
+                        <span>Bank Card</span>
+                    </button>
+                    <button class="withdrawal-method-tab active" data-method="upi" onclick="selectWithdrawalMethod('upi')">
+                        <span class="upi-pill">UPI»</span>
+                        <span>UPI</span>
+                    </button>
+                    <button class="withdrawal-method-tab" data-method="usdt" onclick="selectWithdrawalMethod('usdt')">
+                        <i class="fa-solid fa-circle-dollar-to-slot"></i>
+                        <span>USDT</span>
+                    </button>
                 </div>
-                <div class="xp-redeem-stat">
-                    <small>Redeem XP</small>
-                    <strong>${preview.redeemableXP.toLocaleString('en-IN')}</strong>
-                </div>
-                <div class="xp-redeem-stat">
-                    <small>Payout</small>
-                    <strong>${fmtINR(preview.money)}</strong>
-                </div>
-                <div class="xp-redeem-stat">
-                    <small>XP After</small>
-                    <strong>${Math.round(preview.remainingXP).toLocaleString('en-IN')}</strong>
-                </div>
-            </div>
 
-            <button class="btn-friendly-primary xp-redeem-btn" id="xpRedeemBtn" ${(canRedeem && !redeemBtnDisabled) ? '' : 'disabled'}>
-                ${redeemBtnLabel}
-            </button>
+                <div class="withdrawal-account-row" onclick="editWithdrawalAccount()" title="Change account">
+                    <div class="withdrawal-account-info">
+                        <span class="withdrawal-account-badge" id="withdrawalAccountBadge">UPI»</span>
+                        <div style="min-width:0">
+                            <div class="withdrawal-account-name" id="withdrawalAccountName">${escapeHTML(a.upiName || a.name || 'Your Name')}</div>
+                            <div class="withdrawal-account-sub" id="withdrawalAccountSub">${escapeHTML(a.upiId || 'Set your UPI ID')}</div>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:12px;flex-shrink:0;"></i>
+                </div>
+
+                <div class="withdrawal-method-title" style="margin-top:4px;">Withdrawal XP</div>
+                <div class="withdrawal-preset-grid" id="withdrawalPresetGrid">
+                    ${[500,1000,2000,3000,5000,10000,30000,50000].map(v => {
+                        const xpVal = v * 2;
+                        const label = xpVal >= 1000 ? (xpVal/1000)+'K' : xpVal;
+                        return `<button class="withdrawal-preset-btn" data-preset="${v}" onclick="selectWithdrawalPreset(${v})">${label}</button>`;
+                    }).join('')}
+                </div>
+                <div class="withdrawal-amount-input-wrap">
+                    <span class="rupee-sym" style="font-size:12px;font-weight:700;color:var(--text-muted);">XP</span>
+                    <input type="number" id="withdrawalAmtInput" placeholder="Enter XP amount" oninput="onWithdrawalAmtInput()" />
+                </div>
+                <div class="withdrawal-meta-rows">
+                    <div class="withdrawal-meta-row"><span>Withdrawable Amount</span><strong>${fmtINR(preview.money)}</strong></div>
+                    <div class="withdrawal-meta-row"><span>Amount received</span><strong id="withdrawalAmtReceived">₹0.00</strong></div>
+                </div>
+                <button class="withdrawal-submit-btn" id="withdrawalSubmitBtn" disabled onclick="submitWithdrawalRequest()">
+                    Withdraw
+                </button>
+            </div>
+            <!-- ── /Withdrawal Payment Method UI ── -->
 
             <div class="xp-redeem-history">
                 <div class="xp-redeem-history-title">Recent withdrawals</div>
@@ -1012,8 +886,82 @@ function renderAgentRedeemCard() {
                 `).join('') : '<p class="empty-row">No XP withdrawals yet.</p>'}
             </div>
         </div>`;
+}
 
-    document.getElementById('xpRedeemBtn')?.addEventListener('click', () => redeemAgentXP(a.id));
+// Small summary card shown inside the "My Clients" card list. Clicking it
+// opens the full XP Withdrawal experience in a modal ("full enter").
+function buildXPWithdrawalSummaryCard(a) {
+    const preview = getAgentRedeemPreview(a);
+    const pendingReq = a.xpRedeemRequest && a.xpRedeemRequest.status !== 'paid' ? a.xpRedeemRequest : null;
+    const canRedeem = !pendingReq && preview.xp >= XP_REDEEM_MINIMUM && preview.redeemableXP > 0;
+    const statusText = pendingReq ? 'Pending' : (canRedeem ? 'Ready' : `${preview.neededXP.toLocaleString('en-IN')} XP needed`);
+    const statusClass = pendingReq ? 'pending' : (canRedeem ? 'ready' : 'locked');
+
+    return `
+        <div class="ap-client-card xp-withdrawal-entry-card" id="ap-xp-withdrawal-card" style="cursor:pointer;">
+            <div class="ap-client-card-top">
+                <div class="ap-client-avatar"><i class="fa-solid fa-money-bill-transfer"></i></div>
+                <div style="flex:1;min-width:0">
+                    <div class="ap-client-name">XP Withdrawal</div>
+                    <div class="ap-client-phone">Redeem your earned XP as money</div>
+                </div>
+                <span class="xp-redeem-status ${statusClass}">${statusText}</span>
+            </div>
+            <div class="ap-client-stats">
+                <div><small>Current XP</small><strong>${Math.round(preview.xp).toLocaleString('en-IN')}</strong></div>
+                <div><small>Payout</small><strong>${fmtINR(preview.money)}</strong></div>
+                <div><small>Action</small><strong>Tap to open</strong></div>
+            </div>
+        </div>`;
+}
+
+function openXPWithdrawalModal() {
+    const a = agentState.find(x => x.id === state.user.agentId);
+    if (!a) return;
+    const o = document.createElement('div');
+    o.className = 'modal-overlay modal-wide';
+    o.innerHTML = `
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-icon"><i class="fa-solid fa-money-bill-transfer"></i></div>
+                <h3>XP Withdrawal</h3>
+                <button class="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" id="xp-withdrawal-modal-body"></div>
+        </div>`;
+    document.body.appendChild(o);
+    o.querySelector('.modal-close-btn').onclick = () => o.remove();
+    o.onclick = e => { if (e.target === o) o.remove(); };
+
+    function refresh() {
+        const body = document.getElementById('xp-withdrawal-modal-body');
+        if (!body) return;
+        body.innerHTML = buildXPWithdrawalInnerHTML(a);
+        document.getElementById('xpRedeemBtn')?.addEventListener('click', () => {
+            redeemAgentXP(a.id);
+            refresh();
+            if (typeof renderClientsPage === 'function') renderClientsPage();
+        });
+    }
+    refresh();
+}
+
+// ─── Agent: full Wallet page (My Wallet sidebar section) ───────────────────
+// Renders the same XP Withdrawal panel that used to live inline on
+// "My Clients" / inside a modal, but now as its own dedicated page.
+function renderAgentWalletPage() {
+    const panel = document.getElementById('agent-wallet-panel');
+    if (!panel) return;
+    const a = agentState.find(x => x.id === state.user.agentId);
+    if (!a) {
+        panel.innerHTML = '<p class="empty-row">Your agent record could not be found.</p>';
+        return;
+    }
+    panel.innerHTML = buildXPWithdrawalInnerHTML(a);
+    document.getElementById('xpRedeemBtn')?.addEventListener('click', () => {
+        redeemAgentXP(a.id);
+        renderAgentWalletPage();
+    });
 }
 
 function requestUpgrade(agentId) {

@@ -110,7 +110,8 @@ function renderSettingsPage() {
         if (state.user.email) document.getElementById('profileEmail').value = state.user.email;
     }
 
-    // Theme picker is handled globally by initThemePicker()
+    const themeSwitch = document.getElementById('settingsThemeSwitchAdmin');
+    if (themeSwitch) themeSwitch.checked = document.documentElement.getAttribute('data-theme') === 'dark';
 }
 
 /* ---------------- PHOTO RESIZE/CROP ---------------- */
@@ -253,5 +254,10 @@ function initSettings() {
         });
     }
 
-    // Theme is handled by the global theme picker swatches in initThemePicker()
+    const themeSwitch = document.getElementById('settingsThemeSwitchAdmin');
+    if (themeSwitch) {
+        themeSwitch.addEventListener('change', () => {
+            applyTheme(themeSwitch.checked ? 'dark' : 'light');
+        });
+    }
 }

@@ -155,19 +155,22 @@ function stopAutoSync() {
 }
 
 async function resetState() {
-    state = { wallet: { cash: 0, online: 0 }, loans: [], loanTrash: [], clients: [], logs: [], sos: [], agentMarks: [], levelDefs: [], user: state.user };
+    state = { wallet: { cash: 0, online: 0 }, loans: [], loanTrash: [], clients: [], logs: [], sos: [], agentMarks: [], levelDefs: [], adminLogs: [], user: state.user };
     agentState = [];
     await saveState();
 }
 
 function addLog(description, typeClass, impactAmount) {
     const sign = typeClass === 'expense' ? '-' : '+';
+    // Stamp the acting agent's id so the master ledger can filter by role
+    const actingAgentId = (state.user?.role === 'agent') ? (state.user.agentId || null) : null;
     state.logs.unshift({
         id: 'log_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
         timestampMs: Date.now(),
         description,
         typeClass,
-        impactStr: sign + '₹' + Math.abs(impactAmount).toLocaleString('en-IN')
+        impactStr: sign + '₹' + Math.abs(impactAmount).toLocaleString('en-IN'),
+        agentId: actingAgentId
     });
     saveState();
     addAudit('Financial action', description);

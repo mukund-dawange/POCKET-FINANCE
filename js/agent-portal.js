@@ -905,4 +905,5 @@ function initAgentPortal() {
     initSchedulePage();
     initTicketsPage();
     renderAgentDashboardPanel();
+    if (typeof updateXPWithdrawalBadge === 'function') updateXPWithdrawalBadge();
 }
