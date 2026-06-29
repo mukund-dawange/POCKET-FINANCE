@@ -106,9 +106,11 @@ function renderAgentDashboardPanel() {
         incomeEl.textContent = fmtINR(earned);
         if (incomeDeltaEl) {
             const upgrades = (me.incomeHistory || []).length;
-            incomeDeltaEl.textContent = upgrades > 0
-                ? `From ${upgrades} rank upgrade${upgrades > 1 ? 's' : ''}`
-                : 'Earned on rank upgrades';
+            const withdrawals = (me.redeemHistory || []).length;
+            const parts = [];
+            if (upgrades > 0) parts.push(`${upgrades} rank upgrade${upgrades > 1 ? 's' : ''}`);
+            if (withdrawals > 0) parts.push(`${withdrawals} XP withdrawal${withdrawals > 1 ? 's' : ''}`);
+            incomeDeltaEl.textContent = parts.length ? `From ${parts.join(' + ')}` : 'Earned from rank upgrades and XP withdrawals';
         }
     }
 
@@ -163,8 +165,7 @@ function renderApRankCard() {
     const xpTarget    = getAgentXPTarget(me);
     const unlocked    = isUpgradeUnlocked(me);
     const req         = me.upgradeRequest;
-    const threshold   = typeof getUpgradeThreshold === 'function' ? getUpgradeThreshold(me) : RANK_UPGRADE_THRESHOLD;
-    const thresholdXP = xpTarget ? Math.round((threshold / 100) * xpTarget) : 0;
+    const unlockXP    = Math.round(xpTarget);
 
     // --- Tier colours & icons ---
     const TIERS = {
@@ -213,7 +214,7 @@ function renderApRankCard() {
         action = `
         <div class="rk-action locked">
             <i class="fa-solid fa-lock"></i>
-            <span>Earn <strong>${thresholdXP} XP</strong> to unlock upgrade to <strong>${escapeHTML(nextLevel.rankName)}</strong> (currently ${Math.round(xp)} XP)</span>
+            <span>Earn <strong>${unlockXP} XP</strong> to unlock upgrade to <strong>${escapeHTML(nextLevel.rankName)}</strong> (currently ${Math.round(xp)} XP)</span>
         </div>`;
     } else {
         action = `
@@ -247,7 +248,6 @@ function renderApRankCard() {
                 <div class="rk-bar-wrap">
                     <div class="rk-bar-track">
                         <div class="rk-bar-fill" style="width:${pct}%;background:${unlocked ? 'linear-gradient(90deg,#10b981,#34d399)' : `linear-gradient(90deg,${cur.color},${next.color})`}"></div>
-                        <div class="rk-bar-threshold" style="left:${threshold}%" title="${threshold}% threshold"></div>
                     </div>
                     <span class="rk-pct ${unlocked ? 'unlocked' : ''}">${pct}%</span>
                 </div>

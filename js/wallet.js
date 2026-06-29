@@ -734,4 +734,6 @@ function renderAll() {
     if (document.getElementById('page-kyc-approvals')?.classList.contains('active') && typeof renderKycApprovalsPage === 'function') renderKycApprovalsPage();
     if (document.getElementById('page-clients')?.classList.contains('active') && typeof renderClientsPage === 'function') renderClientsPage();
     if (document.getElementById('page-schedule')?.classList.contains('active') && typeof renderSchedulePage === 'function') renderSchedulePage();
+    if (typeof updateNotifBadge === 'function') updateNotifBadge();
+    if (typeof updateXPWithdrawalBadge === 'function') updateXPWithdrawalBadge();
 }

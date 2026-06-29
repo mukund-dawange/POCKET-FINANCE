@@ -32,14 +32,17 @@
 
    AGENT XP TARGET (per agent, based on their allocated fund):
      Target Amount = 70% of Allocated Fund
-     XP Target     = Target Amount × 2
-     Example: Allocated Fund ₹1000 → Target Amount ₹700 → XP Target 1400.
+     XP Target     = Target Amount
+     Example: Allocated Fund ₹1000 → Target Amount ₹700 → XP Target 700.
      Agents must reach their XP Target (100% by default, configurable per
      level via targetPct) to qualify for rank progression / upgrade requests.
    ============================================================ */
 
 const RANK_VERIFY_HOURS = 24;          // verification countdown length
 const RANK_UPGRADE_THRESHOLD = 100;    // % of XP Target required to unlock upgrade requests (reach full XP Target by default)
+const XP_REDEEM_MINIMUM = 1000;        // agents can redeem only after earning at least 1,000 XP
+const XP_TO_RUPEE_RATE = 2;            // 2 XP = Rs 1
+const XP_COOLDOWN_HOURS = 48;          // 48-hour cooldown before admin pays out XP redemption
 
 /* ---------------- DEFAULT POCKET FINANCER LEVELS ---------------- */
 // Based on the Pocket Financer Fund Increase Chart.
@@ -146,13 +149,181 @@ function awardAgentXP(agentId, xpAmount, loanLabel) {
     if (typeof addAudit === 'function') addAudit('XP earned', `${a.name} earned +${xpAmount} XP from interest collected${loanLabel ? ` on ${loanLabel}'s loan` : ''}`);
 }
 
-// Target Amount = 70% of Allocated Fund. XP Target = Target Amount × 2.
+function getAgentRedeemPreview(agent) {
+    const xp = getAgentXP(agent);
+    const redeemableXP = xp >= XP_REDEEM_MINIMUM ? Math.floor(xp / 2) : 0;
+    return {
+        xp,
+        redeemableXP,
+        money: round2(redeemableXP / XP_TO_RUPEE_RATE),
+        remainingXP: round2(xp - redeemableXP),
+        neededXP: Math.max(0, XP_REDEEM_MINIMUM - Math.floor(xp))
+    };
+}
+
+function redeemAgentXP(agentId) {
+    const a = agentState.find(x => x.id === agentId);
+    if (!a) return;
+
+    // Block if there is already a pending/cooldown redeem request
+    if (a.xpRedeemRequest && a.xpRedeemRequest.status !== 'paid') {
+        return showToast('You already have a pending XP withdrawal request.', 'warning');
+    }
+
+    const preview = getAgentRedeemPreview(a);
+    if (preview.xp < XP_REDEEM_MINIMUM || preview.redeemableXP <= 0) {
+        return showToast(`Earn at least ${XP_REDEEM_MINIMUM.toLocaleString('en-IN')} XP before redeeming.`, 'warning');
+    }
+
+    if (!confirm(`Request withdrawal of ${preview.redeemableXP.toLocaleString('en-IN')} XP for ${fmtINR(preview.money)}?\n\nA 48-hour processing period will begin. Admin will be notified and will mark payment once sent.`)) return;
+
+    // Deduct XP immediately and create a pending request
+    a.xp = preview.remainingXP;
+    a.xpRedeemRequest = {
+        id: genId('xpr'),
+        requestedAt: Date.now(),
+        payBefore: Date.now() + XP_COOLDOWN_HOURS * 60 * 60 * 1000,
+        xpRedeemed: preview.redeemableXP,
+        money: preview.money,
+        xpBefore: preview.xp + preview.redeemableXP, // original xp
+        xpAfter: preview.remainingXP,
+        status: 'pending'   // 'pending' | 'paid'
+    };
+
+    // Push into global xpRedeemRequests list on state so admin/dev can see all
+    state.xpRedeemRequests = state.xpRedeemRequests || [];
+    state.xpRedeemRequests.unshift({
+        id: a.xpRedeemRequest.id,
+        agentId: a.id,
+        agentName: a.name,
+        requestedAt: a.xpRedeemRequest.requestedAt,
+        payBefore: a.xpRedeemRequest.payBefore,
+        xpRedeemed: preview.redeemableXP,
+        money: preview.money,
+        status: 'pending'
+    });
+
+    addAudit('XP withdrawal requested', `${a.name} requested withdrawal of ${preview.redeemableXP} XP for ${fmtINR(preview.money)} — pending admin payment`);
+    addNotification(
+        '💸 XP Withdrawal Request',
+        `${a.name} requested a payout of ${fmtINR(preview.money)}. Please send the payment and mark it as done.`,
+        ['admin', 'developer'],
+        '💸'
+    );
+    saveState();
+    renderMyRankPage();
+    renderXPWithdrawalRequestsPanel();
+    updateXPWithdrawalBadge();
+    if (typeof renderAgentDashboardPanel === 'function') renderAgentDashboardPanel();
+    showToast(`Withdrawal request submitted! Admin will process ${fmtINR(preview.money)} within 48 hours.`, 'success');
+}
+
+// Admin/Dev: mark an XP withdrawal as paid
+function markXPRedeemPaid(requestId) {
+    const req = (state.xpRedeemRequests || []).find(r => r.id === requestId);
+    if (!req || req.status === 'paid') return;
+    if (!confirm(`Mark payment of ${fmtINR(req.money)} to ${req.agentName} as DONE?`)) return;
+
+    req.status = 'paid';
+    req.paidAt = Date.now();
+
+    // Also update the agent's own record and history
+    const a = agentState.find(x => x.id === req.agentId);
+    if (a) {
+        if (a.xpRedeemRequest && a.xpRedeemRequest.id === requestId) {
+            a.xpRedeemRequest.status = 'paid';
+            a.xpRedeemRequest.paidAt = Date.now();
+        }
+        a.incomeEarned = round2((Number(a.incomeEarned) || 0) + req.money);
+        a.redeemedIncome = round2((Number(a.redeemedIncome) || 0) + req.money);
+        a.redeemHistory = a.redeemHistory || [];
+        a.redeemHistory.unshift({
+            date: Date.now(),
+            xpBefore: req.xpBefore || (req.xpRedeemed + (req.xpAfter || 0)),
+            xpRedeemed: req.xpRedeemed,
+            money: req.money,
+            xpAfter: req.xpAfter || 0,
+            paidByAdmin: true
+        });
+    }
+
+    addAudit('XP withdrawal paid', `Payment of ${fmtINR(req.money)} marked as done for ${req.agentName}`);
+    addNotification(
+        '✅ Payment Received!',
+        `Your XP withdrawal of ${fmtINR(req.money)} has been sent. Check your account!`,
+        [`agent:${req.agentId}`],
+        '✅'
+    );
+    saveState();
+    renderXPWithdrawalRequestsPanel();
+    renderMyRankPage();
+    updateXPWithdrawalBadge();
+    showToast(`Payment to ${req.agentName} marked as done ✅`, 'success');
+}
+
+function updateXPWithdrawalBadge() {
+    const pending = (state.xpRedeemRequests || []).filter(r => r.status === 'pending').length;
+    const badge = document.getElementById('xpWithdrawalBadge');
+    const sidebarBadge = document.getElementById('xpSidebarBadge');
+    [badge, sidebarBadge].forEach(el => {
+        if (!el) return;
+        el.textContent = pending;
+        el.style.display = pending > 0 ? '' : 'none';
+    });
+}
+
+function renderXPWithdrawalRequestsPanel() {
+    const root = document.getElementById('xpWithdrawalRequestsList');
+    if (!root) return;
+
+    const requests = (state.xpRedeemRequests || []).slice().sort((a, b) => {
+        // pending first, then by date desc
+        if (a.status === 'pending' && b.status !== 'pending') return -1;
+        if (b.status === 'pending' && a.status !== 'pending') return 1;
+        return b.requestedAt - a.requestedAt;
+    });
+
+    if (!requests.length) {
+        root.innerHTML = '<p class="empty-row">No XP withdrawal requests yet.</p>';
+        return;
+    }
+
+    const isAdminOrDev = ['admin', 'developer'].includes(state.user?.role);
+
+    root.innerHTML = requests.slice(0, 30).map(req => {
+        const isPending = req.status === 'pending';
+        const timeLeft = req.payBefore - Date.now();
+        const isOverdue = timeLeft < 0;
+        const timeLabel = isPending
+            ? (isOverdue
+                ? `<span style="color:var(--danger);font-weight:700;">⚠️ Overdue by ${formatCountdown(Math.abs(timeLeft))}</span>`
+                : `<span style="color:var(--warning);">⏱ Pay within ${formatCountdown(timeLeft)}</span>`)
+            : `<span style="color:var(--success);">✅ Paid ${new Date(req.paidAt || req.requestedAt).toLocaleDateString('en-IN')}</span>`;
+
+        return `
+        <div class="request-row xp-withdraw-row" style="border-left:3px solid ${isPending ? (isOverdue ? 'var(--danger)' : 'var(--warning)') : 'var(--success)'};">
+            <div class="request-row-info">
+                <strong>${escapeHTML(req.agentName)}</strong>
+                <span style="margin-left:8px;font-size:12px;background:${isPending ? 'var(--warning-bg,#fef3c7)' : 'var(--success-bg)'};color:${isPending ? '#92400e' : 'var(--success)'};padding:2px 8px;border-radius:20px;font-weight:600;">${isPending ? 'Pending' : 'Paid'}</span>
+                <small style="display:block;margin-top:4px;">${req.xpRedeemed.toLocaleString('en-IN')} XP → <strong>${fmtINR(req.money)}</strong> · Requested ${new Date(req.requestedAt).toLocaleString('en-IN')}</small>
+                <small>${timeLabel}</small>
+            </div>
+            <div class="request-row-actions">
+                ${isAdminOrDev && isPending ? `<button class="btn-friendly-primary compact" data-pay-xp="${req.id}"><i class="fa-solid fa-check"></i> Mark Payment Done</button>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    root.querySelectorAll('[data-pay-xp]').forEach(b => b.onclick = () => markXPRedeemPaid(b.dataset.payXp));
+}
+
+// Target Amount = 70% of Allocated Fund. XP Target = Target Amount.
 function getAgentTargetAmount(agent) {
     return round2(getAgentAllocated(agent) * 0.7);
 }
 
 function getAgentXPTarget(agent) {
-    return round2(getAgentTargetAmount(agent) * 2);
+    return getAgentTargetAmount(agent);
 }
 
 function getAgentProgressPct(agent) {
@@ -184,13 +355,11 @@ function getNextLevel(agent) {
 }
 
 function getUpgradeThreshold(agent) {
-    // targetPct lives on the CURRENT level — "what % must I reach to leave this tier"
-    const current = getAgentCurrentLevel(agent);
-    return Number(current?.targetPct) || RANK_UPGRADE_THRESHOLD;
+    return RANK_UPGRADE_THRESHOLD;
 }
 
 function isUpgradeUnlocked(agent) {
-    return getAgentProgressPct(agent) >= getUpgradeThreshold(agent) && !!getNextLevel(agent);
+    return getAgentXP(agent) >= getAgentXPTarget(agent) && !!getNextLevel(agent);
 }
 
 /* ---------------- LEADERBOARD ---------------- */
@@ -578,7 +747,10 @@ function renderMyRankPage() {
     const isAgent = state.user?.role === 'agent';
     const isAdminOrDev = ['admin', 'developer'].includes(state.user?.role);
 
-    if (isAgent) renderAgentRankCard();
+    if (isAgent) {
+        renderAgentRankCard();
+        renderAgentRedeemCard();
+    }
     renderLeaderboard(document.getElementById('leaderboardList'));
 
     if (isAdminOrDev) {
@@ -586,6 +758,8 @@ function renderMyRankPage() {
         renderAdminIncomePanel();
         renderLeaderboard(document.getElementById('leaderboardListAdmin'));
         renderLevelManager();
+        renderXPWithdrawalRequestsPanel();
+        updateXPWithdrawalBadge();
     }
 
     restartRankCountdownTicker();
@@ -603,16 +777,16 @@ function renderAgentRankCard() {
         card.innerHTML = '<p class="empty-row">Your agent record could not be found.</p>';
         if (ladderCard) ladderCard.innerHTML = '';
         if (upgradeCard) upgradeCard.innerHTML = '';
+        const redeemCard = document.getElementById('xp-redeem-card');
+        if (redeemCard) redeemCard.innerHTML = '';
         return;
     }
 
     const pct = getAgentProgressPct(a);
     const level = getAgentCurrentLevel(a);
     const nextLevel = getNextLevel(a);
-    const allocated = getAgentAllocated(a);
     const xp = getAgentXP(a);
     const xpTarget = getAgentXPTarget(a);
-    const targetAmount = getAgentTargetAmount(a);
     const unlocked = isUpgradeUnlocked(a);
     const req = a.upgradeRequest;
     const levels = sortedLevelDefs();
@@ -632,9 +806,7 @@ function renderAgentRankCard() {
     // Bar label ticks: current rank start, threshold, next rank
     const barFromLabel = level?.rankName || 'Current';
     const barToLabel = nextLevel?.rankName || 'Max';
-    // Threshold expressed in XP units
-    const thresholdXP = xpTarget ? Math.round((thresholdPct / 100) * xpTarget) : 0;
-
+    const unlockXP = Math.round(xpTarget);
     card.innerHTML = `
         <div class="xp-card-inner">
             <div class="xp-circle-col">
@@ -664,17 +836,10 @@ function renderAgentRankCard() {
                 </div>
                 <div class="xp-bar-track">
                     <div class="xp-bar-fill ${unlocked ? 'ready' : ''}" style="width:${pct}%;background:${unlocked ? 'linear-gradient(90deg,#10b981,#34d399)' : `linear-gradient(90deg,${tierInfo.color},${nextTierInfo.color})`}"></div>
-                    <div class="xp-bar-marker" style="left:${thresholdPct}%">
-                        <div class="xp-bar-marker-line"></div>
-                    </div>
                 </div>
                 <div class="xp-bar-ticks">
                     <span>${escapeHTML(barFromLabel)}</span>
-                    <span style="position:absolute;left:${thresholdPct}%;transform:translateX(-50%)">${thresholdXP} XP</span>
                     <span>${escapeHTML(barToLabel)}</span>
-                </div>
-                <div class="xp-progress-label-row" style="margin-top:2px;">
-                    <span>Allocated Fund ${fmtINR(allocated)} · Target Amount (70%) ${fmtINR(targetAmount)}</span>
                 </div>
                 ${(level?.benefits || []).length ? `
                 <div class="benefit-chip-list">
@@ -731,7 +896,7 @@ function renderAgentRankCard() {
                 <div class="xp-upgrade-inner ready">
                     <div class="xp-upgrade-left">
                         <div class="xp-upgrade-title">Ready to upgrade to ${escapeHTML(nextLevel.rankName)}! <i class="fa-solid ${nti.icon}" style="color:${nti.color}"></i></div>
-                        <div class="xp-upgrade-sub">You've earned ${Math.round(xp)} XP — XP Target met (${thresholdXP} XP). Fund upgrades to <strong>${nextAllocLabel}</strong>.</div>
+                        <div class="xp-upgrade-sub">You've earned ${Math.round(xp)} XP — XP Target met (${unlockXP} XP). Fund upgrades to <strong>${nextAllocLabel}</strong>.</div>
                     </div>
                     <button class="xp-upgrade-btn" id="requestUpgradeBtn">
                         <i class="fa-solid ${nti.icon}"></i> Upgrade to ${escapeHTML(nextLevel.rankName)}
@@ -742,7 +907,7 @@ function renderAgentRankCard() {
                 <div class="xp-upgrade-inner locked">
                     <div class="xp-upgrade-left">
                         <div class="xp-upgrade-title"><i class="fa-solid fa-lock" style="margin-right:6px"></i>Upgrade Locked</div>
-                        <div class="xp-upgrade-sub">Reach <strong>${thresholdXP} XP</strong> (${thresholdPct}% of your XP Target) to unlock upgrade to <strong>${escapeHTML(nextLevel.rankName)}</strong>.<br>You're at ${Math.round(xp)} XP (${pct}%) — need ${Math.max(0, thresholdXP - Math.round(xp))} more XP.</div>
+                        <div class="xp-upgrade-sub">Reach <strong>${unlockXP} XP</strong> to unlock upgrade to <strong>${escapeHTML(nextLevel.rankName)}</strong>.<br>You're at ${Math.round(xp)} XP (${pct}%) — need ${Math.max(0, unlockXP - Math.round(xp))} more XP.</div>
                     </div>
                 </div>`;
         } else {
@@ -757,6 +922,98 @@ function renderAgentRankCard() {
         upgradeCard.innerHTML = upgradeHTML;
         document.getElementById('requestUpgradeBtn')?.addEventListener('click', () => requestUpgrade(a.id));
     }
+}
+
+function renderAgentRedeemCard() {
+    const card = document.getElementById('xp-redeem-card');
+    if (!card || state.user?.role !== 'agent') return;
+
+    const a = agentState.find(x => x.id === state.user.agentId);
+    if (!a) {
+        card.innerHTML = '';
+        return;
+    }
+
+    const preview = getAgentRedeemPreview(a);
+    const history = (a.redeemHistory || []).slice(0, 4);
+
+    // Check for an active (non-paid) pending request
+    const pendingReq = a.xpRedeemRequest && a.xpRedeemRequest.status !== 'paid' ? a.xpRedeemRequest : null;
+
+    let statusBanner = '';
+    let redeemBtnDisabled = false;
+    let redeemBtnLabel = `<i class="fa-solid fa-wallet"></i> Redeem ${fmtINR(preview.money)}`;
+
+    if (pendingReq) {
+        redeemBtnDisabled = true;
+        const timeLeft = pendingReq.payBefore - Date.now();
+        const isOverdue = timeLeft < 0;
+        statusBanner = `
+            <div style="background:var(--warning-bg,#fef3c7);border:1px solid #fbbf24;border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+                <div style="font-weight:700;color:#92400e;margin-bottom:4px;"><i class="fa-solid fa-clock"></i> Payment Processing…</div>
+                <div style="font-size:13px;color:#78350f;">
+                    You requested <strong>${fmtINR(pendingReq.money)}</strong> on ${new Date(pendingReq.requestedAt).toLocaleString('en-IN')}.<br>
+                    ${isOverdue
+                        ? `<span style="color:var(--danger);font-weight:600;">⚠️ Payment is overdue — admin is processing your request.</span>`
+                        : `Admin will pay within <strong>${formatCountdown(timeLeft)}</strong>.`
+                    }
+                </div>
+            </div>`;
+        redeemBtnLabel = `<i class="fa-solid fa-hourglass-half"></i> Awaiting Payment…`;
+    }
+
+    const canRedeem = !pendingReq && preview.xp >= XP_REDEEM_MINIMUM && preview.redeemableXP > 0;
+    const statusText = pendingReq ? 'Pending' : (canRedeem ? 'Ready' : `${preview.neededXP.toLocaleString('en-IN')} XP needed`);
+    const statusClass = pendingReq ? 'pending' : (canRedeem ? 'ready' : 'locked');
+
+    card.innerHTML = `
+        <div class="xp-redeem-inner ${canRedeem ? 'ready' : 'locked'}">
+            <div class="xp-redeem-head">
+                <div>
+                    <h3 class="panel-title"><i class="fa-solid fa-money-bill-transfer"></i> XP Withdrawal</h3>
+                    <p class="muted-text">Earn ${XP_REDEEM_MINIMUM.toLocaleString('en-IN')} XP, then redeem half of your XP balance as money. Admin will process payment within 48 hours.</p>
+                </div>
+                <span class="xp-redeem-status ${statusClass}">${statusText}</span>
+            </div>
+
+            ${statusBanner}
+
+            <div class="xp-redeem-grid">
+                <div class="xp-redeem-stat">
+                    <small>Current XP</small>
+                    <strong>${Math.round(preview.xp).toLocaleString('en-IN')}</strong>
+                </div>
+                <div class="xp-redeem-stat">
+                    <small>Redeem XP</small>
+                    <strong>${preview.redeemableXP.toLocaleString('en-IN')}</strong>
+                </div>
+                <div class="xp-redeem-stat">
+                    <small>Payout</small>
+                    <strong>${fmtINR(preview.money)}</strong>
+                </div>
+                <div class="xp-redeem-stat">
+                    <small>XP After</small>
+                    <strong>${Math.round(preview.remainingXP).toLocaleString('en-IN')}</strong>
+                </div>
+            </div>
+
+            <button class="btn-friendly-primary xp-redeem-btn" id="xpRedeemBtn" ${(canRedeem && !redeemBtnDisabled) ? '' : 'disabled'}>
+                ${redeemBtnLabel}
+            </button>
+
+            <div class="xp-redeem-history">
+                <div class="xp-redeem-history-title">Recent withdrawals</div>
+                ${history.length ? history.map(h => `
+                    <div class="xp-redeem-history-row">
+                        <span>${new Date(h.date).toLocaleDateString('en-IN')}</span>
+                        <strong>${Number(h.xpRedeemed || 0).toLocaleString('en-IN')} XP → ${fmtINR(h.money || 0)}</strong>
+                        ${h.paidByAdmin ? '<span style="font-size:11px;color:var(--success);margin-left:6px;">✅ Paid</span>' : ''}
+                    </div>
+                `).join('') : '<p class="empty-row">No XP withdrawals yet.</p>'}
+            </div>
+        </div>`;
+
+    document.getElementById('xpRedeemBtn')?.addEventListener('click', () => redeemAgentXP(a.id));
 }
 
 function requestUpgrade(agentId) {
@@ -801,7 +1058,11 @@ function restartRankCountdownTicker() {
         });
         if (justAdvanced) {
             renderMyRankPage();
-            if (['admin', 'developer'].includes(state.user?.role)) renderUpgradeRequestsPanel();
+            if (['admin', 'developer'].includes(state.user?.role)) {
+                renderUpgradeRequestsPanel();
+                renderXPWithdrawalRequestsPanel();
+            }
+            updateXPWithdrawalBadge();
         }
     }, 1000);
 }
@@ -829,6 +1090,142 @@ function renderLeaderboard(root) {
 
 /* ---------------- WIRING ---------------- */
 
+/* ============================================================
+   NOTIFICATION SYSTEM
+   Notifications live in state.notifications (shared via Drive).
+   Each entry: { id, timestamp, title, body, icon, forRoles, readBy: [] }
+     forRoles: ['admin','developer'] | ['agent:<agentId>']
+   ============================================================ */
+
+function addNotification(title, body, forRoles = [], icon = '🔔') {
+    state.notifications = state.notifications || [];
+    state.notifications.unshift({
+        id: genId('notif'),
+        timestamp: Date.now(),
+        title,
+        body,
+        icon,
+        forRoles,
+        readBy: []
+    });
+    // Keep max 100 notifications
+    if (state.notifications.length > 100) state.notifications = state.notifications.slice(0, 100);
+    saveState();
+}
+
+function getMyNotifications() {
+    const notifs = state.notifications || [];
+    const role = state.user?.role;
+    const agentId = state.user?.agentId;
+    return notifs.filter(n => {
+        if (!n.forRoles || n.forRoles.length === 0) return true;
+        return n.forRoles.some(r =>
+            r === role ||
+            (r === `agent:${agentId}` && role === 'agent')
+        );
+    });
+}
+
+function countUnreadNotifs() {
+    const uid = state.user?.username || '';
+    return getMyNotifications().filter(n => !(n.readBy || []).includes(uid)).length;
+}
+
+function markAllNotifsRead() {
+    const uid = state.user?.username || '';
+    (state.notifications || []).forEach(n => {
+        if (!(n.readBy || []).includes(uid)) {
+            n.readBy = n.readBy || [];
+            n.readBy.push(uid);
+        }
+    });
+    saveState();
+    updateNotifBadge();
+    renderNotifDropdown();
+}
+
+function updateNotifBadge() {
+    const count = countUnreadNotifs();
+    const badge = document.getElementById('notifBadge');
+    if (badge) {
+        badge.textContent = count;
+        badge.style.display = count > 0 ? 'flex' : 'none';
+    }
+}
+
+function renderNotifDropdown() {
+    const list = document.getElementById('notifList');
+    if (!list) return;
+    const uid = state.user?.username || '';
+    const mine = getMyNotifications();
+    if (!mine.length) {
+        list.innerHTML = '<p class="empty-row" style="padding:16px;text-align:center;">No notifications yet.</p>';
+        return;
+    }
+    list.innerHTML = mine.slice(0, 30).map(n => {
+        const unread = !(n.readBy || []).includes(uid);
+        const timeAgo = _timeAgo(n.timestamp);
+        return `
+        <div class="notif-item ${unread ? 'unread' : ''}" data-notif-id="${n.id}">
+            <div class="notif-item-icon">${n.icon || '🔔'}</div>
+            <div class="notif-item-body">
+                <div class="notif-item-title">${escapeHTML(n.title)}</div>
+                <div class="notif-item-desc">${escapeHTML(n.body)}</div>
+                <div class="notif-item-time">${timeAgo}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function _timeAgo(ts) {
+    const diff = Date.now() - ts;
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'Just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return new Date(ts).toLocaleDateString('en-IN');
+}
+
+function initNotifSystem() {
+    const btn = document.getElementById('notifBtn');
+    const dropdown = document.getElementById('notifDropdown');
+    if (!btn || !dropdown) return;
+
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = dropdown.style.display !== 'none';
+        dropdown.style.display = isOpen ? 'none' : 'flex';
+        if (!isOpen) {
+            renderNotifDropdown();
+            // Mark all as read when opened
+            const uid = state.user?.username || '';
+            let changed = false;
+            (state.notifications || []).forEach(n => {
+                if (getMyNotifications().includes(n) && !(n.readBy || []).includes(uid)) {
+                    n.readBy = n.readBy || [];
+                    n.readBy.push(uid);
+                    changed = true;
+                }
+            });
+            if (changed) { saveState(); updateNotifBadge(); }
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!document.getElementById('notifWrapper')?.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+
+    document.getElementById('notifMarkAllRead')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        markAllNotifsRead();
+    });
+
+    updateNotifBadge();
+}
+
 function initRanking() {
     // Seed the 12 default Pocket Financer ranks on first load (just a
     // starting point — admin/dev can add, edit, or delete levels freely).
@@ -836,4 +1233,7 @@ function initRanking() {
     seedDefaultLevels();
     document.getElementById('addLevelBtn')?.addEventListener('click', () => showLevelFormModal());
     if (wasEmpty && typeof renderAll === 'function') renderAll();
+    renderXPWithdrawalRequestsPanel();
+    updateXPWithdrawalBadge();
+    initNotifSystem();
 }
