@@ -149,6 +149,15 @@ function getAgentXP(agent) {
     return round2(Number(agent?.xp) || 0);
 }
 
+// Balance XP — a completely separate pool from rank-progress XP (a.xp).
+// This is ONLY ever credited when an agent's upgrade is approved and they
+// had earned more than their XP Target (the leftover). It is never used as
+// a starting point for the next level's progress, and it is the ONLY
+// amount that is redeemable for cash in the wallet.
+function getAgentBalanceXP(agent) {
+    return round2(Number(agent?.balanceXP) || 0);
+}
+
 function awardAgentXP(agentId, xpAmount, loanLabel) {
     const a = agentState.find(x => x.id === agentId);
     if (!a || !xpAmount) return;
@@ -157,8 +166,13 @@ function awardAgentXP(agentId, xpAmount, loanLabel) {
 }
 
 function getAgentRedeemPreview(agent) {
-    const xp = getAgentXP(agent);
-    const redeemableXP = xp >= XP_REDEEM_MINIMUM ? Math.floor(xp / 2) : 0;
+    // IMPORTANT: redemption is based on Balance XP only — never on the
+    // agent's current rank-progress XP. Progress XP is "locked" toward
+    // unlocking the next rank and cannot be cashed out; only leftover XP
+    // that has already rolled into the Balance XP pool (on upgrade
+    // approval) is redeemable.
+    const xp = getAgentBalanceXP(agent);
+    const redeemableXP = xp >= XP_REDEEM_MINIMUM ? Math.floor(xp) : 0;
     return {
         xp,
         redeemableXP,
@@ -213,7 +227,13 @@ function getUpgradeThreshold(agent) {
 }
 
 function isUpgradeUnlocked(agent) {
-    return getAgentXP(agent) >= getAgentXPTarget(agent) && !!getNextLevel(agent);
+    const xpTarget = getAgentXPTarget(agent);
+    // A target of 0 means the agent's allocated fund hasn't been set yet
+    // (e.g. right after an upgrade, before admin fills in the new
+    // allocation) — that must NEVER count as "unlocked". Without this
+    // guard, 0 XP >= 0 target is trivially true and lets an agent request
+    // another upgrade with zero real progress.
+    return xpTarget > 0 && getAgentXP(agent) >= xpTarget && !!getNextLevel(agent);
 }
 
 /* ---------------- LEADERBOARD ---------------- */
@@ -347,7 +367,8 @@ function showSetAllocationModal(agentId, creditFund = false) {
             ? `Enter the amount to give ${a.name} to lend at their new level${level ? ` ("${level.name}")` : ''}. This becomes their available lending balance on the dashboard.`
             : (level && level.allocationLimit ? `This agent's level ("${level.name}") caps allocation at ${fmtINR(level.allocationLimit)}.` : 'This is the lending target progress is measured against — separate from their cash fund.'),
         fields: [
-            { id: 'allocatedAmount', label: creditFund ? 'Fund to Allocate (₹)' : 'Allocated Amount / Rank Target (₹)', type: 'number', required: true, min: 0, step: '0.01', value: getAgentAllocated(a), help: creditFund ? "This amount is credited directly to the agent's lending fund — it's what they'll see as Total Allocated / Available to Issue." : "The lending target used to measure progress. Defaults to the agent's fund if not set." }
+            { id: 'allocatedAmount', label: creditFund ? 'Fund to Allocate (₹)' : 'Allocated Amount / Rank Target (₹)', type: 'number', required: true, min: 0, step: '0.01', value: getAgentAllocated(a), help: creditFund ? "This amount is credited directly to the agent's lending fund — it's what they'll see as Total Allocated / Available to Issue." : "The lending target used to measure progress. Defaults to the agent's fund if not set." },
+            ...(creditFund ? [{ id: 'dmRupees', label: `Give DM for this Rank (₹ amount — auto-converts to DM)`, type: 'number', required: true, min: 0, step: '0.01', value: 0, help: `1 DM = ${fmtINR(DM_TO_RUPEE_RATE)}, so e.g. entering ₹150 grants 1.50 DM. Current DM balance: ${fmtDM(a.dm)} DM. DM must be granted alongside the fund allocation for every approved rank upgrade — enter 0 if none is due this time.` }] : [])
         ],
         onSubmit: (v) => {
             const amt = Number(v.allocatedAmount);
@@ -358,12 +379,26 @@ function showSetAllocationModal(agentId, creditFund = false) {
                 // This allocation IS the agent's usable lending balance now —
                 // credit it directly, not just the rank-progress target.
                 a.fund = amt;
-                // XP resets to 0 so the new XP target (70% of this new amount)
-                // starts from scratch — agent earns XP toward the new allocation.
-                a.xp = 0;
+                // Rank-progress XP (a.xp) was already reset to 0 on upgrade
+                // approval, so the agent starts fresh toward this new
+                // level's target. Any leftover XP from the previous level
+                // lives separately in a.balanceXP and is untouched here.
                 const newXpTarget = round2(amt * 0.7);
-                addAudit('Fund allocated', `${fmtINR(amt)} allocated to "${a.name}" as their lending fund for the new level · XP reset to 0 · New XP target: ${Math.round(newXpTarget)} XP (70% of ${fmtINR(amt)})`);
-                showToast(`${fmtINR(amt)} allocated to ${a.name}. New XP target: ${Math.round(newXpTarget).toLocaleString('en-IN')} XP. They can now issue loans.`, 'success');
+
+                // DM is granted alongside every rank-upgrade fund allocation.
+                // Admin enters a Rupee amount, which auto-converts to DM
+                // (with decimal points) at the DM_TO_RUPEE_RATE — e.g. ₹150
+                // given → 1.50 DM.
+                const dmRupeesGiven = Math.max(0, Number(v.dmRupees) || 0);
+                const dmGiven = round2(dmRupeesGiven / DM_TO_RUPEE_RATE);
+                if (dmGiven > 0) {
+                    a.dm = round2((Number(a.dm) || 0) + dmGiven);
+                    a.dmHistory = a.dmHistory || [];
+                    a.dmHistory.unshift({ date: Date.now(), amount: dmGiven, note: `Rank upgrade to ${level ? level.name : 'new level'} (₹${dmRupeesGiven.toFixed(2)} given)`, by: state.user?.username || 'admin' });
+                }
+
+                addAudit('Fund allocated', `${fmtINR(amt)} allocated to "${a.name}" as their lending fund for the new level${dmGiven > 0 ? ` · ${fmtDM(dmGiven)} DM (from ₹${dmRupeesGiven.toFixed(2)}) granted` : ''} · Balance XP (redeemable) at ${Math.round(getAgentBalanceXP(a))} · New XP target: ${Math.round(newXpTarget)} XP (70% of ${fmtINR(amt)})`);
+                showToast(`${fmtINR(amt)} allocated to ${a.name}${dmGiven > 0 ? ` + ${fmtDM(dmGiven)} DM` : ''}. New XP target: ${Math.round(newXpTarget).toLocaleString('en-IN')} XP. They can now issue loans.`, 'success');
             } else {
                 addAudit('Allocation set', `Allocated amount for "${a.name}" set to ${fmtINR(amt)}`);
                 showToast('Allocated amount updated.', 'success');
@@ -493,53 +528,44 @@ function approveUpgradeRequest(agentId) {
     const newLevel = getLevelById(req.levelId);
     if (!newLevel) return showToast('Target level no longer exists.', 'danger');
 
-    // --- INCOME SYSTEM ---
-    // Total income pool = XP earned / 2  (2 XP = ₹1)
-    // Agent gets 50%, Admin/Dev pool gets 50%
+    // Defense-in-depth: re-verify the target is actually met at approval
+    // time (isUpgradeUnlocked already gates the request itself, but this
+    // catches stale requests, direct state edits, or an allocation that
+    // changed after the request was submitted).
+    const xpTargetCheck = getAgentXPTarget(a);
+    const xpNowCheck = round2(Number(a.xp) || 0);
+    if (xpTargetCheck <= 0 || xpNowCheck < xpTargetCheck) {
+        const reason = xpTargetCheck <= 0
+            ? `their current level has no allocated fund set, so the XP Target is ₹0`
+            : `they have ${Math.round(xpNowCheck)} XP but need ${Math.round(xpTargetCheck)} XP (70% of their allocated fund)`;
+        if (!confirm(`${a.name} has NOT actually reached their XP Target — ${reason}.\n\nApprove the upgrade anyway?`)) return;
+    }
+
+    // --- NO MONEY IS PAID OUT AT UPGRADE TIME ---
+    // All the XP the agent earned on this level moves into the redeemable
+    // Balance XP pool. The agent only gets paid later, when they choose to
+    // redeem that Balance XP from their wallet — upgrading itself no
+    // longer auto-credits any income to the agent or the admin pool.
     const xpEarned = round2(Number(a.xp) || 0);
-    const totalPool = round2(xpEarned / 2);
-    const agentShare = round2(totalPool / 2);
-    const adminShare = round2(totalPool - agentShare);
-
-    a.incomeEarned = round2((Number(a.incomeEarned) || 0) + agentShare);
-    a.incomeHistory = a.incomeHistory || [];
-    a.incomeHistory.unshift({
-        date: Date.now(),
-        level: newLevel.name,
-        rankName: newLevel.rankName,
-        xpAtUpgrade: xpEarned,
-        totalPool,
-        agentShare,
-        adminShare
-    });
-
-    // Accumulate admin/dev pool on shared state
-    state.adminIncome = round2((Number(state.adminIncome) || 0) + adminShare);
-    state.adminIncomeHistory = state.adminIncomeHistory || [];
-    state.adminIncomeHistory.unshift({
-        date: Date.now(),
-        agentName: a.name,
-        level: newLevel.name,
-        rankName: newLevel.rankName,
-        amount: adminShare
-    });
-    // --- END INCOME ---
 
     a.levelId = newLevel.id;
     // Fund AND allocation target both reset on promotion — admin/dev must
     // manually allocate a fresh amount for this level (no auto-allocation).
     a.fund = 0;
     a.allocatedAmount = 0;
-    // XP resets to 0 on upgrade — the new XP target will be calculated from
-    // the fresh allocation the admin sets next (70% of the new allocated amount).
+    // Rank-progress XP resets to 0 for the new level — the new level's
+    // target always starts clean.
     a.xp = 0;
+    // ALL of the XP earned on the level just completed is credited to the
+    // redeemable Balance XP pool — not just anything above the target.
+    a.balanceXP = round2((Number(a.balanceXP) || 0) + xpEarned);
     a.upgradeRequest = null;
-    addAudit('Upgrade approved', `${a.name} upgraded to "${newLevel.name}" (${newLevel.rankName}) · Agent earned ₹${agentShare}, Admin pool +₹${adminShare} · XP reset to 0 for new level`);
+    addAudit('Upgrade approved', `${a.name} upgraded to "${newLevel.name}" (${newLevel.rankName}) · ${xpEarned} XP moved to redeemable Balance XP (new total: ${a.balanceXP}) · Rank progress reset to 0 for the new level · No money paid out — agent redeems income from their wallet`);
     saveState();
     renderUpgradeRequestsPanel();
     renderAgentManager();
     renderMyRankPage();
-    showToast(`${a.name} upgraded to ${newLevel.name}. Agent income +₹${agentShare.toLocaleString('en-IN')} 💰 — now allocate their fund for this level.`, 'success');
+    showToast(`${a.name} upgraded to ${newLevel.name}. ${xpEarned.toLocaleString('en-IN')} XP moved to redeemable Balance XP — now allocate their fund for this level.`, 'success');
     // Force the admin/dev to manually set the new allocation right away —
     // upgrading no longer auto-fills it from the level's allocation limit.
     // creditFund=true: this amount becomes the agent's actual lending fund,
@@ -812,6 +838,8 @@ function buildXPWithdrawalInnerHTML(a) {
     }
 
     const canRedeem = !pendingReq && preview.xp >= XP_REDEEM_MINIMUM && preview.redeemableXP > 0;
+    const dailyRemaining = getDailyWithdrawalRemaining(a);
+    const limitReached = dailyRemaining <= 0;
 
     return `
         <div class="xp-redeem-inner">
@@ -824,6 +852,24 @@ function buildXPWithdrawalInnerHTML(a) {
 
             ${statusBanner}
 
+            <div class="wallet-balance-card">
+                <div class="wallet-balance-icon"><i class="fa-solid fa-coins"></i></div>
+                <div class="wallet-balance-info">
+                    <div class="wallet-balance-label">Balance XP</div>
+                    <div class="wallet-balance-val">${Math.round(preview.xp).toLocaleString('en-IN')} <span>XP</span></div>
+                </div>
+                <div class="wallet-balance-worth">≈ ${fmtINR(round2(preview.xp / XP_TO_RUPEE_RATE))}</div>
+            </div>
+
+            <div class="wallet-balance-card dm">
+                <div class="wallet-balance-icon dm"><i class="fa-solid fa-gem"></i></div>
+                <div class="wallet-balance-info">
+                    <div class="wallet-balance-label">DM Balance</div>
+                    <div class="wallet-balance-val">${fmtDM(a.dm)} <span class="dm">DM</span></div>
+                </div>
+                <div class="wallet-balance-worth dm">≈ ${fmtINR((Number(a.dm) || 0) * DM_TO_RUPEE_RATE)}</div>
+            </div>
+
             <!-- ── Withdrawal Payment Method UI ── -->
             <div class="withdrawal-method-section" id="withdrawalMethodSection">
                 <div class="withdrawal-method-title">Payment Method</div>
@@ -835,10 +881,6 @@ function buildXPWithdrawalInnerHTML(a) {
                     <button class="withdrawal-method-tab active" data-method="upi" onclick="selectWithdrawalMethod('upi')">
                         <span class="upi-pill">UPI»</span>
                         <span>UPI</span>
-                    </button>
-                    <button class="withdrawal-method-tab" data-method="usdt" onclick="selectWithdrawalMethod('usdt')">
-                        <i class="fa-solid fa-circle-dollar-to-slot"></i>
-                        <span>USDT</span>
                     </button>
                 </div>
 
@@ -861,29 +903,40 @@ function buildXPWithdrawalInnerHTML(a) {
                         return `<button class="withdrawal-preset-btn" data-preset="${v}" onclick="selectWithdrawalPreset(${v})">${label}</button>`;
                     }).join('')}
                 </div>
-                <div class="withdrawal-amount-input-wrap">
+                <div class="withdrawal-amount-input-wrap" id="withdrawalAmtDisplay">
                     <span class="rupee-sym" style="font-size:12px;font-weight:700;color:var(--text-muted);">XP</span>
-                    <input type="number" id="withdrawalAmtInput" placeholder="Enter XP amount" oninput="onWithdrawalAmtInput()" />
+                    <span id="withdrawalAmtValue" class="withdrawal-amt-value">Select an amount above</span>
                 </div>
                 <div class="withdrawal-meta-rows">
-                    <div class="withdrawal-meta-row"><span>Withdrawable Amount</span><strong>${fmtINR(preview.money)}</strong></div>
+                    <div class="withdrawal-meta-row"><span>Daily Withdrawal</span><strong style="${limitReached ? 'color:var(--danger);' : ''}">${dailyRemaining}/${DAILY_WITHDRAWAL_LIMIT}</strong></div>
                     <div class="withdrawal-meta-row"><span>Amount received</span><strong id="withdrawalAmtReceived">₹0.00</strong></div>
                 </div>
+                ${limitReached ? `<div class="withdrawal-limit-note"><i class="fa-solid fa-circle-info"></i> You've used today's withdrawal. Next withdrawal opens tomorrow.</div>` : ''}
                 <button class="withdrawal-submit-btn" id="withdrawalSubmitBtn" disabled onclick="submitWithdrawalRequest()">
-                    Withdraw
+                    ${limitReached ? 'Available Tomorrow' : 'Withdraw'}
                 </button>
             </div>
             <!-- ── /Withdrawal Payment Method UI ── -->
 
             <div class="xp-redeem-history">
-                <div class="xp-redeem-history-title">Recent withdrawals</div>
-                ${history.length ? history.map(h => `
+                <div class="xp-redeem-history-title"><i class="fa-solid fa-file-invoice"></i> Withdrawal history</div>
+                ${(() => {
+                    const cards = [];
+                    if (pendingReq) cards.push(buildWithdrawalHistoryCardHTML(pendingReq));
+                    history.forEach(h => cards.push(buildWithdrawalHistoryCardHTML(h)));
+                    return cards.length ? cards.join('') : '<p class="empty-row">No XP withdrawals yet.</p>';
+                })()}
+            </div>
+
+            <div class="xp-redeem-history">
+                <div class="xp-redeem-history-title">Recent DM</div>
+                ${(a.dmHistory || []).slice(0, 4).length ? (a.dmHistory || []).slice(0, 4).map(h => `
                     <div class="xp-redeem-history-row">
                         <span>${new Date(h.date).toLocaleDateString('en-IN')}</span>
-                        <strong>${Number(h.xpRedeemed || 0).toLocaleString('en-IN')} XP → ${fmtINR(h.money || 0)}</strong>
-                        ${h.paidByAdmin ? '<span style="font-size:11px;color:var(--success);margin-left:6px;">✅ Paid</span>' : ''}
+                        <strong style="color:#7c3aed;">+${fmtDM(h.amount)} DM (${fmtINR((h.amount || 0) * DM_TO_RUPEE_RATE)})</strong>
+                        ${h.note ? `<span style="font-size:11px;color:var(--text-muted);margin-left:6px;">${escapeHTML(h.note)}</span>` : ''}
                     </div>
-                `).join('') : '<p class="empty-row">No XP withdrawals yet.</p>'}
+                `).join('') : '<p class="empty-row">No DM given yet.</p>'}
             </div>
         </div>`;
 }

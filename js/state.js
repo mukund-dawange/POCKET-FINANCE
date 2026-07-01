@@ -16,6 +16,11 @@
 const SESSION_KEY = 'pf_session_v1';     // local-only: who is logged in on this device
 const APP_STATE_KEY = 'pf_appState';     // shared backend key: everything else
 
+// ---- DM (Deposit Money) ----
+// A separate credit admins/devs grant agents — at account creation and
+// again whenever a rank upgrade is approved. 1 DM = ₹100.
+const DM_TO_RUPEE_RATE = 100;
+
 // ---- Sync config ----
 const SYNC_INTERVAL_MS = 20000;   // poll every 20 seconds
 let   _syncIntervalId  = null;    // handle so we can clear/restart it

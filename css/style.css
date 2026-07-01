@@ -397,6 +397,9 @@ tr:hover td { background: rgba(249,115,22,.03); }
 }
 .modal-body input:focus, .modal-body select:focus { border-color: var(--glass-border-highlight); }
 .modal-field-help { display:block; margin-top:6px; color:var(--text-muted); font-size:11px; line-height:1.4; }
+.modal-field.field-error input,
+.modal-field.field-error select { border-color: #dc2626 !important; background: rgba(220, 38, 38, 0.06); }
+.modal-field.field-error .modal-field-label { color: #dc2626; }
 .modal-intro { color:var(--text-muted); font-size:13px; line-height:1.5; margin-bottom:18px; padding:10px 12px; background:var(--input-bg); border-radius:10px; border-left:3px solid var(--primary); }
 .modal-footer { display: flex; gap: 10px; padding: 16px 22px; border-top:1px solid var(--glass-border); background:var(--glass-bg); }
 .modal-footer button { width: auto; flex: 1; margin-top: 0; }
@@ -755,6 +758,34 @@ tr:hover td { background: rgba(249,115,22,.03); }
 .xp-redeem-history-row span { color: var(--text-muted); }
 .xp-redeem-history-row strong { color: var(--text-main); }
 
+/* Receipt-style withdrawal history cards */
+.wd-history-card { background: var(--input-bg); border: 1px solid var(--glass-border); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+.wd-history-card:last-child { margin-bottom: 0; }
+.wd-history-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.wd-badge { background: #ef4444; color: #fff; font-size: 12px; font-weight: 800; padding: 4px 12px; border-radius: 8px; }
+.wd-status { font-size: 13px; font-weight: 700; }
+.wd-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--glass-border); }
+.wd-row:last-child { border-bottom: none; }
+.wd-row span { color: var(--text-muted); }
+.wd-row strong { color: var(--text-main); font-weight: 700; }
+.wd-row-highlight strong { color: #f59e0b; }
+.wd-order-value { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text-main); font-size: 12px; }
+.wd-copy-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 2px; display: inline-flex; }
+.wd-copy-btn:hover { color: var(--success); }
+
+/* ---- Wallet: Balance XP card ---- */
+.wallet-balance-card { display: flex; align-items: center; gap: 14px; background: linear-gradient(135deg, rgba(16,185,129,.12), rgba(16,185,129,.04)); border: 1px solid rgba(16,185,129,.25); border-radius: 14px; padding: 14px 16px; }
+.wallet-balance-icon { width: 42px; height: 42px; flex-shrink: 0; border-radius: 12px; background: var(--success); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.wallet-balance-info { flex: 1; min-width: 0; }
+.wallet-balance-label { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.wallet-balance-val { font-size: 20px; font-weight: 800; color: var(--text-main); margin-top: 2px; }
+.wallet-balance-val span { font-size: 12px; font-weight: 700; color: var(--success); margin-left: 2px; }
+.wallet-balance-worth { font-size: 12px; font-weight: 700; color: var(--success); background: rgba(16,185,129,.1); border-radius: 99px; padding: 5px 12px; white-space: nowrap; }
+.wallet-balance-card.dm { background: linear-gradient(135deg, rgba(124,58,237,.12), rgba(124,58,237,.04)); border-color: rgba(124,58,237,.25); margin-top: 10px; }
+.wallet-balance-icon.dm { background: #7c3aed; }
+.wallet-balance-val span.dm { color: #7c3aed; }
+.wallet-balance-worth.dm { color: #7c3aed; background: rgba(124,58,237,.1); }
+
 /* ---- Withdrawal Payment Method UI ---- */
 .withdrawal-method-section { border-top: 1px solid var(--glass-border); padding-top: 14px; display: grid; gap: 12px; }
 .withdrawal-method-title { font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -778,10 +809,13 @@ tr:hover td { background: rgba(249,115,22,.03); }
 .withdrawal-amount-input-wrap .rupee-sym { font-size: 17px; font-weight: 700; color: var(--success); }
 .withdrawal-amount-input-wrap input { flex: 1; border: none; background: transparent; font-size: 14px; font-weight: 600; color: var(--text-main); padding: 11px 0; outline: none; }
 .withdrawal-amount-input-wrap input::placeholder { color: var(--text-muted); font-weight: 400; }
+.withdrawal-amt-value { flex: 1; font-size: 14px; font-weight: 700; color: var(--text-muted); padding: 11px 0; }
+.withdrawal-amt-value.selected { color: var(--text-main); }
 .withdrawal-meta-rows { display: flex; flex-direction: column; gap: 4px; }
 .withdrawal-meta-row { display: flex; justify-content: space-between; font-size: 12px; }
 .withdrawal-meta-row span { color: var(--text-muted); }
 .withdrawal-meta-row strong { color: var(--success); }
+.withdrawal-limit-note { font-size: 12px; font-weight: 700; color: #92400e; background: var(--warning-bg,#fef3c7); border: 1px solid #fbbf24; border-radius: 10px; padding: 9px 12px; }
 .withdrawal-submit-btn { width: 100%; padding: 13px; border-radius: 12px; border: none; background: #9ca3af; color: #fff; font-size: 15px; font-weight: 700; cursor: not-allowed; transition: background 0.2s; }
 .withdrawal-submit-btn.enabled { background: var(--success); cursor: pointer; }
 .withdrawal-submit-btn.enabled:hover { opacity: 0.9; }

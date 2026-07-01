@@ -6,6 +6,76 @@
 //                         addNotification, formatCountdown, renderMyRankPage)
 //             wallet.js  (round2, escapeHTML)
 
+// ─── Withdrawal history: receipt-style card rendering ───────────────────────
+
+// Human-friendly order number for display purposes, e.g. WD20260701083012482
+function formatWithdrawalOrderNumber(id, dateMs) {
+    const d = new Date(dateMs || Date.now());
+    const pad = n => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    const suffix = String(id || '').split('_').pop() || String(Math.floor(Math.random() * 100000));
+    return `WD${stamp}${suffix}`;
+}
+
+function copyWithdrawalOrderNumber(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+            .then(() => showToast('Order number copied.', 'success'))
+            .catch(() => showToast('Could not copy — please copy it manually.', 'warning'));
+    } else {
+        showToast('Could not copy — please copy it manually.', 'warning');
+    }
+}
+
+// Renders a single withdrawal entry (pending request OR completed
+// redeemHistory record) as a receipt-style card: badge + status, then
+// Amount, XP, Type, Time, and Order number rows.
+function buildWithdrawalHistoryCardHTML(entry) {
+    const isPending = !!entry.status && entry.status !== 'paid';
+    const isOverdue = isPending && entry.payBefore && (entry.payBefore - Date.now()) < 0;
+    const statusLabel = isPending ? (isOverdue ? 'Overdue' : 'Pending') : 'Completed';
+    const statusColor = isPending ? (isOverdue ? 'var(--danger)' : 'var(--warning)') : 'var(--success)';
+    const methodLabel = { upi: 'UPI', bank: 'Bank Card' }[entry.method] || 'UPI';
+    const timeMs = entry.date || entry.paidAt || entry.requestedAt || Date.now();
+    const timeLabel = new Date(timeMs).toLocaleString('en-IN', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    });
+    const orderNumber = formatWithdrawalOrderNumber(entry.id, entry.requestedAt || timeMs);
+    const xpAmount = Number(entry.xpRedeemed || 0);
+
+    return `
+        <div class="wd-history-card">
+            <div class="wd-history-top">
+                <span class="wd-badge">Withdraw</span>
+                <span class="wd-status" style="color:${statusColor};">${statusLabel}</span>
+            </div>
+            <div class="wd-row wd-row-highlight">
+                <span>Amount</span>
+                <strong>${fmtINR(entry.money || 0)}</strong>
+            </div>
+            <div class="wd-row">
+                <span>XP</span>
+                <strong>${xpAmount.toLocaleString('en-IN')} XP</strong>
+            </div>
+            <div class="wd-row">
+                <span>Type</span>
+                <strong>${methodLabel}</strong>
+            </div>
+            <div class="wd-row">
+                <span>Time</span>
+                <strong>${timeLabel}</strong>
+            </div>
+            <div class="wd-row">
+                <span>Order number</span>
+                <span class="wd-order-value">
+                    ${orderNumber}
+                    <button type="button" class="wd-copy-btn" onclick="copyWithdrawalOrderNumber('${orderNumber}')" title="Copy order number"><i class="fa-regular fa-copy"></i></button>
+                </span>
+            </div>
+        </div>`;
+}
+
 // ─── Agent: request an XP withdrawal ────────────────────────────────────────
 function redeemAgentXP(agentId) {
     const a = agentState.find(x => x.id === agentId);
@@ -23,8 +93,9 @@ function redeemAgentXP(agentId) {
 
     if (!confirm(`Request withdrawal of ${preview.redeemableXP.toLocaleString('en-IN')} XP for ${fmtINR(preview.money)}?\n\nA 48-hour processing period will begin. Admin will be notified and will mark payment once sent.`)) return;
 
-    // Deduct XP immediately and create a pending request
-    a.xp = preview.remainingXP;
+    // Deduct from Balance XP immediately and create a pending request.
+    // NEVER touch a.xp here — that's rank-progress XP, not the wallet.
+    a.balanceXP = preview.remainingXP;
     a.xpRedeemRequest = {
         id: genId('xpr'),
         requestedAt: Date.now(),
@@ -85,11 +156,14 @@ function markXPRedeemPaid(requestId) {
         a.redeemedIncome = round2((Number(a.redeemedIncome) || 0) + req.money);
         a.redeemHistory = a.redeemHistory || [];
         a.redeemHistory.unshift({
+            id: req.id,
             date: Date.now(),
+            requestedAt: req.requestedAt || Date.now(),
             xpBefore: req.xpBefore || (req.xpRedeemed + (req.xpAfter || 0)),
             xpRedeemed: req.xpRedeemed,
             money: req.money,
             xpAfter: req.xpAfter || 0,
+            method: req.method || 'upi',
             paidByAdmin: true
         });
     }
@@ -179,6 +253,21 @@ function renderXPWithdrawalRequestsPanel() {
 
 let _withdrawalMethod = 'upi';
 
+// ─── Daily withdrawal limit: agents may withdraw once per calendar day ─────
+const DAILY_WITHDRAWAL_LIMIT = 1;
+
+function getTodayDateStr() {
+    return new Date().toDateString();
+}
+
+function hasReachedDailyWithdrawalLimit(agent) {
+    return !!(agent && agent.lastWithdrawalDate === getTodayDateStr());
+}
+
+function getDailyWithdrawalRemaining(agent) {
+    return hasReachedDailyWithdrawalLimit(agent) ? 0 : DAILY_WITHDRAWAL_LIMIT;
+}
+
 function selectWithdrawalMethod(method) {
     _withdrawalMethod = method;
     document.querySelectorAll('.withdrawal-method-tab').forEach(t => {
@@ -196,44 +285,45 @@ function selectWithdrawalMethod(method) {
         nameEl.textContent = (a && a.upiName) ? a.upiName : (a ? a.name : 'Your Name');
         subEl.textContent = (a && a.upiId) ? a.upiId : 'Set your UPI ID';
     } else if (method === 'bank') {
+        // Prefer bank details already saved in the agent's Profile & KYC —
+        // falls back to a wallet-only override if they've set one there,
+        // so the agent doesn't have to type the same details twice.
+        const bankAcc = (a && (a.bankAccount || a.kyc?.bankAcc)) || '';
+        const bankHolder = (a && (a.bankName || a.kyc?.name)) || (a ? a.name : 'Your Name');
+        const ifsc = (a && a.kyc?.ifsc) || '';
         badge.textContent = 'BANK';
-        nameEl.textContent = (a && a.bankName) ? a.bankName : (a ? a.name : 'Your Name');
-        subEl.textContent = (a && a.bankAccount) ? a.bankAccount : 'Set your bank account';
-    } else if (method === 'usdt') {
-        badge.textContent = 'USDT';
-        nameEl.textContent = 'USDT Wallet';
-        subEl.textContent = (a && a.usdtAddress) ? a.usdtAddress : 'Set your USDT address';
+        nameEl.textContent = bankHolder;
+        subEl.textContent = bankAcc ? (ifsc ? `${bankAcc} · IFSC ${ifsc}` : bankAcc) : 'Set your bank account';
     }
 }
 
+let _withdrawalXP = 0;
+
 function selectWithdrawalPreset(val) {
-    // val is in ₹; display XP equivalent (val * 2) in the input
+    // val is in ₹; store XP equivalent (val * 2) — no typing allowed, selection only
     document.querySelectorAll('.withdrawal-preset-btn').forEach(b => {
         b.classList.toggle('active', Number(b.dataset.preset) === val);
     });
-    const inp = document.getElementById('withdrawalAmtInput');
-    if (inp) { inp.value = val * 2; onWithdrawalAmtInput(); }
+    _withdrawalXP = val * 2;
+    refreshWithdrawalAmount();
 }
 
-function onWithdrawalAmtInput() {
-    document.querySelectorAll('.withdrawal-preset-btn').forEach(b => b.classList.remove('active'));
-    // Input is XP; convert to ₹ silently (2 XP = ₹1)
-    const xpVal = parseFloat(document.getElementById('withdrawalAmtInput')?.value) || 0;
+function refreshWithdrawalAmount() {
+    const xpVal = _withdrawalXP;
     const rupeesVal = xpVal / 2;
+    const valueEl = document.getElementById('withdrawalAmtValue');
     const recv = document.getElementById('withdrawalAmtReceived');
     const btn = document.getElementById('withdrawalSubmitBtn');
+    if (valueEl) {
+        valueEl.textContent = xpVal > 0 ? xpVal.toLocaleString('en-IN') : 'Select an amount above';
+        valueEl.classList.toggle('selected', xpVal > 0);
+    }
     if (recv) recv.textContent = '₹' + rupeesVal.toFixed(2);
     if (btn) {
-        const canProceed = xpVal > 0;
+        const a = (state.user?.role === 'agent') ? agentState.find(x => x.id === state.user.agentId) : null;
+        const canProceed = xpVal > 0 && !hasReachedDailyWithdrawalLimit(a);
         btn.disabled = !canProceed;
         btn.classList.toggle('enabled', canProceed);
-    }
-    // re-check preset highlight (preset data-preset stores ₹ value)
-    const presetRupees = [500,1000,2000,3000,5000,10000,30000,50000].find(v => v === rupeesVal);
-    if (presetRupees) {
-        document.querySelectorAll('.withdrawal-preset-btn').forEach(b => {
-            b.classList.toggle('active', Number(b.dataset.preset) === presetRupees);
-        });
     }
 }
 
@@ -248,15 +338,18 @@ function editWithdrawalAccount() {
     let nameLabel = '';
     let currentName = '';
 
+    let fromProfileNote = '';
     if (method === 'upi') {
         label = 'UPI ID'; placeholder = 'yourname@bank'; currentVal = a.upiId || '';
         nameLabel = 'Name on UPI'; currentName = a.upiName || a.name || '';
     } else if (method === 'bank') {
-        label = 'Bank Account No.'; placeholder = 'XXXX XXXX XXXX'; currentVal = a.bankAccount || '';
-        nameLabel = 'Account Holder Name'; currentName = a.bankName || a.name || '';
-    } else {
-        label = 'USDT Address'; placeholder = 'T...'; currentVal = a.usdtAddress || '';
-        nameLabel = 'Wallet Label'; currentName = a.usdtWalletLabel || 'My USDT Wallet';
+        const kycBankAcc = a.kyc?.bankAcc || '';
+        const kycHolder = a.kyc?.name || '';
+        label = 'Bank Account No.'; placeholder = 'XXXX XXXX XXXX'; currentVal = a.bankAccount || kycBankAcc;
+        nameLabel = 'Account Holder Name'; currentName = a.bankName || kycHolder || a.name || '';
+        if (!a.bankAccount && kycBankAcc) {
+            fromProfileNote = `<p style="font-size:12px;color:var(--text-muted);margin:0 0 4px;"><i class="fa-solid fa-circle-info"></i> Pre-filled from your Profile & KYC${a.kyc?.ifsc ? ` (IFSC ${escapeHTML(a.kyc.ifsc)})` : ''}. Editing here only changes it for withdrawals.</p>`;
+        }
     }
 
     const o = document.createElement('div');
@@ -269,6 +362,7 @@ function editWithdrawalAccount() {
                 <button class="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="modal-body" style="display:grid;gap:12px;">
+                ${fromProfileNote}
                 <div>
                     <label style="font-size:12px;font-weight:700;color:var(--text-muted);">${nameLabel}</label>
                     <input id="editAccName" class="glass-input" style="margin-top:6px;" value="${escapeHTML(currentName)}" placeholder="${escapeHTML(nameLabel)}" />
@@ -289,7 +383,6 @@ function editWithdrawalAccount() {
         if (!newVal) return showToast('Please enter a value.', 'warning');
         if (method === 'upi') { a.upiId = newVal; a.upiName = newName; }
         else if (method === 'bank') { a.bankAccount = newVal; a.bankName = newName; }
-        else { a.usdtAddress = newVal; a.usdtWalletLabel = newName; }
         saveState();
         o.remove();
         selectWithdrawalMethod(method);
@@ -298,15 +391,23 @@ function editWithdrawalAccount() {
 }
 
 function submitWithdrawalRequest() {
-    const xpVal = parseFloat(document.getElementById('withdrawalAmtInput')?.value) || 0;
+    const xpVal = _withdrawalXP;
     const val = xpVal / 2; // 2 XP = ₹1 (hidden conversion)
-    if (xpVal <= 0) return showToast('Enter a valid XP amount.', 'warning');
+    if (xpVal <= 0) return showToast('Select an XP amount to withdraw.', 'warning');
     const a = (state.user?.role === 'agent') ? agentState.find(x => x.id === state.user.agentId) : null;
     if (!a) return showToast('Agent record not found.', 'danger');
 
-    const methodLabel = { upi: 'UPI', bank: 'Bank Card', usdt: 'USDT' }[_withdrawalMethod] || 'UPI';
+    if (hasReachedDailyWithdrawalLimit(a)) {
+        return showToast('Daily withdrawal limit reached. Please try again tomorrow.', 'warning');
+    }
+
+    const methodLabel = { upi: 'UPI', bank: 'Bank Card' }[_withdrawalMethod] || 'UPI';
     const preview = getAgentRedeemPreview(a);
     if (val > preview.money) return showToast(`Max withdrawable is ${fmtINR(preview.money)}.`, 'warning');
+    // Guard against the selected preset exceeding what's actually
+    // redeemable in Balance XP right now (defense-in-depth alongside the
+    // money check above, since presets are fixed steps).
+    if (xpVal > preview.redeemableXP) return showToast(`Max withdrawable is ${preview.redeemableXP.toLocaleString('en-IN')} XP.`, 'warning');
 
     if (!confirm(`Request withdrawal of ₹${val.toFixed(2)} via ${methodLabel}?\n\nAdmin will be notified and will process payment.`)) return;
 
@@ -315,18 +416,25 @@ function submitWithdrawalRequest() {
         return showToast('You already have a pending withdrawal request.', 'warning');
     }
 
+    // Deduct the withdrawn XP from Balance XP immediately (never from
+    // a.xp — that's rank-progress XP, not the wallet).
+    const balanceBefore = preview.xp;
+    const balanceAfter = round2(balanceBefore - xpVal);
+    a.balanceXP = balanceAfter;
+
     // Create the withdrawal request directly
     a.xpRedeemRequest = {
         id: genId('xpr'),
         requestedAt: Date.now(),
         payBefore: Date.now() + XP_COOLDOWN_HOURS * 60 * 60 * 1000,
-        xpRedeemed: preview.redeemableXP,
+        xpRedeemed: xpVal,
         money: val,
         method: _withdrawalMethod,
-        xpBefore: preview.xp,
-        xpAfter: preview.xp,
+        xpBefore: balanceBefore,
+        xpAfter: balanceAfter,
         status: 'pending'
     };
+    a.lastWithdrawalDate = getTodayDateStr();
 
     state.xpRedeemRequests = state.xpRedeemRequests || [];
     state.xpRedeemRequests.unshift({
@@ -335,7 +443,7 @@ function submitWithdrawalRequest() {
         agentName: a.name,
         requestedAt: a.xpRedeemRequest.requestedAt,
         payBefore: a.xpRedeemRequest.payBefore,
-        xpRedeemed: preview.redeemableXP,
+        xpRedeemed: xpVal,
         money: val,
         method: _withdrawalMethod,
         status: 'pending'
@@ -350,8 +458,9 @@ function submitWithdrawalRequest() {
     );
     saveState();
 
-    document.getElementById('withdrawalAmtInput') && (document.getElementById('withdrawalAmtInput').value = '');
-    onWithdrawalAmtInput();
+    _withdrawalXP = 0;
+    document.querySelectorAll('.withdrawal-preset-btn').forEach(b => b.classList.remove('active'));
+    refreshWithdrawalAmount();
 
     renderXPWithdrawalRequestsPanel();
     updateXPWithdrawalBadge();

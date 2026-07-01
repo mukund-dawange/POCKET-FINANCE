@@ -419,7 +419,8 @@ function showAddAgentModal() {
             { id: 'username', label: 'Login ID', required: true, placeholder: 'e.g. priya.agent' },
             { id: 'password', label: 'Password', type: 'password', required: true, placeholder: 'Minimum 6 characters' },
             { id: 'fund', label: 'Initial Fund Allocation (₹)', type: 'number', required: true, min: 0, step: '0.01', placeholder: '0.00' },
-            { id: 'source', label: 'Give From', type: 'select', options: [{ value: 'cash', label: 'Cash Vault' }, { value: 'online', label: 'Online Funds' }] }
+            { id: 'source', label: 'Give From', type: 'select', options: [{ value: 'cash', label: 'Cash Vault' }, { value: 'online', label: 'Online Funds' }] },
+            { id: 'dm', label: `Give DM (1 DM = ${fmtINR(DM_TO_RUPEE_RATE)})`, type: 'number', required: false, min: 0, step: '1', placeholder: '0', help: 'Deposit Money credited to this agent right away — separate from their lending fund.' }
         ],
         onSubmit: (v) => {
             const fund = parseFloat(v.fund) || 0;
@@ -436,11 +437,16 @@ function showAddAgentModal() {
             }
             // Auto-assign Level 1 (No Rank) and set allocatedAmount = fund
             const firstLevel = typeof sortedLevelDefs === 'function' ? sortedLevelDefs()[0] : null;
-            agentState.push({ id: genId('agent'), name: v.name, username: v.username, password: v.password, fund, createdAt: Date.now(), levelId: firstLevel?.id || '', allocatedAmount: fund, xp: 0 });
-            addAudit('Agent created', `Agent "${v.name}" (${v.username}) created with ${fmtINR(fund)} from ${v.source}`);
+            const dmVal = Math.max(0, Math.floor(Number(v.dm) || 0));
+            const newAgent = { id: genId('agent'), name: v.name, username: v.username, password: v.password, fund, createdAt: Date.now(), levelId: firstLevel?.id || '', allocatedAmount: fund, xp: 0, dm: dmVal, dmHistory: [] };
+            if (dmVal > 0) {
+                newAgent.dmHistory.push({ date: Date.now(), amount: dmVal, note: 'Account creation', by: state.user?.username || 'admin' });
+            }
+            agentState.push(newAgent);
+            addAudit('Agent created', `Agent "${v.name}" (${v.username}) created with ${fmtINR(fund)} from ${v.source}${dmVal > 0 ? ` and ${dmVal} DM (${fmtINR(dmVal * DM_TO_RUPEE_RATE)})` : ''}`);
             saveState();
             renderAll();
-            showToast(`Agent "${v.name}" created with ${fmtINR(fund)} allocated.`, 'success');
+            showToast(`Agent "${v.name}" created with ${fmtINR(fund)} allocated${dmVal > 0 ? ` and ${dmVal} DM` : ''}.`, 'success');
         }
     });
 }
@@ -470,8 +476,10 @@ function renderAgentManager() {
             <small>Login ID: ${escapeHTML(a.username)}${a.disabled ? ' · <span style="color:#ef4444;">Disabled</span>' : ''}</small>
             ${kycBadge(a)}
             <div class="agent-fund-amt">${fmtINR(a.fund)}</div>
+            <small style="display:block;margin-top:2px;color:#7c3aed;font-weight:700;"><i class="fa-solid fa-gem"></i> ${fmtDM(a.dm)} DM (${fmtINR((Number(a.dm) || 0) * DM_TO_RUPEE_RATE)})</small>
             <div class="agent-card-actions">
                 <button class="btn-friendly-primary compact" data-give="${a.id}"><i class="fa-solid fa-money-bill-transfer"></i> Give Fund</button>
+                <button class="btn-friendly-secondary compact" data-give-dm="${a.id}"><i class="fa-solid fa-gem"></i> Give DM</button>
                 <button class="btn-friendly-secondary compact" data-allocate="${a.id}"><i class="fa-solid fa-bullseye"></i> Allocation</button>
                 <button class="btn-friendly-secondary compact" data-edit="${a.id}"><i class="fa-solid fa-key"></i> Edit Login</button>
                 <button class="btn-friendly-secondary compact" data-toggle="${a.id}"><i class="fa-solid fa-power-off"></i> ${a.disabled ? 'Enable' : 'Disable'}</button>
@@ -481,10 +489,37 @@ function renderAgentManager() {
         </div>
     `).join('');
     root.querySelectorAll('[data-give]').forEach(b => b.onclick = () => giveAgentFund(b.dataset.give));
+    root.querySelectorAll('[data-give-dm]').forEach(b => b.onclick = () => giveAgentDM(b.dataset.giveDm));
     root.querySelectorAll('[data-allocate]').forEach(b => b.onclick = () => showSetAllocationModal(b.dataset.allocate));
     root.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editAgentLogin(b.dataset.edit));
     root.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => toggleAgent(b.dataset.toggle));
     root.querySelectorAll('[data-delete]').forEach(b => b.onclick = () => deleteAgent(b.dataset.delete));
+}
+
+function giveAgentDM(id) {
+    const a = agentState.find(x => x.id === id);
+    if (!a) return;
+    showFormModal({
+        title: `Give DM — ${a.name}`,
+        icon: 'fa-gem',
+        submitLabel: 'Give DM',
+        intro: `Current balance: ${fmtDM(a.dm)} DM (${fmtINR((Number(a.dm) || 0) * DM_TO_RUPEE_RATE)}). 1 DM = ${fmtINR(DM_TO_RUPEE_RATE)}.`,
+        fields: [
+            { id: 'amount', label: 'DM to Give', type: 'number', required: true, min: 1, step: '1', placeholder: '0' },
+            { id: 'note', label: 'Reason (optional)', placeholder: 'e.g. Bonus, festival gift, etc.' }
+        ],
+        onSubmit: (v) => {
+            const amt = Math.floor(Number(v.amount) || 0);
+            if (!amt || amt <= 0) return showToast('Enter a valid DM amount.', 'danger');
+            a.dm = Math.floor((Number(a.dm) || 0) + amt);
+            a.dmHistory = a.dmHistory || [];
+            a.dmHistory.unshift({ date: Date.now(), amount: amt, note: v.note || 'Manual grant', by: state.user?.username || 'admin' });
+            addAudit('DM given', `${amt} DM (${fmtINR(amt * DM_TO_RUPEE_RATE)}) given to agent "${a.name}"${v.note ? ` — ${v.note}` : ''}`);
+            saveState();
+            renderAll();
+            showToast(`${amt} DM (${fmtINR(amt * DM_TO_RUPEE_RATE)}) given to ${a.name}.`, 'success');
+        }
+    });
 }
 
 function giveAgentFund(id) {
@@ -651,6 +686,7 @@ function devWipeAgentData() {
             agent.collectionPool    = 0;
             agent.incomeEarned      = 0;
             agent.xp                = 0;
+            agent.balanceXP         = 0;
             agent.incomeHistory     = [];
             agent.redeemHistory     = [];
             agent.upgradeRequest    = null;
@@ -1039,7 +1075,7 @@ function initLoanActions() {
         const isAgent = state.user?.role === 'agent';
         const me = isAgent ? agentState.find(a=>a.id===state.user.agentId) : null;
         const fields=[
-            {id:'name',label:'Client Name',required:true,placeholder:'e.g. Mukul Sharma'},{id:'phone',label:'Phone Number',required:true,placeholder:'10-digit mobile number'},
+            {id:'name',label:'Client Name',required:true,placeholder:'e.g. Mukul Sharma'},{id:'phone',label:'Phone Number',required:true,type:'tel',numeric:true,maxlength:10,placeholder:'10-digit mobile number'},
             {id:'email',label:'Email',type:'email',placeholder:'Optional'},{id:'guarantor',label:'Guarantor',placeholder:'Name or phone (optional)'},
             {id:'amount',label:'Loan Amount (₹)',type:'number',required:true,min:1,step:'0.01',placeholder:'e.g. 10,000'},{id:'rate',label:'Interest Rate (%)',type:'number',required:true,min:0,step:'0.01',placeholder:'e.g. 5'},
             {id:'payType',label:'Payment Cycle',type:'select',options:[{value:'Monthly',label:'Monthly'},{value:'Weekly',label:'Weekly'},{value:'Daily',label:'Daily'}]},
@@ -1053,9 +1089,18 @@ function initLoanActions() {
         }
         showFormModal({title:'Create New Loan',icon:'fa-hand-holding-dollar',submitLabel:'Create Loan',wide:true,intro:'Enter the customer and loan details. The due date and total payable amount will be calculated automatically.',fields,onSubmit:v=>{
             const amount=Number(v.amount),rate=Number(v.rate)||0,tenure=Number(v.tenure);
-            if(!v.name||!amount||!tenure)return showToast('Complete all required fields.','danger');
-            if(!/^\d{10}$/.test(v.phone||''))return showToast('Enter a valid 10 digit phone number.','danger');
-            if(!v.loanDate)return showToast('Select a loan date.','danger');
+
+            // Field-by-field validation: any wrong/missing entry gets a red
+            // box + message right on that field instead of a plain toast,
+            // and nothing already typed is ever cleared or lost.
+            let hasError=false;
+            if(!v.name){markFieldError('name','Client name is required.');hasError=true;}
+            if(!/^\d{10}$/.test(v.phone||'')){markFieldError('phone','Enter a valid 10-digit phone number.');hasError=true;}
+            if(!amount||amount<=0){markFieldError('amount','Enter a valid loan amount.');hasError=true;}
+            if(!v.rate||rate<0){markFieldError('rate','Enter a valid interest rate.');hasError=true;}
+            if(!tenure||tenure<=0){markFieldError('tenure','Enter the number of payments.');hasError=true;}
+            if(!v.loanDate){markFieldError('loanDate','Select a loan date.');hasError=true;}
+            if(hasError)return showToast('Please fix the highlighted fields.','danger');
 
             let agentId = null;
             if (isAgent) {
@@ -1211,10 +1256,12 @@ function showNoteModal(note) {
 function editLoan(id) {
     const l=state.loans.find(x=>x.id===id);if(!l)return;normaliseLoan(l);
     const isAdmin=state.user?.role!=='agent';
-    const fields=[{id:'name',label:'Client Name',required:true,value:l.name},{id:'phone',label:'Phone',required:true,value:l.phone||''},{id:'email',label:'Email',type:'email',value:l.email||''},{id:'guarantor',label:'Guarantor',value:l.guarantor||''}];
+    const fields=[{id:'name',label:'Client Name',required:true,value:l.name},{id:'phone',label:'Phone',required:true,type:'tel',numeric:true,maxlength:10,value:l.phone||''},{id:'email',label:'Email',type:'email',value:l.email||''},{id:'guarantor',label:'Guarantor',value:l.guarantor||''}];
     if (isAdmin) fields.push({id:'loanDate',label:'Loan Date',type:'date',value:(l.sanctionDate||'').slice(0,10),help:'Admin-only — changes when this loan was issued and recalculates the due date.'});
     fields.push({id:'dueDate',label:'Due Date',type:'date',value:l.dueDate||''});
     showFormModal({title:`Edit ${l.name}`,icon:'fa-pen',submitLabel:'Save Changes',wide:true,fields,onSubmit:v=>{
+        if(!v.name){markFieldError('name','Client name is required.');return showToast('Please fix the highlighted fields.','danger');}
+        if(!/^\d{10}$/.test(v.phone||'')){markFieldError('phone','Enter a valid 10-digit phone number.');return showToast('Please fix the highlighted fields.','danger');}
         l.name=v.name||l.name;l.phone=v.phone||l.phone;l.email=v.email;l.guarantor=v.guarantor;
         if (isAdmin && v.loanDate) {
             l.sanctionDate=new Date(v.loanDate).toISOString();
